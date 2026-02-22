@@ -1,0 +1,1 @@
+UPDATE public.events SET max_attendees = 500 WHERE event_code = 'ACQFH-2026';
