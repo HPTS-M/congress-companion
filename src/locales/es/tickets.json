@@ -1,0 +1,20 @@
+{
+  "title": "Tickets",
+  "subtitle": "Servicios contratados",
+  "summary": {
+    "pending": "{{count}} Pendientes",
+    "used": "{{count}} Usados"
+  },
+  "filter": {
+    "all": "Todos",
+    "pending": "Pendientes",
+    "used": "Usados"
+  },
+  "noTickets": "No tienes servicios contratados",
+  "serviceType": {
+    "transport": "Transporte",
+    "food": "Alimentación",
+    "special": "Especial",
+    "tour": "Tour"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "login": {
+    "title": "Panel de Administración",
+    "subtitle": "Acceso para organizadores",
+    "email": "Correo electrónico",
+    "emailPlaceholder": "admin@ejemplo.com",
+    "password": "Contraseña",
+    "passwordPlaceholder": "Tu contraseña",
+    "submit": "Iniciar sesión",
+    "error": "Credenciales inválidas",
+    "noAccess": "No tienes acceso a este evento",
+    "loggingIn": "Iniciando sesión..."
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "eventConfig": "Configuración",
+    "users": "Usuarios",
+    "agenda": "Agenda",
+    "documents": "Documentos",
+    "tickets": "Tickets",
+    "sponsors": "Patrocinadores",
+    "communications": "Comunicaciones",
+    "reports": "Reportes"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "totalAttendees": "Total Asistentes",
+    "confirmedAttendees": "Confirmados",
+    "checkedIn": "Check-ins",
+    "totalActivities": "Actividades"
+  }
+}

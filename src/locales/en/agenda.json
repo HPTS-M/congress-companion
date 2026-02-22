@@ -1,0 +1,22 @@
+{
+  "title": "Agenda",
+  "subtitle": "Event program",
+  "daySelector": "Day {{number}}",
+  "noSessions": "No sessions for this day",
+  "session": {
+    "meInteresa": "Interested",
+    "teInteresa": "You're interested",
+    "pending": "Pending",
+    "confirmed": "Confirmed",
+    "certificate": "Certificate",
+    "speaker": "Speaker",
+    "room": "Room",
+    "interests": "{{count}} interested"
+  },
+  "type": {
+    "conference": "Conference",
+    "workshop": "Workshop",
+    "break": "Break",
+    "plenary": "Plenary"
+  }
+}

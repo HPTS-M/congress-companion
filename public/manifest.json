@@ -1,0 +1,18 @@
+{
+  "name": "CONGRÉSSAPP",
+  "short_name": "CongressApp",
+  "description": "Gestión de asistentes en congresos médicos",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#1A56A0",
+  "background_color": "#FFFFFF",
+  "start_url": "/",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ]
+}

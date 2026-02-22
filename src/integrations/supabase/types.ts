@@ -152,6 +152,7 @@ export type Database = {
       }
       attendees: {
         Row: {
+          access_code_hash: string | null
           check_in_date: string | null
           created_at: string | null
           credential_code: string
@@ -171,6 +172,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          access_code_hash?: string | null
           check_in_date?: string | null
           created_at?: string | null
           credential_code: string
@@ -190,6 +192,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          access_code_hash?: string | null
           check_in_date?: string | null
           created_at?: string | null
           credential_code?: string
