@@ -1,8 +1,10 @@
 {
-  "title": "Comercial",
-  "subtitle": "Directorio de patrocinadores",
+  "title": "Área Comercial",
+  "subtitle": "Patrocinadores y expositores",
   "searchPlaceholder": "Buscar patrocinador...",
-  "noSponsors": "No hay patrocinadores registrados",
+  "allCategories": "Todos",
+  "noSponsors": "No se encontraron patrocinadores",
+  "viewMore": "Ver más",
   "level": {
     "gold": "Oro",
     "silver": "Plata",
@@ -19,8 +21,9 @@
   },
   "detail": {
     "stand": "Stand",
-    "website": "Sitio web",
-    "materials": "Materiales",
-    "contact": "Contacto"
+    "website": "Visitar sitio web",
+    "materials": "Descargar materiales",
+    "contact": "Contactar",
+    "back": "Volver"
   }
 }
