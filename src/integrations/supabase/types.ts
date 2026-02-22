@@ -101,13 +101,6 @@ export type Database = {
             referencedRelation: "attendees"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "attendee_checkins_attendee_id_fkey"
-            columns: ["attendee_id"]
-            isOneToOne: false
-            referencedRelation: "attendees_safe"
-            referencedColumns: ["id"]
-          },
         ]
       }
       attendee_services: {
@@ -153,13 +146,6 @@ export type Database = {
             columns: ["attendee_id"]
             isOneToOne: false
             referencedRelation: "attendees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attendee_services_attendee_id_fkey"
-            columns: ["attendee_id"]
-            isOneToOne: false
-            referencedRelation: "attendees_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -876,81 +862,7 @@ export type Database = {
       }
     }
     Views: {
-      attendees_safe: {
-        Row: {
-          check_in_date: string | null
-          created_at: string | null
-          credential_code: string | null
-          deleted_at: string | null
-          document_number: string | null
-          document_type: string | null
-          email: string | null
-          event_id: string | null
-          full_name: string | null
-          id: string | null
-          notes: string | null
-          phone: string | null
-          registration_date: string | null
-          registration_status: string | null
-          selected_package_id: string | null
-          updated_at: string | null
-          user_id: string | null
-        }
-        Insert: {
-          check_in_date?: string | null
-          created_at?: string | null
-          credential_code?: string | null
-          deleted_at?: string | null
-          document_number?: string | null
-          document_type?: string | null
-          email?: string | null
-          event_id?: string | null
-          full_name?: string | null
-          id?: string | null
-          notes?: string | null
-          phone?: string | null
-          registration_date?: string | null
-          registration_status?: string | null
-          selected_package_id?: string | null
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          check_in_date?: string | null
-          created_at?: string | null
-          credential_code?: string | null
-          deleted_at?: string | null
-          document_number?: string | null
-          document_type?: string | null
-          email?: string | null
-          event_id?: string | null
-          full_name?: string | null
-          id?: string | null
-          notes?: string | null
-          phone?: string | null
-          registration_date?: string | null
-          registration_status?: string | null
-          selected_package_id?: string | null
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "attendees_event_id_fkey"
-            columns: ["event_id"]
-            isOneToOne: false
-            referencedRelation: "events"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attendees_selected_package_id_fkey"
-            columns: ["selected_package_id"]
-            isOneToOne: false
-            referencedRelation: "event_packages"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
+      [_ in never]: never
     }
     Functions: {
       create_attendee_credential: {
