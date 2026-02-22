@@ -23,6 +23,7 @@ export default function SponsorDetail() {
   const { sponsorId } = useParams<{ sponsorId: string }>();
   const navigate = useNavigate();
   const eventSlug = useEventSlug();
+  const { event } = useEvent();
   const { data: sponsor, isLoading } = useSponsor(sponsorId ?? '');
 
   if (isLoading) {
@@ -114,7 +115,11 @@ export default function SponsorDetail() {
           </Button>
         )}
         {sponsor.whatsapp && (
-          <Button variant="outline" className="w-full" onClick={() => window.open(`https://wa.me/${sponsor.whatsapp}`, '_blank')}>
+          <Button variant="outline" className="w-full" onClick={() => {
+            const message = sponsor.whatsapp_message || 
+              `Hola, te contacto desde el ${event?.name ?? ''}. Me interesa conocer más sobre ${sponsor.name}.`;
+            window.open(`https://wa.me/${sponsor.whatsapp}?text=${encodeURIComponent(message)}`, '_blank');
+          }}>
             <MessageCircle className="h-4 w-4" />
             {t('detail.whatsapp')}
           </Button>

@@ -1,0 +1,1 @@
+UPDATE public.sponsors SET whatsapp_message = 'Hola, los visite en el XIII Congreso de Farmacia Hospitalaria y me gustaria obtener mas informacion sobre sus soluciones.' WHERE name = 'Vitalis Pharmaceuticals';
