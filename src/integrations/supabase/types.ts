@@ -1216,8 +1216,13 @@ export type Database = {
           logo_url: string | null
           materials_url: string | null
           name: string
+          social_instagram: string | null
+          social_linkedin: string | null
+          social_twitter: string | null
           stand_location: string | null
+          video_url: string | null
           website_url: string | null
+          whatsapp: string | null
         }
         Insert: {
           category: string
@@ -1230,8 +1235,13 @@ export type Database = {
           logo_url?: string | null
           materials_url?: string | null
           name: string
+          social_instagram?: string | null
+          social_linkedin?: string | null
+          social_twitter?: string | null
           stand_location?: string | null
+          video_url?: string | null
           website_url?: string | null
+          whatsapp?: string | null
         }
         Update: {
           category?: string
@@ -1244,8 +1254,13 @@ export type Database = {
           logo_url?: string | null
           materials_url?: string | null
           name?: string
+          social_instagram?: string | null
+          social_linkedin?: string | null
+          social_twitter?: string | null
           stand_location?: string | null
+          video_url?: string | null
           website_url?: string | null
+          whatsapp?: string | null
         }
         Relationships: [
           {

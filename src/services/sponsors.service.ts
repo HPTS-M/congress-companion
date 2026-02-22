@@ -14,6 +14,11 @@ export interface Sponsor {
   website_url: string | null;
   materials_url: string | null;
   contact_email: string | null;
+  whatsapp: string | null;
+  video_url: string | null;
+  social_linkedin: string | null;
+  social_instagram: string | null;
+  social_twitter: string | null;
   created_at: string | null;
 }
 

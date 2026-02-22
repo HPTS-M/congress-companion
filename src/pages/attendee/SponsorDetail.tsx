@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, MapPin, Globe, Download, Mail } from 'lucide-react';
+import { ArrowLeft, MapPin, Globe, Download, Mail, MessageCircle, Video, Linkedin, Instagram, Twitter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
