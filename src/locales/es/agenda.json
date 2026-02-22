@@ -3,6 +3,8 @@
   "subtitle": "Programa del evento",
   "daySelector": "Día {{number}}",
   "noSessions": "No hay sesiones para este día",
+  "error": "Error cargando la agenda",
+  "retry": "Reintentar",
   "session": {
     "meInteresa": "Me interesa",
     "teInteresa": "Te interesa",
