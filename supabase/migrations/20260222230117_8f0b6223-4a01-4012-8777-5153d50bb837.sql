@@ -1,0 +1,2 @@
+UPDATE public.sponsors SET whatsapp = '573001234567', social_linkedin = 'https://linkedin.com/company/vitalis', social_instagram = 'https://instagram.com/vitalis' WHERE id = '47f127aa-61a1-4359-8a2b-874c61c12b4c';
+UPDATE public.sponsors SET video_url = 'https://youtube.com/watch?v=example', social_twitter = 'https://x.com/cslbehring', whatsapp = '573009876543' WHERE id = '04a8f81e-ee0e-4ef3-8c72-18b3625833f6';
