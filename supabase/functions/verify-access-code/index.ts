@@ -130,7 +130,8 @@ Deno.serve(async (req) => {
 
     for (const att of (attendees || [])) {
       try {
-        const isMatch = await bcrypt.compare(normalizedCode, att.access_code_hash!);
+        // Use compareSync — async compare uses Workers which are unavailable in edge runtime
+        const isMatch = bcrypt.compareSync(normalizedCode, att.access_code_hash!);
         if (isMatch) {
           matchedAttendee = att;
           break;
