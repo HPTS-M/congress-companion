@@ -1,11 +1,24 @@
 {
   "title": "Check-in",
-  "subtitle": "Record your attendance",
+  "subtitle": "Validate your attendance",
+  "scanTitle": "Scan Activity QR",
+  "scanSubtitle": "Scan the QR shown at the end of the session",
   "scanButton": "Scan Activity QR",
+  "stopScan": "Stop Scanning",
   "simulateScan": "Simulate Scan",
-  "cameraPlaceholder": "Camera will activate here",
+  "cameraPlaceholder": "Camera will open here",
   "success": "Check-in recorded successfully!",
+  "successWithTitle": "✅ Attendance recorded: {{title}}",
   "alreadyCheckedIn": "You already checked in to this activity",
   "error": "Check-in error",
-  "score": "Score: {{score}}%"
+  "invalidQr": "Invalid QR code",
+  "wrongEvent": "This QR does not belong to this event",
+  "score": "Score: {{score}}%",
+  "recentTitle": "Recent Check-ins",
+  "checkedInAt": "Checked in at {{time}}",
+  "noRecentCheckins": "No check-ins recorded yet",
+  "simulatePrompt": "Select an activity to simulate check-in",
+  "selectActivity": "Select activity",
+  "confirm": "Confirm Check-in",
+  "cancel": "Cancel"
 }

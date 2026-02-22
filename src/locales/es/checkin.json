@@ -1,11 +1,24 @@
 {
   "title": "Check-in",
-  "subtitle": "Registra tu asistencia",
+  "subtitle": "Valida tu asistencia",
+  "scanTitle": "Escanear QR de Actividad",
+  "scanSubtitle": "Escanea el QR mostrado al final de la charla",
   "scanButton": "Escanear QR de Actividad",
+  "stopScan": "Detener Escaneo",
   "simulateScan": "Simular Escaneo",
-  "cameraPlaceholder": "La cámara se activará aquí",
+  "cameraPlaceholder": "La cámara se abrirá aquí",
   "success": "¡Check-in registrado exitosamente!",
+  "successWithTitle": "✅ Asistencia registrada: {{title}}",
   "alreadyCheckedIn": "Ya registraste tu asistencia a esta actividad",
   "error": "Error al registrar check-in",
-  "score": "Puntuación: {{score}}%"
+  "invalidQr": "Código QR no válido",
+  "wrongEvent": "Este QR no pertenece a este evento",
+  "score": "Puntuación: {{score}}%",
+  "recentTitle": "Check-ins Recientes",
+  "checkedInAt": "Registrado a las {{time}}",
+  "noRecentCheckins": "Aún no tienes check-ins registrados",
+  "simulatePrompt": "Selecciona una actividad para simular el check-in",
+  "selectActivity": "Seleccionar actividad",
+  "confirm": "Confirmar Check-in",
+  "cancel": "Cancelar"
 }
