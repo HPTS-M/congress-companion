@@ -99,6 +99,12 @@ export default function SponsorDetail() {
             {t('detail.materials')}
           </Button>
         )}
+        {sponsor.video_url && (
+          <Button variant="outline" className="w-full" onClick={() => window.open(sponsor.video_url!, '_blank')}>
+            <Video className="h-4 w-4" />
+            {t('detail.video')}
+          </Button>
+        )}
         {sponsor.contact_email && (
           <Button variant="outline" className="w-full" asChild>
             <a href={`mailto:${sponsor.contact_email}`}>
@@ -107,7 +113,37 @@ export default function SponsorDetail() {
             </a>
           </Button>
         )}
+        {sponsor.whatsapp && (
+          <Button variant="outline" className="w-full" onClick={() => window.open(`https://wa.me/${sponsor.whatsapp}`, '_blank')}>
+            <MessageCircle className="h-4 w-4" />
+            {t('detail.whatsapp')}
+          </Button>
+        )}
       </div>
+
+      {/* Social Links */}
+      {(sponsor.social_linkedin || sponsor.social_instagram || sponsor.social_twitter) && (
+        <div className="pt-2">
+          <p className="text-xs text-muted-foreground mb-2">{t('detail.social')}</p>
+          <div className="flex gap-3">
+            {sponsor.social_linkedin && (
+              <Button variant="outline" size="icon" onClick={() => window.open(sponsor.social_linkedin!, '_blank')}>
+                <Linkedin className="h-4 w-4" />
+              </Button>
+            )}
+            {sponsor.social_instagram && (
+              <Button variant="outline" size="icon" onClick={() => window.open(sponsor.social_instagram!, '_blank')}>
+                <Instagram className="h-4 w-4" />
+              </Button>
+            )}
+            {sponsor.social_twitter && (
+              <Button variant="outline" size="icon" onClick={() => window.open(sponsor.social_twitter!, '_blank')}>
+                <Twitter className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
