@@ -1,43 +1,42 @@
 
 
-# Fix Remaining Security Issues
+# Fix .env Security Warning
 
-## 1. service_tickets — Already Has RLS (No Migration Needed)
+## Changes
 
-The `service_tickets` table already has complete RLS policies from a previous migration:
-- `block_anon_access` (RESTRICTIVE, anon, false)
-- `Attendees can view own tickets` (SELECT via attendee_services JOIN attendees)
-- `Authenticated read own service tickets` (SELECT, same pattern)
-- `Event staff can manage tickets` (ALL, coordinator/field_manager with event_staff check)
-- `Superusers can manage all tickets` (ALL)
+### 1. Update `.gitignore` — Add environment file exclusions
 
-The user's proposed SQL references columns that don't exist (`attendee_id`, `service_id`). The actual column is `attendee_service_id`, and existing policies already handle this correctly via JOINs. **No migration needed.**
+Add the following lines after the existing `*.local` entry:
 
-## 2. .env — Add to .gitignore
+```
+# Environment files
+.env
+.env.local
+.env.*.local
+!.env.example
+```
 
-Add `.env` and `.env.*` (except `.env.example`) to `.gitignore` to prevent secrets from being committed.
+### 2. Update `.env.example` — Replace with correct placeholder variables
 
-Also create `.env.example` with placeholder values for documentation.
+Replace current contents with:
 
-## 3. RPC Functions — Frontend Usage Report
+```
+VITE_SUPABASE_URL=your_supabase_url_here
+VITE_SUPABASE_ANON_KEY=your_anon_key_here
+VITE_DEV_MODE=false
+VITE_VAPID_PUBLIC_KEY=your_vapid_key_here
+```
 
-Functions called from the frontend code:
-- `get_user_roles(_user_id)` — used in `useAuth.tsx` and `auth.service.ts` for role checking
-- `is_event_staff(_user_id, _event_id)` — used in `auth.service.ts` to verify admin event access
+No real keys, just descriptive placeholders.
 
-Both functions exist in the database as `SECURITY DEFINER` functions with `search_path = public`, which is correct.
+### 3. Post-fix
 
-## 4. Post-Fix Security Scan
-
-Run security scan after applying changes to confirm 0 errors.
+Run security scan to confirm 0 errors and 0 warnings. If clean, Phase 3 is complete and we proceed to Phase 4 (Agenda page).
 
 ---
 
-### Technical Changes
+### Notes
 
-| File | Change |
-|---|---|
-| `.gitignore` | Add `.env`, `.env.local`, `.env.*.local` |
-| `.env.example` (new) | Create with placeholder values for `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID` |
-| No migration | `service_tickets` already fully protected |
+- The `.env` file with real Supabase keys currently exists in the repo. Adding it to `.gitignore` prevents future commits but does not remove it from git history. Removing from history requires `git filter-branch` or BFG Repo Cleaner, which is outside Lovable's scope. The keys are the public anon key (safe to expose) so this is low risk.
+- The `VITE_SUPABASE_PUBLISHABLE_KEY` variable in the current `.env` will be renamed to `VITE_SUPABASE_ANON_KEY` in the example to match project guidelines.
 
