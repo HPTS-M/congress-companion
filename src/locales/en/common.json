@@ -57,7 +57,8 @@
     "showToStaff": "Show this code to event staff",
     "eventInfo": "Event Info",
     "dateRange": "{{start}} — {{end}}",
-    "attendeeCount": "{{count}} attendees"
+    "attendeeCount": "{{count}} attendees",
+    "packageFallback": "Attendee"
   },
   "notifications": {
     "title": "Notifications",

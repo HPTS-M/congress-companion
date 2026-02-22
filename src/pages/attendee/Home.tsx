@@ -21,7 +21,7 @@ export default function Home() {
       <div className="relative bg-primary px-4 py-5">
         <p className="text-lg font-bold text-primary-foreground">{attendee?.full_name}</p>
         <p className="text-sm text-primary-foreground/80">
-          {attendee?.selected_package_id ? attendee.selected_package_id : ''}
+          {attendee?.selected_package_id ? attendee.selected_package_id : t('home.packageFallback')}
         </p>
         {attendee?.registration_status === 'confirmed' && (
           <span className="absolute right-4 top-5 rounded-full bg-accent px-3 py-0.5 text-xs font-medium text-accent-foreground">
@@ -31,7 +31,7 @@ export default function Home() {
       </div>
 
       {/* QR Card */}
-      <div className="mx-4 -mt-4 flex flex-col items-center rounded-lg bg-card p-6 shadow-md">
+      <div className="mx-4 -mt-4 flex flex-col items-center rounded-lg bg-card px-6 py-8 shadow-md">
         {event?.settings && typeof event.settings === 'object' && 'logo_url' in event.settings && (
           <img
             src={event.settings.logo_url as string}
@@ -75,7 +75,7 @@ export default function Home() {
 
           <div className="flex items-center gap-3 text-sm text-foreground">
             <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span>{t('home.attendeeCount', { count: 0 })}</span>
+            <span>{t('home.attendeeCount', { count: event?.max_attendees ?? 0 })}</span>
           </div>
         </div>
       </div>

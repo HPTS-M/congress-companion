@@ -21,7 +21,7 @@ export function useEventLoader(eventSlug: string) {
     queryFn: async (): Promise<CongressEvent> => {
       const { data, error } = await supabase
         .from('events')
-        .select('id, name, event_code, start_date, end_date, venue_name, venue_address, description, status, settings, organization_id')
+        .select('id, name, event_code, start_date, end_date, venue_name, venue_address, description, status, settings, organization_id, max_attendees')
         .eq('event_code', eventSlug)
         .is('deleted_at', null)
         .single();
