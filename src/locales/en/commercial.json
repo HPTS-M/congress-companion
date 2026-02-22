@@ -1,0 +1,26 @@
+{
+  "title": "Commercial",
+  "subtitle": "Sponsor directory",
+  "searchPlaceholder": "Search sponsor...",
+  "noSponsors": "No sponsors registered",
+  "level": {
+    "gold": "Gold",
+    "silver": "Silver",
+    "bronze": "Bronze",
+    "exhibitor": "Exhibitor"
+  },
+  "category": {
+    "pharmaceutical": "Pharmaceutical",
+    "technology": "Technology",
+    "medical_equipment": "Medical Equipment",
+    "services": "Services",
+    "education": "Education",
+    "other": "Other"
+  },
+  "detail": {
+    "stand": "Stand",
+    "website": "Website",
+    "materials": "Materials",
+    "contact": "Contact"
+  }
+}

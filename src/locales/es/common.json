@@ -1,0 +1,58 @@
+{
+  "appName": "CONGRÉSSAPP",
+  "loading": "Cargando...",
+  "error": "Ha ocurrido un error",
+  "retry": "Reintentar",
+  "save": "Guardar",
+  "cancel": "Cancelar",
+  "confirm": "Confirmar",
+  "delete": "Eliminar",
+  "edit": "Editar",
+  "close": "Cerrar",
+  "search": "Buscar...",
+  "noResults": "Sin resultados",
+  "back": "Volver",
+  "next": "Siguiente",
+  "submit": "Enviar",
+  "logout": "Cerrar sesión",
+  "language": "Idioma",
+  "status": {
+    "confirmed": "Confirmado",
+    "pending": "Pendiente",
+    "used": "Usado",
+    "cancelled": "Cancelado"
+  },
+  "nav": {
+    "home": "Inicio",
+    "agenda": "Agenda",
+    "checkin": "Check-in",
+    "tickets": "Tickets",
+    "commercial": "Comercial",
+    "contacts": "Contactos",
+    "documents": "Documentos",
+    "notes": "Notas",
+    "messaging": "Mensajería",
+    "announcements": "Anuncios",
+    "ratings": "Calificaciones",
+    "profile": "Mi Perfil"
+  },
+  "auth": {
+    "enterEventCode": "Ingresa el código de tu evento",
+    "eventCodePlaceholder": "Ej: MEDCONG2026",
+    "accessEvent": "Acceder al evento",
+    "accessCode": "Código de acceso",
+    "accessCodePlaceholder": "Ingresa tu código de 8 caracteres",
+    "login": "Iniciar sesión",
+    "scanQr": "Escanear QR",
+    "invalidCode": "Código de acceso inválido",
+    "eventNotFound": "Evento no encontrado",
+    "registrationCancelled": "Tu registro ha sido cancelado",
+    "welcomeBack": "¡Bienvenido de vuelta!",
+    "loggingIn": "Iniciando sesión...",
+    "or": "o"
+  },
+  "notifications": {
+    "title": "Notificaciones",
+    "empty": "No tienes notificaciones"
+  }
+}

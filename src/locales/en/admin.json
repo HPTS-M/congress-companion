@@ -1,0 +1,32 @@
+{
+  "login": {
+    "title": "Admin Panel",
+    "subtitle": "Organizer access",
+    "email": "Email address",
+    "emailPlaceholder": "admin@example.com",
+    "password": "Password",
+    "passwordPlaceholder": "Your password",
+    "submit": "Log in",
+    "error": "Invalid credentials",
+    "noAccess": "You do not have access to this event",
+    "loggingIn": "Logging in..."
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "eventConfig": "Configuration",
+    "users": "Users",
+    "agenda": "Agenda",
+    "documents": "Documents",
+    "tickets": "Tickets",
+    "sponsors": "Sponsors",
+    "communications": "Communications",
+    "reports": "Reports"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "totalAttendees": "Total Attendees",
+    "confirmedAttendees": "Confirmed",
+    "checkedIn": "Check-ins",
+    "totalActivities": "Activities"
+  }
+}

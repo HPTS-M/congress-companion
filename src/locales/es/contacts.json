@@ -1,0 +1,19 @@
+{
+  "title": "Contactos",
+  "subtitle": "Networking",
+  "tabs": {
+    "participants": "Participantes",
+    "groupChat": "Chat Grupal"
+  },
+  "exchangeContact": "Intercambiar Contacto",
+  "filter": {
+    "all": "Todos",
+    "myContacts": "Mis Contactos"
+  },
+  "searchPlaceholder": "Buscar por nombre o especialidad...",
+  "noContacts": "No tienes contactos aún",
+  "online": "En línea",
+  "requestSent": "Solicitud enviada",
+  "requestReceived": "Solicitud recibida",
+  "connected": "Conectado"
+}

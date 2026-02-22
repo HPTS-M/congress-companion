@@ -1,0 +1,26 @@
+{
+  "title": "Comercial",
+  "subtitle": "Directorio de patrocinadores",
+  "searchPlaceholder": "Buscar patrocinador...",
+  "noSponsors": "No hay patrocinadores registrados",
+  "level": {
+    "gold": "Oro",
+    "silver": "Plata",
+    "bronze": "Bronce",
+    "exhibitor": "Expositor"
+  },
+  "category": {
+    "pharmaceutical": "Farmacéutica",
+    "technology": "Tecnología",
+    "medical_equipment": "Equipos Médicos",
+    "services": "Servicios",
+    "education": "Educación",
+    "other": "Otro"
+  },
+  "detail": {
+    "stand": "Stand",
+    "website": "Sitio web",
+    "materials": "Materiales",
+    "contact": "Contacto"
+  }
+}

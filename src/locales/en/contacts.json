@@ -1,0 +1,19 @@
+{
+  "title": "Contacts",
+  "subtitle": "Networking",
+  "tabs": {
+    "participants": "Participants",
+    "groupChat": "Group Chat"
+  },
+  "exchangeContact": "Exchange Contact",
+  "filter": {
+    "all": "All",
+    "myContacts": "My Contacts"
+  },
+  "searchPlaceholder": "Search by name or specialty...",
+  "noContacts": "No contacts yet",
+  "online": "Online",
+  "requestSent": "Request sent",
+  "requestReceived": "Request received",
+  "connected": "Connected"
+}

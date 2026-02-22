@@ -1,0 +1,22 @@
+{
+  "title": "Agenda",
+  "subtitle": "Programa del evento",
+  "daySelector": "Día {{number}}",
+  "noSessions": "No hay sesiones para este día",
+  "session": {
+    "meInteresa": "Me interesa",
+    "teInteresa": "Te interesa",
+    "pending": "Pendiente",
+    "confirmed": "Confirmado",
+    "certificate": "Certificado",
+    "speaker": "Ponente",
+    "room": "Sala",
+    "interests": "{{count}} interesados"
+  },
+  "type": {
+    "conference": "Conferencia",
+    "workshop": "Taller",
+    "break": "Receso",
+    "plenary": "Plenaria"
+  }
+}

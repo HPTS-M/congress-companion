@@ -1,0 +1,11 @@
+{
+  "title": "Check-in",
+  "subtitle": "Record your attendance",
+  "scanButton": "Scan Activity QR",
+  "simulateScan": "Simulate Scan",
+  "cameraPlaceholder": "Camera will activate here",
+  "success": "Check-in recorded successfully!",
+  "alreadyCheckedIn": "You already checked in to this activity",
+  "error": "Check-in error",
+  "score": "Score: {{score}}%"
+}
