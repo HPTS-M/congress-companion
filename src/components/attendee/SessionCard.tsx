@@ -47,8 +47,8 @@ export function SessionCard({
 
   return (
     <div
-      className="rounded-lg border border-border border-l-4 bg-card shadow-sm p-4"
-      style={{ borderLeftColor: typeBorderColors[actType] ?? '#1A56A0' }}
+      className="rounded-lg border-t border-r border-b border-border bg-card shadow-sm p-4 pl-5"
+      style={{ borderLeft: `4px solid ${typeBorderColors[actType] ?? '#1A56A0'}` }}
     >
       <div className="flex items-start justify-between gap-2">
         {/* Left content */}
@@ -58,12 +58,10 @@ export function SessionCard({
             <h3 className="text-base font-semibold text-card-foreground leading-tight">
               {activity.title}
             </h3>
-            {interestCount > 0 && (
-              <span className="flex items-center gap-0.5 text-xs text-amber-500 shrink-0 mt-0.5">
-                <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                {interestCount}
-              </span>
-            )}
+            <span className="flex items-center gap-0.5 text-xs text-muted-foreground shrink-0 mt-0.5">
+              <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+              {interestCount}
+            </span>
           </div>
 
           {/* Time */}
