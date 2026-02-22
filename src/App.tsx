@@ -16,6 +16,7 @@ const NotFound = lazy(() => import('@/pages/NotFound'));
 
 // Attendee pages
 const Home = lazy(() => import('@/pages/attendee/Home'));
+const Agenda = lazy(() => import('@/pages/attendee/Agenda'));
 const PlaceholderPage = lazy(() => import('@/pages/attendee/PlaceholderPage'));
 
 // Layout
@@ -57,7 +58,7 @@ const App = () => (
                 {/* Protected attendee routes */}
                 <Route element={<AttendeeLayout />}>
                   <Route path="home" element={<Home />} />
-                  <Route path="agenda" element={<PlaceholderPage titleKey="nav.agenda" />} />
+                  <Route path="agenda" element={<Agenda />} />
                   <Route path="checkin" element={<PlaceholderPage titleKey="nav.checkin" />} />
                   <Route path="tickets" element={<PlaceholderPage titleKey="nav.tickets" />} />
                   <Route path="commercial" element={<PlaceholderPage titleKey="nav.commercial" />} />

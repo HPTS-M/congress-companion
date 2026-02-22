@@ -39,3 +39,37 @@ export type RegistrationStatus = 'confirmed' | 'pending' | 'cancelled';
 export type SponsorLevel = 'gold' | 'silver' | 'bronze' | 'exhibitor';
 
 export type ActivityType = 'conference' | 'workshop' | 'break' | 'plenary';
+
+export interface EventActivity {
+  id: string;
+  event_id: string;
+  title: string;
+  description: string | null;
+  activity_type: ActivityType | null;
+  scheduled_date: string;
+  start_time: string;
+  end_time: string | null;
+  location: string | null;
+  speaker_name: string | null;
+  speaker_bio: string | null;
+  requires_checkin: boolean | null;
+  capacity: number | null;
+  checkin_code: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface SessionInterest {
+  id: string;
+  event_id: string;
+  session_id: string;
+  user_id: string;
+  created_at: string | null;
+}
+
+export interface AttendeeCheckin {
+  id: string;
+  activity_id: string;
+  attendee_id: string;
+  checked_in_at: string | null;
+}
