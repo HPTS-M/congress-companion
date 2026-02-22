@@ -1,0 +1,1089 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "13.0.5"
+  }
+  public: {
+    Tables: {
+      activity_quizzes: {
+        Row: {
+          activity_id: string
+          correct_answer: string | null
+          created_at: string | null
+          display_order: number | null
+          id: string
+          options: Json | null
+          question_text: string
+          question_type: string | null
+        }
+        Insert: {
+          activity_id: string
+          correct_answer?: string | null
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          options?: Json | null
+          question_text: string
+          question_type?: string | null
+        }
+        Update: {
+          activity_id?: string
+          correct_answer?: string | null
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          options?: Json | null
+          question_text?: string
+          question_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_quizzes_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "event_activities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendee_checkins: {
+        Row: {
+          activity_id: string
+          attendee_id: string
+          certificate_generated: boolean | null
+          certificate_url: string | null
+          checked_in_at: string | null
+          id: string
+          quiz_responses: Json | null
+          quiz_score: number | null
+        }
+        Insert: {
+          activity_id: string
+          attendee_id: string
+          certificate_generated?: boolean | null
+          certificate_url?: string | null
+          checked_in_at?: string | null
+          id?: string
+          quiz_responses?: Json | null
+          quiz_score?: number | null
+        }
+        Update: {
+          activity_id?: string
+          attendee_id?: string
+          certificate_generated?: boolean | null
+          certificate_url?: string | null
+          checked_in_at?: string | null
+          id?: string
+          quiz_responses?: Json | null
+          quiz_score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendee_checkins_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "event_activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendee_checkins_attendee_id_fkey"
+            columns: ["attendee_id"]
+            isOneToOne: false
+            referencedRelation: "attendees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendee_services: {
+        Row: {
+          attendee_id: string
+          created_at: string | null
+          id: string
+          notes: string | null
+          provider_id: string | null
+          scheduled_date: string | null
+          scheduled_time: string | null
+          service_catalog_id: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          attendee_id: string
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          provider_id?: string | null
+          scheduled_date?: string | null
+          scheduled_time?: string | null
+          service_catalog_id: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          attendee_id?: string
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          provider_id?: string | null
+          scheduled_date?: string | null
+          scheduled_time?: string | null
+          service_catalog_id?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendee_services_attendee_id_fkey"
+            columns: ["attendee_id"]
+            isOneToOne: false
+            referencedRelation: "attendees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendees: {
+        Row: {
+          check_in_date: string | null
+          created_at: string | null
+          credential_code: string
+          deleted_at: string | null
+          document_number: string | null
+          document_type: string | null
+          email: string
+          event_id: string
+          full_name: string
+          id: string
+          notes: string | null
+          phone: string | null
+          registration_date: string | null
+          registration_status: string | null
+          selected_package_id: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          check_in_date?: string | null
+          created_at?: string | null
+          credential_code: string
+          deleted_at?: string | null
+          document_number?: string | null
+          document_type?: string | null
+          email: string
+          event_id: string
+          full_name: string
+          id?: string
+          notes?: string | null
+          phone?: string | null
+          registration_date?: string | null
+          registration_status?: string | null
+          selected_package_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          check_in_date?: string | null
+          created_at?: string | null
+          credential_code?: string
+          deleted_at?: string | null
+          document_number?: string | null
+          document_type?: string | null
+          email?: string
+          event_id?: string
+          full_name?: string
+          id?: string
+          notes?: string | null
+          phone?: string | null
+          registration_date?: string | null
+          registration_status?: string | null
+          selected_package_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendees_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendees_selected_package_id_fkey"
+            columns: ["selected_package_id"]
+            isOneToOne: false
+            referencedRelation: "event_packages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_attachments: {
+        Row: {
+          created_at: string | null
+          file_name: string
+          file_size: number | null
+          file_type: string | null
+          id: string
+          message_id: string
+          storage_path: string
+        }
+        Insert: {
+          created_at?: string | null
+          file_name: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          message_id: string
+          storage_path: string
+        }
+        Update: {
+          created_at?: string | null
+          file_name?: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          message_id?: string
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_attachments_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "chat_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_conversations: {
+        Row: {
+          conversation_type: string | null
+          created_at: string | null
+          created_by: string | null
+          event_id: string | null
+          id: string
+          name: string | null
+          organization_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          conversation_type?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          event_id?: string | null
+          id?: string
+          name?: string | null
+          organization_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          conversation_type?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          event_id?: string | null
+          id?: string
+          name?: string | null
+          organization_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_conversations_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_conversations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string | null
+          deleted_at: string | null
+          id: string
+          message_type: string | null
+          metadata: Json | null
+          sender_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string | null
+          deleted_at?: string | null
+          id?: string
+          message_type?: string | null
+          metadata?: Json | null
+          sender_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string | null
+          deleted_at?: string | null
+          id?: string
+          message_type?: string | null
+          metadata?: Json | null
+          sender_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "chat_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_participants: {
+        Row: {
+          conversation_id: string
+          id: string
+          joined_at: string | null
+          last_read_at: string | null
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          id?: string
+          joined_at?: string | null
+          last_read_at?: string | null
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          id?: string
+          joined_at?: string | null
+          last_read_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_participants_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "chat_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_activities: {
+        Row: {
+          activity_type: string | null
+          capacity: number | null
+          checkin_code: string | null
+          created_at: string | null
+          description: string | null
+          end_time: string | null
+          event_id: string
+          id: string
+          location: string | null
+          requires_checkin: boolean | null
+          scheduled_date: string
+          speaker_bio: string | null
+          speaker_name: string | null
+          start_time: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          activity_type?: string | null
+          capacity?: number | null
+          checkin_code?: string | null
+          created_at?: string | null
+          description?: string | null
+          end_time?: string | null
+          event_id: string
+          id?: string
+          location?: string | null
+          requires_checkin?: boolean | null
+          scheduled_date: string
+          speaker_bio?: string | null
+          speaker_name?: string | null
+          start_time: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          activity_type?: string | null
+          capacity?: number | null
+          checkin_code?: string | null
+          created_at?: string | null
+          description?: string | null
+          end_time?: string | null
+          event_id?: string
+          id?: string
+          location?: string | null
+          requires_checkin?: boolean | null
+          scheduled_date?: string
+          speaker_bio?: string | null
+          speaker_name?: string | null
+          start_time?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_activities_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_packages: {
+        Row: {
+          base_price: number
+          created_at: string | null
+          currency: string | null
+          description: string | null
+          display_order: number | null
+          event_id: string
+          id: string
+          included_services: Json | null
+          is_active: boolean | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          base_price: number
+          created_at?: string | null
+          currency?: string | null
+          description?: string | null
+          display_order?: number | null
+          event_id: string
+          id?: string
+          included_services?: Json | null
+          is_active?: boolean | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          base_price?: number
+          created_at?: string | null
+          currency?: string | null
+          description?: string | null
+          display_order?: number | null
+          event_id?: string
+          id?: string
+          included_services?: Json | null
+          is_active?: boolean | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_packages_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_staff: {
+        Row: {
+          assigned_at: string | null
+          assigned_by: string | null
+          event_id: string
+          id: string
+          is_active: boolean | null
+          role: string
+          user_id: string
+        }
+        Insert: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          event_id: string
+          id?: string
+          is_active?: boolean | null
+          role: string
+          user_id: string
+        }
+        Update: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          event_id?: string
+          id?: string
+          is_active?: boolean | null
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_staff_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          created_at: string | null
+          deleted_at: string | null
+          description: string | null
+          end_date: string
+          event_code: string
+          id: string
+          max_attendees: number | null
+          name: string
+          organization_id: string
+          settings: Json | null
+          start_date: string
+          status: string | null
+          updated_at: string | null
+          venue_address: string | null
+          venue_coordinates: Json | null
+          venue_name: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          end_date: string
+          event_code: string
+          id?: string
+          max_attendees?: number | null
+          name: string
+          organization_id: string
+          settings?: Json | null
+          start_date: string
+          status?: string | null
+          updated_at?: string | null
+          venue_address?: string | null
+          venue_coordinates?: Json | null
+          venue_name?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          end_date?: string
+          event_code?: string
+          id?: string
+          max_attendees?: number | null
+          name?: string
+          organization_id?: string
+          settings?: Json | null
+          start_date?: string
+          status?: string | null
+          updated_at?: string | null
+          venue_address?: string | null
+          venue_coordinates?: Json | null
+          venue_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          action_url: string | null
+          created_at: string | null
+          event_id: string | null
+          id: string
+          is_read: boolean | null
+          message: string
+          metadata: Json | null
+          notification_type: string
+          organization_id: string | null
+          read_at: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          action_url?: string | null
+          created_at?: string | null
+          event_id?: string | null
+          id?: string
+          is_read?: boolean | null
+          message: string
+          metadata?: Json | null
+          notification_type: string
+          organization_id?: string | null
+          read_at?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          action_url?: string | null
+          created_at?: string | null
+          event_id?: string | null
+          id?: string
+          is_read?: boolean | null
+          message?: string
+          metadata?: Json | null
+          notification_type?: string
+          organization_id?: string | null
+          read_at?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organizations: {
+        Row: {
+          created_at: string | null
+          deleted_at: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          settings: Json | null
+          slug: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          deleted_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          settings?: Json | null
+          slug: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          deleted_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          settings?: Json | null
+          slug?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string | null
+          email: string
+          full_name: string | null
+          id: string
+          organization_id: string | null
+          phone: string | null
+          preferred_language: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string | null
+          email: string
+          full_name?: string | null
+          id: string
+          organization_id?: string | null
+          phone?: string | null
+          preferred_language?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          email?: string
+          full_name?: string | null
+          id?: string
+          organization_id?: string | null
+          phone?: string | null
+          preferred_language?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      role_audit: {
+        Row: {
+          action: string
+          details: Json | null
+          id: string
+          organization_id: string | null
+          performed_at: string | null
+          performed_by: string | null
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          action: string
+          details?: Json | null
+          id?: string
+          organization_id?: string | null
+          performed_at?: string | null
+          performed_by?: string | null
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          action?: string
+          details?: Json | null
+          id?: string
+          organization_id?: string | null
+          performed_at?: string | null
+          performed_by?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      service_tickets: {
+        Row: {
+          attendee_service_id: string
+          created_at: string | null
+          id: string
+          is_used: boolean | null
+          qr_data: string
+          ticket_code: string
+          used_at: string | null
+          validated_by: string | null
+        }
+        Insert: {
+          attendee_service_id: string
+          created_at?: string | null
+          id?: string
+          is_used?: boolean | null
+          qr_data: string
+          ticket_code: string
+          used_at?: string | null
+          validated_by?: string | null
+        }
+        Update: {
+          attendee_service_id?: string
+          created_at?: string | null
+          id?: string
+          is_used?: boolean | null
+          qr_data?: string
+          ticket_code?: string
+          used_at?: string | null
+          validated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_tickets_attendee_service_id_fkey"
+            columns: ["attendee_service_id"]
+            isOneToOne: false
+            referencedRelation: "attendee_services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          assigned_at: string | null
+          assigned_by: string | null
+          expires_at: string | null
+          id: string
+          is_active: boolean | null
+          organization_id: string | null
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          organization_id?: string | null
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          organization_id?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      create_attendee_credential: {
+        Args: { _attendee_id: string }
+        Returns: string
+      }
+      get_attendee_itinerary: { Args: { _attendee_id: string }; Returns: Json }
+      get_event_statistics: { Args: { _event_id: string }; Returns: Json }
+      get_or_create_conversation: {
+        Args: {
+          _conversation_type?: string
+          _event_id?: string
+          _organization_id: string
+          _participant_ids: string[]
+        }
+        Returns: string
+      }
+      get_unread_count: { Args: { _user_id: string }; Returns: number }
+      get_user_organization: { Args: { _user_id: string }; Returns: string }
+      get_user_permissions: {
+        Args: { _user_id: string }
+        Returns: {
+          organization_id: string
+          permission_code: string
+          role: Database["public"]["Enums"]["app_role"]
+        }[]
+      }
+      get_user_roles: { Args: { _user_id: string }; Returns: string[] }
+      get_user_roles_with_metadata: {
+        Args: { _language?: string; _user_id: string }
+        Returns: {
+          description: string
+          display_name: string
+          icon: string
+          organization_id: string
+          organization_name: string
+          redirect_path: string
+          requires_organization: boolean
+          role: string
+        }[]
+      }
+      has_org_role: {
+        Args: {
+          _org_id: string
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_event_staff: {
+        Args: { _event_id: string; _user_id: string }
+        Returns: boolean
+      }
+      mark_activity_complete: {
+        Args: { _checkin_id: string }
+        Returns: boolean
+      }
+      mark_messages_as_read: {
+        Args: { _conversation_id: string; _user_id: string }
+        Returns: undefined
+      }
+      process_checkin: {
+        Args: {
+          _activity_id: string
+          _attendee_id: string
+          _quiz_responses: Json
+        }
+        Returns: Json
+      }
+      validate_service_ticket: {
+        Args: { _ticket_code: string; _validator_user_id: string }
+        Returns: Json
+      }
+    }
+    Enums: {
+      app_role:
+        | "superuser"
+        | "admin"
+        | "coordinator"
+        | "field_manager"
+        | "provider"
+        | "attendee"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      app_role: [
+        "superuser",
+        "admin",
+        "coordinator",
+        "field_manager",
+        "provider",
+        "attendee",
+      ],
+    },
+  },
+} as const
