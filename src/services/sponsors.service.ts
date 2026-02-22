@@ -19,6 +19,7 @@ export interface Sponsor {
   social_linkedin: string | null;
   social_instagram: string | null;
   social_twitter: string | null;
+  whatsapp_message: string | null;
   created_at: string | null;
 }
 

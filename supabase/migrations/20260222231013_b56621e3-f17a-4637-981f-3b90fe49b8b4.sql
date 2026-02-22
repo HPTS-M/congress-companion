@@ -1,0 +1,1 @@
+ALTER TABLE public.sponsors ADD COLUMN whatsapp_message text;
