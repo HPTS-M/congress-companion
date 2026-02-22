@@ -11,7 +11,7 @@ interface DaySelectorProps {
 
 export function DaySelector({ dates, selectedDate, onSelect }: DaySelectorProps) {
   const { t, i18n } = useTranslation('agenda');
-  const locale = i18n.language === 'es' ? es : enUS;
+  const locale = i18n.language.startsWith('es') ? es : enUS;
 
   return (
     <div className="sticky top-14 z-40 bg-background border-b border-border md:top-16">

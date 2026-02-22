@@ -6,11 +6,11 @@ import { Badge } from '@/components/ui/badge';
 import type { EventActivity, ActivityType } from '@/types';
 
 const typeBorderColors: Record<string, string> = {
-  talk: 'border-l-[hsl(213,72%,37%)]',
-  workshop: 'border-l-[hsl(170,100%,36%)]',
-  other: 'border-l-[hsl(38,92%,50%)]',
-  ceremony: 'border-l-[hsl(258,90%,66%)]',
-  networking: 'border-l-[hsl(213,72%,37%)]',
+  talk: '#1A56A0',
+  workshop: '#00B89F',
+  other: '#F59E0B',
+  ceremony: '#8B5CF6',
+  networking: '#1A56A0',
 };
 
 const typeI18nKeys: Record<string, string> = {
@@ -47,10 +47,8 @@ export function SessionCard({
 
   return (
     <div
-      className={cn(
-        'rounded-lg border-l-4 border border-border bg-card shadow-sm p-4',
-        borderClass,
-      )}
+      className="rounded-lg border border-border border-l-4 bg-card shadow-sm p-4"
+      style={{ borderLeftColor: typeBorderColors[actType] ?? '#1A56A0' }}
     >
       <div className="flex items-start justify-between gap-2">
         {/* Left content */}
