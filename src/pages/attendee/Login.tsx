@@ -38,16 +38,17 @@ export default function AttendeeLogin() {
       });
       navigate(`/${eventSlug}/home`, { replace: true });
     } catch (err) {
-      const errorKey = err instanceof Error ? err.message : 'UNKNOWN_ERROR';
+      const errorMsg = err instanceof Error ? err.message : '';
       const messages: Record<string, string> = {
-        INVALID_CODE: t('auth.invalidCode'),
-        EVENT_NOT_FOUND: t('auth.eventNotFound'),
-        REGISTRATION_CANCELLED: t('auth.registrationCancelled'),
+        'Invalid code': t('auth.invalidCode'),
+        'Event not found': t('auth.eventNotFound'),
+        'Registration cancelled': t('auth.registrationCancelled'),
+        'Too many attempts. Try again later.': t('auth.tooManyAttempts', 'Demasiados intentos. Intenta más tarde.'),
       };
       toast({
         variant: 'destructive',
         title: t('error'),
-        description: messages[errorKey] || t('error'),
+        description: messages[errorMsg] || t('error'),
       });
     } finally {
       setIsSubmitting(false);
