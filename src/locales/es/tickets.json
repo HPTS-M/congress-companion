@@ -1,6 +1,6 @@
 {
-  "title": "Tickets",
-  "subtitle": "Servicios contratados",
+  "title": "Tickets de Servicios",
+  "subtitle": "Tus servicios incluidos",
   "summary": {
     "pending": "{{count}} Pendientes",
     "used": "{{count}} Usados"
@@ -10,11 +10,13 @@
     "pending": "Pendientes",
     "used": "Usados"
   },
-  "noTickets": "No tienes servicios contratados",
+  "noTickets": "No tienes servicios contratados para este evento",
   "serviceType": {
     "transport": "Transporte",
     "food": "Alimentación",
     "special": "Especial",
     "tour": "Tour"
-  }
+  },
+  "validity": "Válido: {{from}} - {{to}}",
+  "scheduledDate": "Fecha programada"
 }
