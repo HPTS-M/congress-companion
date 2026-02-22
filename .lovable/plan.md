@@ -1,107 +1,107 @@
 
-# Build Tickets Module + Fix Check-in Padding
 
-## Check-in Padding Fix
+# Build Commercial Module
 
-The current code has double padding: `px-4` on the outer div AND `px-4` on the header div, causing the title to be indented 32px from the left edge. Fix by removing the extra `px-4` from the header div, keeping only the outer wrapper's `px-4`.
+## Database: Insert Test Sponsors
 
-**File**: `src/pages/attendee/CheckIn.tsx` line 137
-- Change `<div className="px-4 pt-4">` to `<div>`
+Insert 6 test sponsors into the existing `sponsors` table for event `5efca36a-deef-489b-be85-3dc9d1501ed7`.
 
-## Tickets Module: Database Setup
-
-The `attendee_services` table references a `service_catalog_id` column, but no `service_catalog` table exists. We need to create it first, then insert test catalog entries and test attendee services. The `service_tickets` table is auto-populated by the `auto_create_service_ticket` trigger.
-
-### Migration: Create `service_catalog` table
-
-```sql
-CREATE TABLE public.service_catalog (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  event_id uuid NOT NULL,
-  name text NOT NULL,
-  description text,
-  service_type text NOT NULL, -- 'transport' | 'food' | 'special' | 'tour'
-  valid_from time,
-  valid_until time,
-  valid_day integer,
-  location text,
-  created_at timestamptz DEFAULT now()
-);
-
-ALTER TABLE service_catalog ENABLE ROW LEVEL SECURITY;
-
--- Block anon
-CREATE POLICY "block_anon_access" ON service_catalog FOR SELECT TO anon USING (false);
-
--- Authenticated attendees can read their event's catalog
-CREATE POLICY "Authenticated read event catalog" ON service_catalog FOR SELECT TO authenticated
-USING (event_id IN (SELECT event_id FROM attendees WHERE user_id = auth.uid()));
-
--- Admin/superuser management
-CREATE POLICY "Superusers manage all catalog" ON service_catalog FOR ALL TO authenticated
-USING (has_role(auth.uid(), 'superuser'::app_role));
-
--- Add FK from attendee_services
-ALTER TABLE attendee_services ADD CONSTRAINT fk_service_catalog
-  FOREIGN KEY (service_catalog_id) REFERENCES service_catalog(id);
-```
-
-### Insert Test Data
-
-Using the test attendee `fb9cb992-242e-41d2-98f8-cc28bf70edce` (event `5efca36a-deef-489b-be85-3dc9d1501ed7`):
-
-1. Insert 5 service_catalog entries (transport x2, food, special, tour)
-2. Insert 5 attendee_services linking the attendee to each catalog entry with the specified statuses
-3. The `auto_create_service_ticket` trigger will auto-create `service_tickets` rows
-
-## Tickets Module: Frontend
-
-### New Files
+## New Files
 
 | File | Purpose |
 |---|---|
-| `src/services/tickets.service.ts` | Fetch attendee services with catalog + ticket joins |
-| `src/hooks/useTickets.ts` | TanStack Query hook for ticket data |
-| `src/pages/attendee/Tickets.tsx` | Full Tickets page UI |
-| `src/locales/es/tickets.json` | Update with all keys |
-| `src/locales/en/tickets.json` | Update with all keys |
+| `src/services/sponsors.service.ts` | Fetch sponsors by event_id, fetch single sponsor by id |
+| `src/hooks/useSponsors.ts` | TanStack Query hooks: `useSponsors(eventId)` and `useSponsor(sponsorId)` |
+| `src/pages/attendee/Commercial.tsx` | Sponsor directory page with search, category filters, level-grouped grid |
+| `src/pages/attendee/SponsorDetail.tsx` | Individual sponsor detail page |
 
-### `src/services/tickets.service.ts`
+## Modified Files
 
-Query pattern:
-```typescript
-supabase.from('attendee_services')
-  .select(`
-    id, status, scheduled_date, scheduled_time, notes,
-    service_catalog:service_catalog_id (id, name, description, service_type, valid_from, valid_until, location),
-    service_tickets (id, ticket_code, qr_data, is_used, used_at)
-  `)
-  .eq('attendee_id', attendeeId)
+| File | Change |
+|---|---|
+| `src/App.tsx` | Add lazy imports for `Commercial` and `SponsorDetail`, replace placeholder route, add `commercial/:sponsorId` route |
+| `src/locales/es/commercial.json` | Add missing keys: `title` update to "Area Comercial", `subtitle` update, `allCategories`, `noResults`, detail page labels (`visitWebsite`, `downloadMaterials`, `contactEmail`) |
+| `src/locales/en/commercial.json` | Mirror Spanish keys |
+| `src/lib/i18n.ts` | Add `commercial` namespace to i18n config |
+
+## Service Layer
+
+`src/services/sponsors.service.ts`:
+- `getByEvent(eventId)`: SELECT all sponsors for the event, ordered by level priority (gold first) then name
+- `getById(sponsorId)`: SELECT single sponsor by id
+
+## Hooks
+
+`src/hooks/useSponsors.ts`:
+- `useSponsors(eventId)` with 5min staleTime
+- `useSponsor(sponsorId)` with 10min staleTime
+
+## Commercial Page (`src/pages/attendee/Commercial.tsx`)
+
+Following the same patterns as Tickets page:
+
+1. **Header**: Page title + subtitle via i18n
+2. **Search bar**: Input with search icon, filters sponsors by name, description, and stand_location (case-insensitive client-side filter)
+3. **Category filter chips**: Horizontal scrollable row -- "Todos" + 5 category chips. Multi-select: clicking a chip toggles it. When none selected, show all. Active chip: `#1A56A0` bg, white text. Inactive: white bg, gray border.
+4. **Level sections**: Group filtered sponsors by level in order: gold, silver, bronze, exhibitor. Each section has a header with level name + colored badge.
+5. **Sponsor cards**: 2-column grid on mobile. Each card: logo placeholder (initials circle 80px if no logo_url), company name centered, category badge (gray pill), stand location, level badge (colored per spec), "Ver mas" outline button linking to detail page.
+6. **Empty state**: Ticket icon + "No se encontraron patrocinadores" message
+7. **Loading state**: Skeleton grid
+
+## Sponsor Detail Page (`src/pages/attendee/SponsorDetail.tsx`)
+
+Route: `/:eventSlug/commercial/:sponsorId`
+
+- Back button to return to commercial list
+- Logo (120px placeholder with initials if no logo_url)
+- Company name 24px bold
+- Level badge (colored)
+- Category badge
+- Full description text
+- Stand location with MapPin icon
+- "Visitar sitio web" button (opens in new tab, only if website_url)
+- "Descargar materiales" button (only if materials_url)
+- "Contactar" button (mailto link, only if contact_email)
+
+## Locale Updates
+
+**`src/locales/es/commercial.json`**:
+```json
+{
+  "title": "Area Comercial",
+  "subtitle": "Patrocinadores y expositores",
+  "searchPlaceholder": "Buscar patrocinador...",
+  "allCategories": "Todos",
+  "noSponsors": "No se encontraron patrocinadores",
+  "viewMore": "Ver mas",
+  "level": { "gold": "Oro", "silver": "Plata", "bronze": "Bronce", "exhibitor": "Expositor" },
+  "category": { "pharmaceutical": "Farmaceutica", "technology": "Tecnologia", "medical_equipment": "Equipos Medicos", "services": "Servicios", "education": "Educacion", "other": "Otro" },
+  "detail": {
+    "stand": "Stand",
+    "website": "Visitar sitio web",
+    "materials": "Descargar materiales",
+    "contact": "Contactar",
+    "back": "Volver"
+  }
+}
 ```
 
-### `src/pages/attendee/Tickets.tsx`
+**`src/locales/en/commercial.json`**: English mirror of all keys.
 
-Layout following design spec:
-- Page title + subtitle with i18n
-- Summary row: two side-by-side cards showing pending/used counts with colored icons
-- Filter tabs: Todos / Pendientes / Usados (active = solid #1A56A0)
-- Service list: Each item with category icon in colored circle, service name, description, validity time, status badge
-- Expandable: chevron tap reveals full description, QR code (via `qrcode.react`), day/time
-- Empty state with ticket icon
+## App.tsx Route Changes
 
-### `src/App.tsx`
+- Add `Commercial` and `SponsorDetail` lazy imports
+- Replace `<PlaceholderPage titleKey="nav.commercial" />` with `<Commercial />`
+- Add nested route: `<Route path="commercial/:sponsorId" element={<SponsorDetail />} />`
 
-Replace the tickets `PlaceholderPage` route with the new `Tickets` component (lazy loaded).
+## Level Badge Colors
 
-### Locale Updates
+- Gold: `bg-amber-100 text-amber-700` with `#F59E0B` accent
+- Silver: `bg-slate-100 text-slate-500` with `#94A3B8` accent
+- Bronze: `bg-orange-100 text-orange-800` with `#B45309` accent
+- Exhibitor: `bg-slate-100 text-slate-600` with `#64748B` accent
 
-Add keys for: `pageTitle`, `pageSubtitle`, expanded details labels, empty state text, status labels, service type labels, validity format.
+## Test Data (6 sponsors)
 
-## Technical Notes
+Inserted via Supabase data tool into `sponsors` table with `event_id = '5efca36a-deef-489b-be85-3dc9d1501ed7'`.
 
-- `qrcode.react` is already installed for QR rendering
-- Category icon mapping: transport=Bus, food=UtensilsCrossed, special=Sparkles, tour=Map
-- Category circle colors: transport=blue, food=orange, special=purple, tour=green
-- Status badge: Pendiente=blue pill, Usado=gray pill
-- Attendee is read-only; no mutation hooks needed for this module
-- All text via i18n `tickets` namespace
