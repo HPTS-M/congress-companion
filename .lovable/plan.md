@@ -1,62 +1,50 @@
 
-
-# Fix Commercial Module: Add Columns + Contact Buttons
+# Add Pre-filled WhatsApp Message to Sponsor Contact
 
 ## 1. Database Migration
 
-Add 5 new nullable columns to the `sponsors` table:
+Add one new nullable column to `sponsors`:
 
 ```sql
-ALTER TABLE sponsors ADD COLUMN whatsapp text;
-ALTER TABLE sponsors ADD COLUMN video_url text;
-ALTER TABLE sponsors ADD COLUMN social_linkedin text;
-ALTER TABLE sponsors ADD COLUMN social_instagram text;
-ALTER TABLE sponsors ADD COLUMN social_twitter text;
+ALTER TABLE sponsors ADD COLUMN whatsapp_message text;
 ```
 
-Update test data: set `whatsapp` and some social links on a couple of sponsors so the buttons are visible for testing.
+Then update the Vitalis test sponsor with the custom message:
 
-## 2. Update `src/services/sponsors.service.ts`
-
-Add the new fields to the `Sponsor` interface:
-- `whatsapp: string | null`
-- `video_url: string | null`
-- `social_linkedin: string | null`
-- `social_instagram: string | null`
-- `social_twitter: string | null`
-
-No query changes needed since we already `select('*')`.
-
-## 3. Update `src/pages/attendee/SponsorDetail.tsx`
-
-Add to the actions section (below existing website/materials buttons):
-
-- **WhatsApp button**: `variant="outline"`, opens `https://wa.me/{whatsapp}` in new tab. Only rendered if `sponsor.whatsapp` exists. Icon: `MessageCircle` from lucide.
-- **Contact email button**: Already exists in current code -- just confirming it stays as-is (`mailto:{contact_email}`).
-- **Social links row**: A horizontal row of icon buttons for LinkedIn, Instagram, Twitter (X). Each only rendered if the corresponding field has a value. Opens URL in new tab.
-- **Video link**: Button to open `video_url` in new tab if present. Icon: `Play` or `Video` from lucide.
-
-## 4. Update Locale Files
-
-Add new keys to `es/commercial.json` and `en/commercial.json`:
-
-```json
-"detail": {
-  "whatsapp": "WhatsApp",
-  "video": "Ver video",
-  "social": "Redes sociales"
-}
+```sql
+UPDATE sponsors 
+SET whatsapp_message = 'Hola, los visite en el XIII Congreso de Farmacia Hospitalaria y me gustaria obtener mas informacion sobre sus soluciones.'
+WHERE name = 'Vitalis Pharmaceuticals';
 ```
 
-## 5. Files Changed
+## 2. Update Service Interface
+
+In `src/services/sponsors.service.ts`, add to the `Sponsor` interface:
+
+```
+whatsapp_message: string | null;
+```
+
+## 3. Update SponsorDetail.tsx
+
+- Import `useEvent` from `@/hooks/useEvent`
+- Get event data: `const { event } = useEvent();`
+- Build WhatsApp URL with encoded message:
+
+```typescript
+const message = sponsor.whatsapp_message || 
+  `Hola, te contacto desde el ${event?.name ?? ''}. Me interesa conocer mas sobre ${sponsor.name}.`;
+const url = `https://wa.me/${sponsor.whatsapp}?text=${encodeURIComponent(message)}`;
+```
+
+- Update the WhatsApp button `onClick` to use this URL instead of the plain `https://wa.me/` link.
+
+## 4. Files Changed
 
 | File | Change |
 |---|---|
-| `supabase/migrations/...` | Add 5 columns + update test data |
-| `src/services/sponsors.service.ts` | Add new fields to interface |
-| `src/pages/attendee/SponsorDetail.tsx` | Add WhatsApp, social links, video buttons |
-| `src/locales/es/commercial.json` | Add new i18n keys |
-| `src/locales/en/commercial.json` | Mirror keys |
+| New migration | Add `whatsapp_message` column + update Vitalis test data |
+| `src/services/sponsors.service.ts` | Add `whatsapp_message` to interface |
+| `src/pages/attendee/SponsorDetail.tsx` | Import `useEvent`, build WhatsApp URL with pre-filled message |
 
-After implementation, navigate to sponsor detail page and take screenshot.
-
+No locale changes needed -- the message is data-driven, not an i18n key.
