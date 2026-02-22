@@ -6,17 +6,19 @@ import { Badge } from '@/components/ui/badge';
 import type { EventActivity, ActivityType } from '@/types';
 
 const typeBorderColors: Record<string, string> = {
-  conference: 'border-l-[hsl(213,72%,37%)]',
+  talk: 'border-l-[hsl(213,72%,37%)]',
   workshop: 'border-l-[hsl(170,100%,36%)]',
-  break: 'border-l-[hsl(38,92%,50%)]',
-  plenary: 'border-l-[hsl(258,90%,66%)]',
+  other: 'border-l-[hsl(38,92%,50%)]',
+  ceremony: 'border-l-[hsl(258,90%,66%)]',
+  networking: 'border-l-[hsl(213,72%,37%)]',
 };
 
 const typeI18nKeys: Record<string, string> = {
-  conference: 'type.conference',
+  talk: 'type.conference',
   workshop: 'type.workshop',
-  break: 'type.break',
-  plenary: 'type.plenary',
+  other: 'type.break',
+  ceremony: 'type.plenary',
+  networking: 'type.conference',
 };
 
 interface SessionCardProps {
