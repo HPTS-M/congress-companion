@@ -76,6 +76,41 @@ export type Database = {
           },
         ]
       }
+      announcements: {
+        Row: {
+          body: string
+          event_id: string
+          id: string
+          reach: string | null
+          sent_at: string | null
+          title: string
+        }
+        Insert: {
+          body: string
+          event_id: string
+          id?: string
+          reach?: string | null
+          sent_at?: string | null
+          title: string
+        }
+        Update: {
+          body?: string
+          event_id?: string
+          id?: string
+          reach?: string | null
+          sent_at?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcements_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attendee_checkins: {
         Row: {
           activity_id: string
@@ -118,6 +153,55 @@ export type Database = {
           {
             foreignKeyName: "attendee_checkins_attendee_id_fkey"
             columns: ["attendee_id"]
+            isOneToOne: false
+            referencedRelation: "attendees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendee_notes: {
+        Row: {
+          content: string | null
+          event_id: string
+          id: string
+          session_id: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          content?: string | null
+          event_id: string
+          id?: string
+          session_id?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          content?: string | null
+          event_id?: string
+          id?: string
+          session_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendee_notes_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendee_notes_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "event_activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendee_notes_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "attendees"
             referencedColumns: ["id"]
@@ -407,6 +491,103 @@ export type Database = {
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "chat_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contacts: {
+        Row: {
+          connected_at: string | null
+          contact_id: string
+          created_at: string | null
+          event_id: string
+          id: string
+          status: string | null
+          user_id: string
+        }
+        Insert: {
+          connected_at?: string | null
+          contact_id: string
+          created_at?: string | null
+          event_id: string
+          id?: string
+          status?: string | null
+          user_id: string
+        }
+        Update: {
+          connected_at?: string | null
+          contact_id?: string
+          created_at?: string | null
+          event_id?: string
+          id?: string
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contacts_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "attendees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contacts_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contacts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "attendees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documents: {
+        Row: {
+          created_at: string | null
+          event_id: string
+          file_path: string
+          file_type: string | null
+          id: string
+          session_id: string | null
+          title: string
+        }
+        Insert: {
+          created_at?: string | null
+          event_id: string
+          file_path: string
+          file_type?: string | null
+          id?: string
+          session_id?: string | null
+          title: string
+        }
+        Update: {
+          created_at?: string | null
+          event_id?: string
+          file_path?: string
+          file_type?: string | null
+          id?: string
+          session_id?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documents_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "event_activities"
             referencedColumns: ["id"]
           },
         ]
@@ -766,6 +947,97 @@ export type Database = {
           },
         ]
       }
+      push_subscriptions: {
+        Row: {
+          created_at: string | null
+          event_id: string
+          id: string
+          subscription_json: Json
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          event_id: string
+          id?: string
+          subscription_json: Json
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          event_id?: string
+          id?: string
+          subscription_json?: Json
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "push_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "attendees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ratings: {
+        Row: {
+          comment: string | null
+          created_at: string | null
+          event_id: string
+          id: string
+          session_id: string
+          stars: number
+          user_id: string
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string | null
+          event_id: string
+          id?: string
+          session_id: string
+          stars: number
+          user_id: string
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string | null
+          event_id?: string
+          id?: string
+          session_id?: string
+          stars?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ratings_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ratings_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "event_activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ratings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "attendees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       role_audit: {
         Row: {
           action: string
@@ -836,6 +1108,105 @@ export type Database = {
             columns: ["attendee_service_id"]
             isOneToOne: false
             referencedRelation: "attendee_services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      session_interests: {
+        Row: {
+          created_at: string | null
+          event_id: string
+          id: string
+          session_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          event_id: string
+          id?: string
+          session_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          event_id?: string
+          id?: string
+          session_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_interests_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_interests_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "event_activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_interests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "attendees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sponsors: {
+        Row: {
+          category: string
+          contact_email: string | null
+          created_at: string | null
+          description: string | null
+          event_id: string
+          id: string
+          level: string
+          logo_url: string | null
+          materials_url: string | null
+          name: string
+          stand_location: string | null
+          website_url: string | null
+        }
+        Insert: {
+          category: string
+          contact_email?: string | null
+          created_at?: string | null
+          description?: string | null
+          event_id: string
+          id?: string
+          level: string
+          logo_url?: string | null
+          materials_url?: string | null
+          name: string
+          stand_location?: string | null
+          website_url?: string | null
+        }
+        Update: {
+          category?: string
+          contact_email?: string | null
+          created_at?: string | null
+          description?: string | null
+          event_id?: string
+          id?: string
+          level?: string
+          logo_url?: string | null
+          materials_url?: string | null
+          name?: string
+          stand_location?: string | null
+          website_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sponsors_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
             referencedColumns: ["id"]
           },
         ]
