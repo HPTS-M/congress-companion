@@ -1,8 +1,10 @@
 {
-  "title": "Commercial",
-  "subtitle": "Sponsor directory",
+  "title": "Commercial Area",
+  "subtitle": "Sponsors and exhibitors",
   "searchPlaceholder": "Search sponsor...",
-  "noSponsors": "No sponsors registered",
+  "allCategories": "All",
+  "noSponsors": "No sponsors found",
+  "viewMore": "View more",
   "level": {
     "gold": "Gold",
     "silver": "Silver",
@@ -19,8 +21,9 @@
   },
   "detail": {
     "stand": "Stand",
-    "website": "Website",
-    "materials": "Materials",
-    "contact": "Contact"
+    "website": "Visit website",
+    "materials": "Download materials",
+    "contact": "Contact",
+    "back": "Back"
   }
 }
