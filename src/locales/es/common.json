@@ -16,6 +16,7 @@
   "submit": "Enviar",
   "logout": "Cerrar sesión",
   "language": "Idioma",
+  "comingSoon": "Próximamente",
   "status": {
     "confirmed": "Confirmado",
     "pending": "Pendiente",
@@ -50,6 +51,13 @@
     "welcomeBack": "¡Bienvenido de vuelta!",
     "loggingIn": "Iniciando sesión...",
     "or": "o"
+  },
+  "home": {
+    "title": "Inicio",
+    "showToStaff": "Muestra este código al personal del evento",
+    "eventInfo": "Info del Evento",
+    "dateRange": "{{start}} — {{end}}",
+    "attendeeCount": "{{count}} asistentes"
   },
   "notifications": {
     "title": "Notificaciones",
