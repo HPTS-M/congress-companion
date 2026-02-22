@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      access_attempts: {
+        Row: {
+          attempted_at: string
+          event_code: string
+          id: string
+          ip_address: string
+        }
+        Insert: {
+          attempted_at?: string
+          event_code: string
+          id?: string
+          ip_address: string
+        }
+        Update: {
+          attempted_at?: string
+          event_code?: string
+          id?: string
+          ip_address?: string
+        }
+        Relationships: []
+      }
       activity_quizzes: {
         Row: {
           activity_id: string
@@ -865,6 +886,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cleanup_old_attempts: { Args: never; Returns: undefined }
       create_attendee_credential: {
         Args: { _attendee_id: string }
         Returns: string

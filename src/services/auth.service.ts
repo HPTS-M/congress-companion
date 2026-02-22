@@ -27,7 +27,8 @@ export const authService = {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.error || 'UNKNOWN_ERROR');
+      // Edge function returns generic error messages only
+      throw new Error(data.error || 'Server error');
     }
 
     return data as {
