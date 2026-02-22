@@ -253,6 +253,13 @@ export type Database = {
             referencedRelation: "attendees"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fk_service_catalog"
+            columns: ["service_catalog_id"]
+            isOneToOne: false
+            referencedRelation: "service_catalog"
+            referencedColumns: ["id"]
+          },
         ]
       }
       attendees: {
@@ -1068,6 +1075,45 @@ export type Database = {
           performed_by?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      service_catalog: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          event_id: string
+          id: string
+          location: string | null
+          name: string
+          service_type: string
+          valid_day: number | null
+          valid_from: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          event_id: string
+          id?: string
+          location?: string | null
+          name: string
+          service_type: string
+          valid_day?: number | null
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          event_id?: string
+          id?: string
+          location?: string | null
+          name?: string
+          service_type?: string
+          valid_day?: number | null
+          valid_from?: string | null
+          valid_until?: string | null
         }
         Relationships: []
       }
