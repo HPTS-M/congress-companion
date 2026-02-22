@@ -10,6 +10,7 @@ export interface CongressEvent {
   status: string | null;
   settings: Record<string, unknown> | null;
   organization_id: string;
+  max_attendees: number | null;
 }
 
 export interface AttendeeProfile {

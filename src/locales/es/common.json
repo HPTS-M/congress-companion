@@ -57,7 +57,8 @@
     "showToStaff": "Muestra este código al personal del evento",
     "eventInfo": "Info del Evento",
     "dateRange": "{{start}} — {{end}}",
-    "attendeeCount": "{{count}} asistentes"
+    "attendeeCount": "{{count}} asistentes",
+    "packageFallback": "Asistente"
   },
   "notifications": {
     "title": "Notificaciones",
