@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSponsor } from '@/hooks/useSponsors';
-import { useEventSlug } from '@/hooks/useEvent';
+import { useEventSlug, useEvent } from '@/hooks/useEvent';
 
 const LEVEL_STYLES: Record<string, string> = {
   gold: 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300',

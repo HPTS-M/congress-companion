@@ -1223,6 +1223,7 @@ export type Database = {
           video_url: string | null
           website_url: string | null
           whatsapp: string | null
+          whatsapp_message: string | null
         }
         Insert: {
           category: string
@@ -1242,6 +1243,7 @@ export type Database = {
           video_url?: string | null
           website_url?: string | null
           whatsapp?: string | null
+          whatsapp_message?: string | null
         }
         Update: {
           category?: string
@@ -1261,6 +1263,7 @@ export type Database = {
           video_url?: string | null
           website_url?: string | null
           whatsapp?: string | null
+          whatsapp_message?: string | null
         }
         Relationships: [
           {
