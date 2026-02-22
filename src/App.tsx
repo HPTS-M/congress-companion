@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'; // Phase 1
+import { lazy, Suspense } from 'react';
 import { Toaster } from '@/components/ui/toaster';
 import { Toaster as Sonner } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -13,6 +13,13 @@ const Index = lazy(() => import('@/pages/Index'));
 const AttendeeLogin = lazy(() => import('@/pages/attendee/Login'));
 const AdminLogin = lazy(() => import('@/pages/admin/Login'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
+
+// Attendee pages
+const Home = lazy(() => import('@/pages/attendee/Home'));
+const PlaceholderPage = lazy(() => import('@/pages/attendee/PlaceholderPage'));
+
+// Layout
+const AttendeeLayout = lazy(() => import('@/pages/attendee/AttendeeLayoutWrapper'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -46,8 +53,21 @@ const App = () => (
               <Route path="/:eventSlug" element={<EventProvider />}>
                 <Route index element={<AttendeeLogin />} />
                 <Route path="admin/login" element={<AdminLogin />} />
-                {/* Phase 2 attendee routes will go here */}
-                {/* Phase 2 admin routes will go here */}
+
+                {/* Protected attendee routes */}
+                <Route element={<AttendeeLayout />}>
+                  <Route path="home" element={<Home />} />
+                  <Route path="agenda" element={<PlaceholderPage titleKey="nav.agenda" />} />
+                  <Route path="checkin" element={<PlaceholderPage titleKey="nav.checkin" />} />
+                  <Route path="tickets" element={<PlaceholderPage titleKey="nav.tickets" />} />
+                  <Route path="commercial" element={<PlaceholderPage titleKey="nav.commercial" />} />
+                  <Route path="contacts" element={<PlaceholderPage titleKey="nav.contacts" />} />
+                  <Route path="documents" element={<PlaceholderPage titleKey="nav.documents" />} />
+                  <Route path="notes" element={<PlaceholderPage titleKey="nav.notes" />} />
+                  <Route path="messaging" element={<PlaceholderPage titleKey="nav.messaging" />} />
+                  <Route path="announcements" element={<PlaceholderPage titleKey="nav.announcements" />} />
+                  <Route path="ratings" element={<PlaceholderPage titleKey="nav.ratings" />} />
+                </Route>
               </Route>
 
               <Route path="*" element={<NotFound />} />
