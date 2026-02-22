@@ -134,7 +134,7 @@ export default function CheckIn() {
   return (
     <div className="space-y-6 px-4 py-4">
       {/* Page header */}
-      <div className="px-4 pt-4">
+      <div>
         <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
         <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
       </div>

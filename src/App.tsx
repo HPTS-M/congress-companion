@@ -19,6 +19,7 @@ const Home = lazy(() => import('@/pages/attendee/Home'));
 const Agenda = lazy(() => import('@/pages/attendee/Agenda'));
 const PlaceholderPage = lazy(() => import('@/pages/attendee/PlaceholderPage'));
 const CheckIn = lazy(() => import('@/pages/attendee/CheckIn'));
+const Tickets = lazy(() => import('@/pages/attendee/Tickets'));
 
 // Layout
 const AttendeeLayout = lazy(() => import('@/pages/attendee/AttendeeLayoutWrapper'));
@@ -61,7 +62,7 @@ const App = () => (
                   <Route path="home" element={<Home />} />
                   <Route path="agenda" element={<Agenda />} />
                   <Route path="checkin" element={<CheckIn />} />
-                  <Route path="tickets" element={<PlaceholderPage titleKey="nav.tickets" />} />
+                  <Route path="tickets" element={<Tickets />} />
                   <Route path="commercial" element={<PlaceholderPage titleKey="nav.commercial" />} />
                   <Route path="contacts" element={<PlaceholderPage titleKey="nav.contacts" />} />
                   <Route path="documents" element={<PlaceholderPage titleKey="nav.documents" />} />

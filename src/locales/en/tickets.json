@@ -1,6 +1,6 @@
 {
-  "title": "Tickets",
-  "subtitle": "Contracted services",
+  "title": "Service Tickets",
+  "subtitle": "Your included services",
   "summary": {
     "pending": "{{count}} Pending",
     "used": "{{count}} Used"
@@ -10,11 +10,13 @@
     "pending": "Pending",
     "used": "Used"
   },
-  "noTickets": "You have no contracted services",
+  "noTickets": "You have no contracted services for this event",
   "serviceType": {
     "transport": "Transport",
     "food": "Food",
     "special": "Special",
     "tour": "Tour"
-  }
+  },
+  "validity": "Valid: {{from}} - {{to}}",
+  "scheduledDate": "Scheduled date"
 }
