@@ -18,6 +18,7 @@ const NotFound = lazy(() => import('@/pages/NotFound'));
 const Home = lazy(() => import('@/pages/attendee/Home'));
 const Agenda = lazy(() => import('@/pages/attendee/Agenda'));
 const PlaceholderPage = lazy(() => import('@/pages/attendee/PlaceholderPage'));
+const Documents = lazy(() => import('@/pages/attendee/Documents'));
 const CheckIn = lazy(() => import('@/pages/attendee/CheckIn'));
 const Tickets = lazy(() => import('@/pages/attendee/Tickets'));
 const Commercial = lazy(() => import('@/pages/attendee/Commercial'));
@@ -71,7 +72,7 @@ const App = () => (
                   <Route path="commercial/:sponsorId" element={<SponsorDetail />} />
                   <Route path="contacts" element={<Contacts />} />
                   <Route path="contacts/:attendeeId" element={<AttendeeProfile />} />
-                  <Route path="documents" element={<PlaceholderPage titleKey="nav.documents" />} />
+                  <Route path="documents" element={<Documents />} />
                   <Route path="notes" element={<PlaceholderPage titleKey="nav.notes" />} />
                   <Route path="messaging" element={<PlaceholderPage titleKey="nav.messaging" />} />
                   <Route path="announcements" element={<PlaceholderPage titleKey="nav.announcements" />} />

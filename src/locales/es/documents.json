@@ -1,0 +1,14 @@
+{
+  "title": "Documentos",
+  "subtitle": "Material académico del congreso",
+  "filters": {
+    "all": "Todos",
+    "presentations": "Presentaciones",
+    "abstracts": "Abstracts",
+    "guides": "Guías"
+  },
+  "general": "General",
+  "empty": "No hay documentos disponibles aún",
+  "downloadError": "No se pudo descargar el archivo. Puede que aún no esté disponible.",
+  "downloading": "Abriendo documento..."
+}

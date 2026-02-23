@@ -10,6 +10,7 @@ import esTickets from '@/locales/es/tickets.json';
 import esCommercial from '@/locales/es/commercial.json';
 import esContacts from '@/locales/es/contacts.json';
 import esAdmin from '@/locales/es/admin.json';
+import esDocuments from '@/locales/es/documents.json';
 
 // EN locale files
 import enCommon from '@/locales/en/common.json';
@@ -19,6 +20,7 @@ import enTickets from '@/locales/en/tickets.json';
 import enCommercial from '@/locales/en/commercial.json';
 import enContacts from '@/locales/en/contacts.json';
 import enAdmin from '@/locales/en/admin.json';
+import enDocuments from '@/locales/en/documents.json';
 
 i18n
   .use(LanguageDetector)
@@ -33,6 +35,7 @@ i18n
         commercial: esCommercial,
         contacts: esContacts,
         admin: esAdmin,
+        documents: esDocuments,
       },
       en: {
         common: enCommon,
@@ -42,11 +45,12 @@ i18n
         commercial: enCommercial,
         contacts: enContacts,
         admin: enAdmin,
+        documents: enDocuments,
       },
     },
     fallbackLng: 'es',
     defaultNS: 'common',
-    ns: ['common', 'agenda', 'checkin', 'tickets', 'commercial', 'contacts', 'admin'],
+    ns: ['common', 'agenda', 'checkin', 'tickets', 'commercial', 'contacts', 'admin', 'documents'],
     interpolation: {
       escapeValue: false,
     },
