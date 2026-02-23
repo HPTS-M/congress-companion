@@ -1,19 +1,28 @@
 {
-  "title": "Contactos",
-  "subtitle": "Networking",
+  "pageTitle": "Networking",
+  "pageSubtitle": "Conecta con otros asistentes",
   "tabs": {
     "participants": "Participantes",
-    "groupChat": "Chat Grupal"
-  },
-  "exchangeContact": "Intercambiar Contacto",
-  "filter": {
-    "all": "Todos",
     "myContacts": "Mis Contactos"
   },
   "searchPlaceholder": "Buscar por nombre o especialidad...",
-  "noContacts": "No tienes contactos aún",
+  "connect": "Conectar",
+  "sent": "Enviado",
+  "connected": "Conectado",
+  "accept": "Aceptar",
+  "reject": "Rechazar",
+  "chat": "Chat",
+  "viewProfile": "Ver perfil",
+  "pendingRequests": "Solicitudes pendientes ({{count}})",
+  "noParticipants": "No se encontraron participantes",
+  "noContacts": "Aún no tienes contactos.\nExplora los participantes y comienza a conectar.",
+  "requestSentToast": "Solicitud enviada",
+  "errorSending": "Error al enviar solicitud",
+  "confirmedAttendee": "Asistente confirmado",
+  "contactInfo": "Información de contacto",
+  "profileNotFound": "Perfil no encontrado",
+  "back": "Volver",
   "online": "En línea",
   "requestSent": "Solicitud enviada",
-  "requestReceived": "Solicitud recibida",
-  "connected": "Conectado"
+  "requestReceived": "Solicitud recibida"
 }
