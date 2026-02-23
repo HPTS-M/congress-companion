@@ -1334,6 +1334,8 @@ export type Database = {
       }
       get_attendee_itinerary: { Args: { _attendee_id: string }; Returns: Json }
       get_event_statistics: { Args: { _event_id: string }; Returns: Json }
+      get_my_attendee_ids: { Args: never; Returns: string[] }
+      get_my_event_ids: { Args: never; Returns: string[] }
       get_or_create_conversation: {
         Args: {
           _conversation_type?: string
