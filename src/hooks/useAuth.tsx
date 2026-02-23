@@ -37,13 +37,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Set up auth listener BEFORE checking session
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
-        setState(prev => ({
-          ...prev,
-          session,
-          user: session?.user ?? null,
-          isAuthenticated: !!session,
-          isLoading: false,
-        }));
+        setState(prev => {
+          if (_event === 'SIGNED_OUT' && prev.isAuthenticated) {
+            sessionStorage.setItem('session_expired', 'true');
+          }
+          return {
+            ...prev,
+            session,
+            user: session?.user ?? null,
+            isAuthenticated: !!session,
+            isLoading: false,
+          };
+        });
 
         // Load attendee profile if user exists
         if (session?.user) {
