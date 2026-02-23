@@ -1,0 +1,14 @@
+{
+  "title": "Documents",
+  "subtitle": "Academic materials for the congress",
+  "filters": {
+    "all": "All",
+    "presentations": "Presentations",
+    "abstracts": "Abstracts",
+    "guides": "Guides"
+  },
+  "general": "General",
+  "empty": "No documents available yet",
+  "downloadError": "Could not download the file. It may not be available yet.",
+  "downloading": "Opening document..."
+}
