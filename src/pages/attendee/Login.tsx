@@ -18,12 +18,12 @@ export default function AttendeeLogin() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginError, setLoginError] = useState('');
 
-  // Reactive redirect when session is established
+  // Reactive redirect when session AND event are both loaded
   useEffect(() => {
-    if (session && eventSlug) {
+    if (session && event && eventSlug) {
       navigate(`/${eventSlug}/home`, { replace: true });
     }
-  }, [session, eventSlug, navigate]);
+  }, [session, event, eventSlug, navigate]);
 
   // Check for session expired flag
   useEffect(() => {
@@ -95,7 +95,7 @@ export default function AttendeeLogin() {
                 <KeyRound className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   type="text"
-                  maxLength={12}
+                  
                   value={accessCode}
                   onChange={(e) => { setAccessCode(e.target.value.toUpperCase()); setLoginError(''); }}
                   placeholder="XXXXXXXX"
