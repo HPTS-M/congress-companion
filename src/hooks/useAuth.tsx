@@ -9,6 +9,7 @@ interface AuthState {
   user: User | null;
   attendee: AttendeeProfile | null;
   isLoading: boolean;
+  isProfileLoading: boolean;
   isAuthenticated: boolean;
   isAttendee: boolean;
   isAdmin: boolean;
@@ -28,6 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user: null,
     attendee: null,
     isLoading: true,
+    isProfileLoading: true,
     isAuthenticated: false,
     isAttendee: false,
     isAdmin: false,
@@ -65,6 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user: session?.user ?? null,
         isAuthenticated: !!session,
         isLoading: false,
+        isProfileLoading: session?.user ? true : false,
       }));
 
       if (session?.user) {
@@ -76,33 +79,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const loadAttendeeProfile = async (userId: string) => {
-    const { data } = await supabase
-      .from('attendees')
-      .select('id, full_name, email, credential_code, registration_status, event_id, selected_package_id, phone, document_type, document_number')
-      .eq('user_id', userId)
-      .is('deleted_at', null)
-      .maybeSingle();
+    setState(prev => ({ ...prev, isProfileLoading: true }));
+    try {
+      const { data } = await supabase
+        .from('attendees')
+        .select('id, full_name, email, credential_code, registration_status, event_id, selected_package_id, phone, document_type, document_number')
+        .eq('user_id', userId)
+        .is('deleted_at', null)
+        .maybeSingle();
 
-    if (data) {
+      if (data) {
+        setState(prev => ({
+          ...prev,
+          attendee: data as AttendeeProfile,
+          isAttendee: true,
+        }));
+      }
+
+      // Check admin roles
+      const { data: roles } = await supabase.rpc('get_user_roles', {
+        _user_id: userId,
+      });
+
+      const adminRoles = ['superuser', 'admin', 'coordinator', 'field_manager'];
+      const hasAdminRole = roles?.some((r: string) => adminRoles.includes(r)) ?? false;
+
       setState(prev => ({
         ...prev,
-        attendee: data as AttendeeProfile,
-        isAttendee: true,
+        isAdmin: hasAdminRole,
       }));
+    } finally {
+      setState(prev => ({ ...prev, isProfileLoading: false }));
     }
-
-    // Check admin roles
-    const { data: roles } = await supabase.rpc('get_user_roles', {
-      _user_id: userId,
-    });
-
-    const adminRoles = ['superuser', 'admin', 'coordinator', 'field_manager'];
-    const hasAdminRole = roles?.some((r: string) => adminRoles.includes(r)) ?? false;
-
-    setState(prev => ({
-      ...prev,
-      isAdmin: hasAdminRole,
-    }));
   };
 
   const loginWithCode = useCallback(async (accessCode: string, eventCode: string) => {
@@ -122,6 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user: null,
       attendee: null,
       isLoading: false,
+      isProfileLoading: false,
       isAuthenticated: false,
       isAttendee: false,
       isAdmin: false,

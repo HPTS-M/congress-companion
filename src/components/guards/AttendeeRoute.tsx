@@ -8,10 +8,10 @@ interface AttendeeRouteProps {
 }
 
 export function AttendeeRoute({ children }: AttendeeRouteProps) {
-  const { isAuthenticated, isAttendee, isLoading } = useAuth();
+  const { isAuthenticated, isAttendee, isLoading, isProfileLoading } = useAuth();
   const eventSlug = useEventSlug();
 
-  if (isLoading) {
+  if (isLoading || isProfileLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Skeleton className="h-8 w-32" />
