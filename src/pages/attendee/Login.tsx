@@ -1,42 +1,47 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { QrCode, KeyRound, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useEvent } from '@/hooks/useEvent';
 
 export default function AttendeeLogin() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const { loginWithCode, isAuthenticated, isAttendee } = useAuth();
+  const { loginWithCode, session } = useAuth();
   const { event, eventSlug } = useEvent();
 
   const [accessCode, setAccessCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loginError, setLoginError] = useState('');
 
-  // Redirect if already authenticated as attendee
-  if (isAuthenticated && isAttendee) {
-    navigate(`/${eventSlug}/home`, { replace: true });
-    return null;
-  }
+  // Reactive redirect when session is established
+  useEffect(() => {
+    if (session && eventSlug) {
+      navigate(`/${eventSlug}/home`, { replace: true });
+    }
+  }, [session, eventSlug, navigate]);
+
+  // Check for session expired flag
+  useEffect(() => {
+    if (sessionStorage.getItem('session_expired') === 'true') {
+      setLoginError(t('auth.sessionExpired'));
+      sessionStorage.removeItem('session_expired');
+    }
+  }, [t]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!accessCode.trim() || accessCode.trim().length < 6) return;
 
     setIsSubmitting(true);
+    setLoginError('');
     try {
       await loginWithCode(accessCode.trim(), eventSlug);
-      toast({
-        title: t('auth.welcomeBack'),
-        description: event?.name,
-      });
-      navigate(`/${eventSlug}/home`, { replace: true });
+      // useEffect will handle redirect when session updates
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : '';
       const messages: Record<string, string> = {
@@ -45,11 +50,7 @@ export default function AttendeeLogin() {
         'Registration cancelled': t('auth.registrationCancelled'),
         'Too many attempts. Try again later.': t('auth.tooManyAttempts', 'Demasiados intentos. Intenta más tarde.'),
       };
-      toast({
-        variant: 'destructive',
-        title: t('error'),
-        description: messages[errorMsg] || t('error'),
-      });
+      setLoginError(messages[errorMsg] || t('error'));
     } finally {
       setIsSubmitting(false);
     }
@@ -96,7 +97,7 @@ export default function AttendeeLogin() {
                   type="text"
                   maxLength={12}
                   value={accessCode}
-                  onChange={(e) => setAccessCode(e.target.value.toUpperCase())}
+                  onChange={(e) => { setAccessCode(e.target.value.toUpperCase()); setLoginError(''); }}
                   placeholder="XXXXXXXX"
                   className="pl-10 text-center text-lg font-mono tracking-widest uppercase"
                   autoFocus
@@ -104,6 +105,12 @@ export default function AttendeeLogin() {
                   disabled={isSubmitting}
                 />
               </div>
+
+              {loginError && (
+                <p className="text-sm text-destructive text-center">
+                  {loginError}
+                </p>
+              )}
 
               <Button
                 type="submit"

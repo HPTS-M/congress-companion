@@ -50,7 +50,8 @@
     "registrationCancelled": "Your registration has been cancelled",
     "welcomeBack": "Welcome back!",
     "loggingIn": "Logging in...",
-    "or": "or"
+    "or": "or",
+    "sessionExpired": "Your session has expired. Please enter your code again."
   },
   "home": {
     "title": "Home",
