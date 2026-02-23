@@ -1,127 +1,100 @@
 
 
-# Fix: Infinite Recursion on `attendees` RLS + Event Code Mismatch
+# Fix: Login Redirect, Session Duration, and Error Feedback
 
-## Root Cause Analysis
+## Problem Analysis
 
-### ISSUE 1 -- Login appears broken (field clears, nothing happens)
+The login page has a race condition: after `loginWithCode` succeeds, `navigate()` fires immediately on line 39, but `useAuth`'s `onAuthStateChange` listener hasn't updated `isAttendee` yet. If the component re-renders before navigation completes, the synchronous check on lines 23-26 sees `isAuthenticated = false` (stale) and doesn't redirect. On return visits with a valid session, the same synchronous check fails because `isAttendee` updates asynchronously via `loadAttendeeProfile`.
 
-Two separate problems are compounding:
+## Changes
 
-**Problem A: Infinite recursion in `attendees` RLS policy (CRITICAL)**
+### 1. `src/pages/attendee/Login.tsx` -- Add useEffect redirect + error state
 
-The migration we just ran added this policy to `attendees`:
+Replace the synchronous redirect (lines 22-26) with a `useEffect` that watches `session` and `isAttendee`:
 
-```sql
--- "Attendees view event directory"
-USING (
-  event_id IN (
-    SELECT a.event_id FROM attendees a WHERE a.user_id = auth.uid()
-  )
-)
+```typescript
+import { useState, useEffect } from 'react';
+
+// Destructure session from useAuth
+const { loginWithCode, isAuthenticated, isAttendee, session } = useAuth();
+
+// Error state for inline feedback
+const [loginError, setLoginError] = useState('');
+
+// Reactive redirect when auth state updates
+useEffect(() => {
+  if (session && eventSlug) {
+    navigate(`/${eventSlug}/home`, { replace: true });
+  }
+}, [session, eventSlug, navigate]);
 ```
 
-This subquery references the `attendees` table **from within its own RLS policy**. When PostgreSQL evaluates any SELECT on `attendees`, it triggers this policy, which queries `attendees` again, which triggers the policy again -- infinite recursion.
+Remove the old synchronous `if (isAuthenticated && isAttendee)` block entirely.
 
-Every call to `loadAttendeeProfile()` in `useAuth.tsx` returns HTTP 500 with `"infinite recursion detected in policy for relation 'attendees'"`. Because the profile never loads, `isAttendee` stays `false`, and the `AttendeeRoute` guard redirects to login.
+Add inline error display below the input field:
 
-The same recursion also affects the `contacts` table policies, which subquery `attendees` too:
-
-```sql
--- contacts policies contain:
-user_id IN (SELECT id FROM attendees WHERE user_id = auth.uid())
+```tsx
+{loginError && (
+  <p className="text-sm text-red-600 dark:text-red-400 text-center">
+    {loginError}
+  </p>
+)}
 ```
 
-When Postgres evaluates this subquery on `attendees`, it hits the recursive directory policy.
+Update `handleSubmit` catch block to set `loginError` instead of (or in addition to) toast:
 
-**Problem B: Wrong event code in URL**
-
-The user is on `/TEST1234`, but the only event in the database has `event_code = 'ACQFH-2026'`. The `EventProvider` queries by event_code, gets 0 rows, and shows "Evento no encontrado". The correct URL is `/ACQFH-2026`.
-
-### ISSUE 2 -- Contacts page redirects to login
-
-This is a direct consequence of Issue 1. The `AttendeeRoute` guard checks `isAttendee`, which is `false` because `loadAttendeeProfile()` fails with the infinite recursion error. So every protected route redirects to login.
-
-## Fix Plan
-
-### Step 1: Create SECURITY DEFINER helper functions
-
-These functions bypass RLS when called inside policies, breaking the recursion:
-
-```sql
-CREATE OR REPLACE FUNCTION public.get_my_attendee_ids()
-RETURNS SETOF uuid
-LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path TO 'public'
-AS $$
-  SELECT id FROM public.attendees
-  WHERE user_id = auth.uid() AND deleted_at IS NULL;
-$$;
-
-CREATE OR REPLACE FUNCTION public.get_my_event_ids()
-RETURNS SETOF uuid
-LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path TO 'public'
-AS $$
-  SELECT event_id FROM public.attendees
-  WHERE user_id = auth.uid() AND deleted_at IS NULL;
-$$;
+```typescript
+catch (err) {
+  const errorMsg = err instanceof Error ? err.message : '';
+  const messages = { /* existing map */ };
+  setLoginError(messages[errorMsg] || t('error'));
+}
 ```
 
-### Step 2: Drop and recreate the attendees directory policy
+Clear error on input change: `onChange` sets `setLoginError('')`.
 
-Replace the self-referencing policy with one that uses the helper function:
+### 2. `supabase/functions/verify-access-code/index.ts` -- 8-hour session
 
-```sql
-DROP POLICY "Attendees view event directory" ON public.attendees;
+Currently `generateLink` uses Supabase's default OTP expiry. We cannot set JWT expiry directly from `generateLink`, but the session duration is controlled by the Supabase Auth config. However, we should ensure the magic link OTP doesn't expire too quickly during testing.
 
-CREATE POLICY "Attendees view event directory"
-ON public.attendees FOR SELECT TO authenticated
-USING (
-  event_id IN (SELECT get_my_event_ids())
-  AND deleted_at IS NULL
-  AND registration_status = 'confirmed'
-);
+The actual session duration (JWT `exp`) is set in Supabase Auth settings (Dashboard > Authentication > Settings > JWT expiry). The edge function doesn't control this. But we should document this for the user.
+
+No code change needed in the edge function for session duration -- this is a Supabase dashboard setting.
+
+**Action for user**: Go to Supabase Dashboard > Authentication > Settings and set "JWT expiry" to `28800` (8 hours).
+
+### 3. `src/locales/es/common.json` and `src/locales/en/common.json` -- Add session expired key
+
+Add `auth.sessionExpired` key:
+- ES: `"Tu sesion ha expirado. Ingresa tu codigo nuevamente."`
+- EN: `"Your session has expired. Please enter your code again."`
+
+### 4. `src/hooks/useAuth.tsx` -- Detect session expiry
+
+In `onAuthStateChange`, when `_event === 'TOKEN_REFRESHED'` fails or `_event === 'SIGNED_OUT'`, the session becomes null. No extra code needed -- the existing listener already sets `isAuthenticated: false` when session is null, which causes the `AttendeeRoute` guard to redirect to login. But we should store a flag so the login page can show the "session expired" message.
+
+Add to `onAuthStateChange`:
+```typescript
+if (_event === 'SIGNED_OUT' && prev.isAuthenticated) {
+  // Session expired or user logged out
+  sessionStorage.setItem('session_expired', 'true');
+}
 ```
 
-### Step 3: Drop and recreate all contacts policies
+Then in Login.tsx, on mount check for this flag and show the expired message.
 
-Replace `SELECT id FROM attendees WHERE ...` subqueries with `get_my_attendee_ids()`:
-
-```sql
-DROP POLICY "Authenticated read own contacts" ON public.contacts;
-DROP POLICY "Authenticated insert contacts" ON public.contacts;
-DROP POLICY "Authenticated update contacts" ON public.contacts;
-DROP POLICY "Authenticated delete contacts" ON public.contacts;
-DROP POLICY "Attendees manage own contacts" ON public.contacts;
-
--- Recreate using helper function
-CREATE POLICY "Authenticated read own contacts" ...
-  USING (user_id IN (SELECT get_my_attendee_ids())
-    OR contact_id IN (SELECT get_my_attendee_ids()));
-
-CREATE POLICY "Authenticated insert contacts" ...
-  WITH CHECK (user_id IN (SELECT get_my_attendee_ids()));
-
--- (and similarly for update/delete)
-```
-
-### Step 4: No frontend code changes needed
-
-The `useAuth.tsx`, `AttendeeRoute`, `Login.tsx`, and `Contacts.tsx` code is correct. The only problem is the database policies causing 500 errors.
-
-## Files Changed
+## Files Summary
 
 | File | Change |
 |---|---|
-| New migration SQL | Create helper functions + recreate 6 RLS policies |
+| `src/pages/attendee/Login.tsx` | Replace sync redirect with useEffect; add inline error state; check session_expired flag |
+| `src/hooks/useAuth.tsx` | Set session_expired flag on SIGNED_OUT event |
+| `src/locales/es/common.json` | Add `auth.sessionExpired` key |
+| `src/locales/en/common.json` | Add `auth.sessionExpired` key |
+| `supabase/functions/verify-access-code/index.ts` | No change needed (session duration is a dashboard setting) |
 
-No frontend files need modification.
+## Dashboard Action Required
 
-## After Fix
-
-1. Navigate to `/ACQFH-2026` (the correct event code)
-2. Enter the access code to log in
-3. The attendee profile will load successfully (no more 500)
-4. Navigate to `/ACQFH-2026/contacts` to verify the Contacts module works
+Set JWT expiry to 28800 seconds (8 hours) at:
+`Supabase Dashboard > Authentication > Settings > JWT expiry`
 
