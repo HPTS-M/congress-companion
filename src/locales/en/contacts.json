@@ -1,19 +1,28 @@
 {
-  "title": "Contacts",
-  "subtitle": "Networking",
+  "pageTitle": "Networking",
+  "pageSubtitle": "Connect with other attendees",
   "tabs": {
     "participants": "Participants",
-    "groupChat": "Group Chat"
-  },
-  "exchangeContact": "Exchange Contact",
-  "filter": {
-    "all": "All",
     "myContacts": "My Contacts"
   },
   "searchPlaceholder": "Search by name or specialty...",
-  "noContacts": "No contacts yet",
+  "connect": "Connect",
+  "sent": "Sent",
+  "connected": "Connected",
+  "accept": "Accept",
+  "reject": "Reject",
+  "chat": "Chat",
+  "viewProfile": "View profile",
+  "pendingRequests": "Pending requests ({{count}})",
+  "noParticipants": "No participants found",
+  "noContacts": "You don't have contacts yet.\nExplore participants and start connecting.",
+  "requestSentToast": "Request sent",
+  "errorSending": "Error sending request",
+  "confirmedAttendee": "Confirmed attendee",
+  "contactInfo": "Contact information",
+  "profileNotFound": "Profile not found",
+  "back": "Back",
   "online": "Online",
   "requestSent": "Request sent",
-  "requestReceived": "Request received",
-  "connected": "Connected"
+  "requestReceived": "Request received"
 }

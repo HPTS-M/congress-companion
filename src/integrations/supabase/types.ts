@@ -275,11 +275,13 @@ export type Database = {
           event_id: string
           full_name: string
           id: string
+          institution: string | null
           notes: string | null
           phone: string | null
           registration_date: string | null
           registration_status: string | null
           selected_package_id: string | null
+          specialty: string | null
           updated_at: string | null
           user_id: string | null
         }
@@ -295,11 +297,13 @@ export type Database = {
           event_id: string
           full_name: string
           id?: string
+          institution?: string | null
           notes?: string | null
           phone?: string | null
           registration_date?: string | null
           registration_status?: string | null
           selected_package_id?: string | null
+          specialty?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -315,11 +319,13 @@ export type Database = {
           event_id?: string
           full_name?: string
           id?: string
+          institution?: string | null
           notes?: string | null
           phone?: string | null
           registration_date?: string | null
           registration_status?: string | null
           selected_package_id?: string | null
+          specialty?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
