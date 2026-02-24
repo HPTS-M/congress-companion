@@ -161,7 +161,7 @@ export default function AdminAgenda() {
 
   const handleExport = useCallback(() => {
     if (!activities || activities.length === 0) return;
-    exportAgendaToExcel(activities, event?.name ?? 'agenda');
+    void exportAgendaToExcel(activities, event?.name ?? 'agenda');
   }, [activities, event]);
 
   return (

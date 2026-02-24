@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { FileText, Download } from 'lucide-react';
 import type { DocumentWithSession } from '@/services/admin-documents.service';
 import type { EventActivity, CongressEvent } from '@/types';
-import * as XLSX from 'xlsx';
+import { writeExcelFile } from '@/lib/excel';
 
 interface Props {
   open: boolean;
@@ -92,19 +92,21 @@ export function DocumentIndexModal({ open, onClose, documents, activities, event
     return rows;
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     const rows = buildIndexRows();
-    const ws = XLSX.utils.json_to_sheet(rows.map((r) => ({
-      '#': r.n,
-      'Título': r.title,
-      'Tipo': r.type,
-      'Tamaño': r.size,
-      'Sesión': r.session,
-      'Sección': r.group,
-    })));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Índice');
-    XLSX.writeFile(wb, `indice-documentos-${event?.event_code ?? 'export'}.xlsx`);
+    await writeExcelFile({
+      filename: `indice-documentos-${event?.event_code ?? 'export'}.xlsx`,
+      sheetName: 'Índice',
+      columns: [
+        { header: '#', key: 'n', width: 5 },
+        { header: 'Título', key: 'title', width: 35 },
+        { header: 'Tipo', key: 'type', width: 10 },
+        { header: 'Tamaño', key: 'size', width: 12 },
+        { header: 'Sesión', key: 'session', width: 30 },
+        { header: 'Sección', key: 'group', width: 25 },
+      ],
+      rows,
+    });
   };
 
   const handleExportText = () => {

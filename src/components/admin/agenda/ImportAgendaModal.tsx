@@ -144,7 +144,7 @@ export function ImportAgendaModal({ open, onClose, eventId, onImported }: Props)
               </div>
             </div>
             {result.errors > 0 && (
-              <Button variant="outline" size="sm" onClick={() => downloadErrorReport(validated)}>
+              <Button variant="outline" size="sm" onClick={() => void downloadErrorReport(validated)}>
                 <Download className="mr-1 h-4 w-4" />
                 {t('agenda.import.downloadErrors')}
               </Button>
@@ -158,7 +158,7 @@ export function ImportAgendaModal({ open, onClose, eventId, onImported }: Props)
         {/* File selection */}
         {!result && rawRows.length === 0 && (
           <div className="space-y-4">
-            <Button variant="outline" size="sm" onClick={downloadAgendaTemplate}>
+            <Button variant="outline" size="sm" onClick={() => void downloadAgendaTemplate()}>
               <Download className="mr-1 h-4 w-4" />
               {t('agenda.import.downloadTemplate')}
             </Button>
