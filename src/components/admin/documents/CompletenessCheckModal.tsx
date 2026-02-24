@@ -1,10 +1,10 @@
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Upload, Download, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { readExcelFile, writeExcelFile } from '@/lib/excel';
 import type { DocumentWithSession } from '@/services/admin-documents.service';
 
 interface Props {
@@ -34,20 +34,16 @@ export function CompletenessCheckModal({ open, onClose, documents }: Props) {
 
   const handleFile = useCallback(async (file: File) => {
     setFileName(file.name);
-    const data = await file.arrayBuffer();
-    const wb = XLSX.read(data);
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const json = XLSX.utils.sheet_to_json<Record<string, string>>(ws);
+    const json = await readExcelFile(file);
 
     const rows: RefRow[] = json.map((r) => ({
-      titulo_esperado: (r.titulo_esperado ?? r.titulo ?? r.title ?? '').toString().trim(),
-      sesion: (r.sesion ?? r.session ?? '').toString().trim(),
-      tipo: (r.tipo ?? r.type ?? '').toString().trim().toLowerCase(),
+      titulo_esperado: String(r['titulo_esperado'] ?? r['titulo'] ?? r['title'] ?? '').trim(),
+      sesion: String(r['sesion'] ?? r['session'] ?? '').trim(),
+      tipo: String(r['tipo'] ?? r['type'] ?? '').trim().toLowerCase(),
     })).filter((r) => r.titulo_esperado.length > 0);
 
     setRefRows(rows);
 
-    // Compare
     const docTitles = new Map<string, DocumentWithSession>();
     for (const d of documents) {
       docTitles.set(d.title.toLowerCase().trim(), d);
@@ -78,7 +74,7 @@ export function CompletenessCheckModal({ open, onClose, documents }: Props) {
     if (file) handleFile(file);
   }, [handleFile]);
 
-  const handleDownloadReport = useCallback(() => {
+  const handleDownloadReport = useCallback(async () => {
     if (!result) return;
     const rows: Record<string, string>[] = [];
 
@@ -92,10 +88,17 @@ export function CompletenessCheckModal({ open, onClose, documents }: Props) {
       rows.push({ Estado: '⚠️ Extra', Título: d.title, Sesión: d.session_title ?? '', Tipo: d.file_type ?? '' });
     }
 
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Reporte');
-    XLSX.writeFile(wb, 'reporte-completitud-documentos.xlsx');
+    await writeExcelFile({
+      filename: 'reporte-completitud-documentos.xlsx',
+      sheetName: 'Reporte',
+      columns: [
+        { header: 'Estado', key: 'Estado', width: 15 },
+        { header: 'Título', key: 'Título', width: 40 },
+        { header: 'Sesión', key: 'Sesión', width: 30 },
+        { header: 'Tipo', key: 'Tipo', width: 10 },
+      ],
+      rows,
+    });
   }, [result]);
 
   const reset = useCallback(() => {
@@ -140,7 +143,6 @@ export function CompletenessCheckModal({ open, onClose, documents }: Props) {
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">{t('documents.completeness.fileLoaded', { name: fileName, count: refRows.length })}</p>
 
-            {/* Summary */}
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-lg border border-green-200 bg-green-50 dark:bg-green-900/20 dark:border-green-800 p-3 text-center">
                 <CheckCircle2 className="mx-auto h-5 w-5 text-green-600 mb-1" />
@@ -159,7 +161,6 @@ export function CompletenessCheckModal({ open, onClose, documents }: Props) {
               </div>
             </div>
 
-            {/* Missing list */}
             {result.missing.length > 0 && (
               <div>
                 <h4 className="text-sm font-semibold text-red-600 mb-2">❌ {t('documents.completeness.missingList')}</h4>
@@ -174,7 +175,6 @@ export function CompletenessCheckModal({ open, onClose, documents }: Props) {
               </div>
             )}
 
-            {/* Extra list */}
             {result.extra.length > 0 && (
               <div>
                 <h4 className="text-sm font-semibold text-amber-600 mb-2">⚠️ {t('documents.completeness.extraList')}</h4>
