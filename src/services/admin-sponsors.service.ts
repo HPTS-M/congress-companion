@@ -1,0 +1,108 @@
+import { supabase } from '@/integrations/supabase/client';
+
+export interface SponsorRow {
+  id: string;
+  event_id: string;
+  name: string;
+  level: string;
+  category: string;
+  description: string | null;
+  stand_location: string | null;
+  logo_url: string | null;
+  website_url: string | null;
+  materials_url: string | null;
+  contact_email: string | null;
+  whatsapp: string | null;
+  whatsapp_message: string | null;
+  video_url: string | null;
+  social_linkedin: string | null;
+  social_instagram: string | null;
+  social_twitter: string | null;
+  created_at: string | null;
+  profile_views: number;
+  whatsapp_clicks: number;
+  website_clicks: number;
+  materials_downloads: number;
+}
+
+export interface SponsorFormData {
+  name: string;
+  level: string;
+  category: string;
+  description?: string;
+  stand_location?: string;
+  website_url?: string;
+  contact_email?: string;
+  whatsapp?: string;
+  whatsapp_message?: string;
+  video_url?: string;
+  social_linkedin?: string;
+  social_instagram?: string;
+  social_twitter?: string;
+}
+
+const BUCKET = 'event-sponsors';
+
+export const adminSponsorsService = {
+  async getAll(eventId: string): Promise<SponsorRow[]> {
+    const { data, error } = await supabase
+      .from('sponsors')
+      .select('*')
+      .eq('event_id', eventId)
+      .order('level')
+      .order('name');
+    if (error) throw new Error(error.message);
+    return (data ?? []) as SponsorRow[];
+  },
+
+  async create(eventId: string, form: SponsorFormData): Promise<SponsorRow> {
+    const { data, error } = await supabase
+      .from('sponsors')
+      .insert({ event_id: eventId, ...form })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return data as SponsorRow;
+  },
+
+  async update(id: string, form: Partial<SponsorFormData> & { logo_url?: string | null; materials_url?: string | null }): Promise<SponsorRow> {
+    const { data, error } = await supabase
+      .from('sponsors')
+      .update(form)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return data as SponsorRow;
+  },
+
+  async remove(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('sponsors')
+      .delete()
+      .eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+
+  async uploadFile(eventId: string, file: File, prefix: string): Promise<string> {
+    const ext = file.name.split('.').pop() ?? '';
+    const path = `${eventId}/${prefix}-${Date.now()}.${ext}`;
+    const { error } = await supabase.storage
+      .from(BUCKET)
+      .upload(path, file, { upsert: true });
+    if (error) throw new Error(error.message);
+    return path;
+  },
+
+  async deleteFile(path: string): Promise<void> {
+    await supabase.storage.from(BUCKET).remove([path]);
+  },
+
+  getSignedUrl: async (path: string): Promise<string> => {
+    const { data, error } = await supabase.storage
+      .from(BUCKET)
+      .createSignedUrl(path, 3600);
+    if (error) throw new Error(error.message);
+    return data.signedUrl;
+  },
+};
