@@ -10,6 +10,9 @@ import {
 import { adminDocumentsService, type DocumentWithSession } from '@/services/admin-documents.service';
 import { UploadDocumentModal } from '@/components/admin/documents/UploadDocumentModal';
 import { EditDocumentModal } from '@/components/admin/documents/EditDocumentModal';
+import { DocumentIndexModal } from '@/components/admin/documents/DocumentIndexModal';
+import { DocumentQualityPanel } from '@/components/admin/documents/DocumentQualityPanel';
+import { CompletenessCheckModal } from '@/components/admin/documents/CompletenessCheckModal';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -23,7 +26,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  Plus, Download, Pencil, Trash2, FileText, Search, File,
+  Plus, Download, Pencil, Trash2, FileText, Search, List, ClipboardCheck,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
@@ -68,10 +71,17 @@ export default function AdminDocuments() {
   const [editDoc, setEditDoc] = useState<DocumentWithSession | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DocumentWithSession | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [indexOpen, setIndexOpen] = useState(false);
+  const [completenessOpen, setCompletenessOpen] = useState(false);
+  const [qualityFilterIds, setQualityFilterIds] = useState<string[] | null>(null);
+  const [qualityFilterLabel, setQualityFilterLabel] = useState('');
 
   const filtered = useMemo(() => {
     if (!documents) return [];
     return documents.filter((d) => {
+      // Quality filter takes priority
+      if (qualityFilterIds) return qualityFilterIds.includes(d.id);
+
       const q = search.toLowerCase();
       const matchSearch = !q || d.title.toLowerCase().includes(q) || (d.session_title ?? '').toLowerCase().includes(q);
       const matchFilter =
@@ -79,7 +89,7 @@ export default function AdminDocuments() {
         (filter === 'general' ? !d.session_id : d.file_type === filter);
       return matchSearch && matchFilter;
     });
-  }, [documents, search, filter]);
+  }, [documents, search, filter, qualityFilterIds]);
 
   // Stats
   const stats = useMemo(() => {
@@ -162,6 +172,16 @@ export default function AdminDocuments() {
     URL.revokeObjectURL(url);
   }, [documents, event]);
 
+  const handleQualityFilter = useCallback((ids: string[], label: string) => {
+    setQualityFilterIds(ids);
+    setQualityFilterLabel(label);
+  }, []);
+
+  const clearQualityFilter = useCallback(() => {
+    setQualityFilterIds(null);
+    setQualityFilterLabel('');
+  }, []);
+
   const invalidate = useCallback(() => {
     qc.invalidateQueries({ queryKey: ['admin-documents', eventId] });
   }, [qc, eventId]);
@@ -172,6 +192,14 @@ export default function AdminDocuments() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-foreground">{t('documents.title')}</h1>
         <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={() => setIndexOpen(true)}>
+            <List className="mr-1 h-4 w-4" />
+            {t('documents.viewIndex')}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setCompletenessOpen(true)}>
+            <ClipboardCheck className="mr-1 h-4 w-4" />
+            {t('documents.completenessCheck')}
+          </Button>
           <Button variant="outline" size="sm" onClick={handleExportList}>
             <Download className="mr-1 h-4 w-4" />
             {t('documents.exportList')}
@@ -197,31 +225,50 @@ export default function AdminDocuments() {
         ))}
       </div>
 
+      {/* Quality Panel */}
+      {documents && documents.length > 0 && (
+        <DocumentQualityPanel documents={documents} onFilterByIds={handleQualityFilter} />
+      )}
+
+      {/* Quality filter active banner */}
+      {qualityFilterIds && (
+        <div className="flex items-center gap-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-2">
+          <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
+            🔍 {qualityFilterLabel} ({qualityFilterIds.length})
+          </span>
+          <Button variant="outline" size="sm" onClick={clearQualityFilter} className="text-xs h-7">
+            {t('documents.quality.clearFilter')}
+          </Button>
+        </div>
+      )}
+
       {/* Filters */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t('documents.searchPlaceholder')}
-            className="pl-9"
-          />
+      {!qualityFilterIds && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t('documents.searchPlaceholder')}
+              className="pl-9"
+            />
+          </div>
+          <div className="flex gap-1">
+            {FILTERS.map((f) => (
+              <Button
+                key={f}
+                variant={filter === f ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setFilter(f)}
+                className={filter === f ? 'bg-primary text-primary-foreground' : ''}
+              >
+                {t(`documents.filter${f.charAt(0).toUpperCase() + f.slice(1)}`)}
+              </Button>
+            ))}
+          </div>
         </div>
-        <div className="flex gap-1">
-          {FILTERS.map((f) => (
-            <Button
-              key={f}
-              variant={filter === f ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilter(f)}
-              className={filter === f ? 'bg-primary text-primary-foreground' : ''}
-            >
-              {t(`documents.filter${f.charAt(0).toUpperCase() + f.slice(1)}`)}
-            </Button>
-          ))}
-        </div>
-      </div>
+      )}
 
       {/* Bulk actions */}
       {selected.size > 0 && (
@@ -252,6 +299,7 @@ export default function AdminDocuments() {
                 <TableHead className="hidden md:table-cell">{t('documents.colSession')}</TableHead>
                 <TableHead className="hidden lg:table-cell">{t('documents.colSize')}</TableHead>
                 <TableHead className="hidden lg:table-cell">{t('documents.colDate')}</TableHead>
+                <TableHead className="hidden lg:table-cell">{t('documents.colDownloads')}</TableHead>
                 <TableHead className="text-right">{t('documents.colActions')}</TableHead>
               </TableRow>
             </TableHeader>
@@ -288,6 +336,9 @@ export default function AdminDocuments() {
                     </TableCell>
                     <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
                       {doc.created_at ? new Date(doc.created_at).toLocaleDateString('es-ES') : '—'}
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
+                      {doc.download_count ?? 0}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
@@ -327,6 +378,22 @@ export default function AdminDocuments() {
         eventId={eventId ?? ''}
         activities={activities ?? []}
         onUpdated={invalidate}
+      />
+
+      {/* Index Modal */}
+      <DocumentIndexModal
+        open={indexOpen}
+        onClose={() => setIndexOpen(false)}
+        documents={documents ?? []}
+        activities={activities ?? []}
+        event={event}
+      />
+
+      {/* Completeness Check Modal */}
+      <CompletenessCheckModal
+        open={completenessOpen}
+        onClose={() => setCompletenessOpen(false)}
+        documents={documents ?? []}
       />
 
       {/* Delete confirm */}
