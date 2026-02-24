@@ -439,6 +439,37 @@
     "statViews": "Profile views",
     "statWhatsapp": "WhatsApp clicks",
     "statWebsite": "Website clicks",
-    "statMaterials": "Material downloads"
+    "statMaterials": "Material downloads",
+    "importButton": "Import",
+    "exportButton": "Export",
+    "exportSuccess": "Excel exported successfully",
+    "exportError": "Error exporting",
+    "import": {
+      "title": "Import Sponsors",
+      "downloadTemplate": "Download template (.xlsx)",
+      "dropHere": "Drag & drop an .xlsx or .csv file here or click",
+      "invalidFormat": "Invalid format. Use .xlsx, .xls or .csv",
+      "parseError": "Error reading file",
+      "valid": "valid",
+      "invalid": "with errors",
+      "colName": "Name",
+      "colLevel": "Level",
+      "colCategory": "Category",
+      "colStatus": "Status",
+      "changeFile": "Change file",
+      "importButton": "Import {{count}} sponsors",
+      "importing": "Importing...",
+      "resultImported": "{{count}} imported successfully",
+      "resultErrors": "{{count}} errors",
+      "close": "Close"
+    },
+    "leads": {
+      "count": "{{count}} interested attendees",
+      "export": "Export leads",
+      "exportSuccess": "Leads exported successfully",
+      "exportError": "Error exporting leads",
+      "loading": "Loading...",
+      "noLeads": "No attendees have shown interest yet"
+    }
   }
 }

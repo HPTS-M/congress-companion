@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Search, Building2 } from 'lucide-react';
+import { SponsorLeadButton } from '@/components/attendee/SponsorLeadButton';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -142,6 +143,7 @@ export default function Commercial() {
                 <SponsorCard
                   key={sponsor.id}
                   sponsor={sponsor}
+                  eventId={event?.id}
                   onView={() => navigate(`/${eventSlug}/commercial/${sponsor.id}`)}
                 />
               ))}
@@ -153,7 +155,7 @@ export default function Commercial() {
   );
 }
 
-function SponsorCard({ sponsor, onView }: { sponsor: Sponsor; onView: () => void }) {
+function SponsorCard({ sponsor, onView, eventId }: { sponsor: Sponsor; onView: () => void; eventId?: string }) {
   const { t } = useTranslation('commercial');
 
   return (
@@ -175,6 +177,9 @@ function SponsorCard({ sponsor, onView }: { sponsor: Sponsor; onView: () => void
       </Badge>
       {sponsor.stand_location && (
         <p className="text-xs text-muted-foreground">Stand {sponsor.stand_location}</p>
+      )}
+      {eventId && (
+        <SponsorLeadButton sponsorId={sponsor.id} eventId={eventId} className="w-full text-xs" />
       )}
       <Button variant="outline" size="sm" className="w-full text-xs mt-auto" onClick={onView}>
         {t('viewMore')} →

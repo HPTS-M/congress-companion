@@ -13,11 +13,13 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Search, Pencil, Trash2, Eye, Mail, MessageCircle, Building2, Award, Trophy, Medal } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Eye, Mail, MessageCircle, Building2, Award, Trophy, Medal, Download, Upload } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { SponsorModal } from '@/components/admin/sponsors/SponsorModal';
 import { SponsorDetailDrawer } from '@/components/admin/sponsors/SponsorDetailDrawer';
+import { ImportSponsorsModal } from '@/components/admin/sponsors/ImportSponsorsModal';
+import { exportSponsorsToExcel } from '@/services/admin-sponsors-excel.service';
 import type { SponsorRow } from '@/services/admin-sponsors.service';
 
 const LEVEL_COLORS: Record<string, string> = {
@@ -41,6 +43,7 @@ export default function AdminSponsors() {
   const [editingSponsor, setEditingSponsor] = useState<SponsorRow | null>(null);
   const [viewingSponsor, setViewingSponsor] = useState<SponsorRow | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return sponsors;
@@ -96,11 +99,26 @@ export default function AdminSponsors() {
   return (
     <div className="space-y-6 p-4 md:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl font-bold text-foreground">{t('sponsors.title')}</h1>
-        <Button onClick={() => setModalOpen(true)} className="bg-primary text-primary-foreground">
-          <Plus className="mr-1 h-4 w-4" /> {t('sponsors.newSponsor')}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload className="mr-1 h-4 w-4" /> {t('sponsors.importButton')}
+          </Button>
+          <Button variant="outline" onClick={async () => {
+            try {
+              await exportSponsorsToExcel(sponsors, event?.name ?? 'event');
+              toast.success(t('sponsors.exportSuccess'));
+            } catch {
+              toast.error(t('sponsors.exportError'));
+            }
+          }}>
+            <Download className="mr-1 h-4 w-4" /> {t('sponsors.exportButton')}
+          </Button>
+          <Button onClick={() => setModalOpen(true)} className="bg-primary text-primary-foreground">
+            <Plus className="mr-1 h-4 w-4" /> {t('sponsors.newSponsor')}
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -232,6 +250,16 @@ export default function AdminSponsors() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Import modal */}
+      {importOpen && event && (
+        <ImportSponsorsModal
+          open={importOpen}
+          onClose={() => setImportOpen(false)}
+          eventId={event.id}
+          onImported={() => {/* invalidated by hook */}}
+        />
+      )}
     </div>
   );
 }

@@ -28,5 +28,11 @@
     "video": "Watch video",
     "social": "Social media",
     "back": "Back"
+  },
+  "lead": {
+    "interested": "I'm interested",
+    "submitted": "Interest registered",
+    "success": "Your interest has been registered. The sponsor may contact you.",
+    "error": "Error registering interest"
   }
 }

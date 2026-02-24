@@ -439,6 +439,37 @@
     "statViews": "Vistas del perfil",
     "statWhatsapp": "Clics WhatsApp",
     "statWebsite": "Clics sitio web",
-    "statMaterials": "Descargas material"
+    "statMaterials": "Descargas material",
+    "importButton": "Importar",
+    "exportButton": "Exportar",
+    "exportSuccess": "Excel exportado exitosamente",
+    "exportError": "Error al exportar",
+    "import": {
+      "title": "Importar Patrocinadores",
+      "downloadTemplate": "Descargar plantilla (.xlsx)",
+      "dropHere": "Arrastra un archivo .xlsx o .csv aquí o haz clic",
+      "invalidFormat": "Formato inválido. Usa .xlsx, .xls o .csv",
+      "parseError": "Error al leer el archivo",
+      "valid": "válidos",
+      "invalid": "con errores",
+      "colName": "Nombre",
+      "colLevel": "Nivel",
+      "colCategory": "Categoría",
+      "colStatus": "Estado",
+      "changeFile": "Cambiar archivo",
+      "importButton": "Importar {{count}} patrocinadores",
+      "importing": "Importando...",
+      "resultImported": "{{count}} importados exitosamente",
+      "resultErrors": "{{count}} errores",
+      "close": "Cerrar"
+    },
+    "leads": {
+      "count": "{{count}} asistentes interesados",
+      "export": "Exportar leads",
+      "exportSuccess": "Leads exportados exitosamente",
+      "exportError": "Error al exportar leads",
+      "loading": "Cargando...",
+      "noLeads": "Ningún asistente ha mostrado interés aún"
+    }
   }
 }
