@@ -28,5 +28,11 @@
     "video": "Ver video",
     "social": "Redes sociales",
     "back": "Volver"
+  },
+  "lead": {
+    "interested": "Me interesa",
+    "submitted": "Interés registrado",
+    "success": "Tu interés fue registrado. El patrocinador podrá contactarte.",
+    "error": "Error al registrar interés"
   }
 }

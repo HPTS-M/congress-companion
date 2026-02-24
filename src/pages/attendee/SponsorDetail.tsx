@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, MapPin, Globe, Download, Mail, MessageCircle, Video, Linkedin, Instagram, Twitter } from 'lucide-react';
+import { SponsorLeadButton } from '@/components/attendee/SponsorLeadButton';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -84,6 +85,11 @@ export default function SponsorDetail() {
           <MapPin className="h-4 w-4" />
           <span>{t('detail.stand')} {sponsor.stand_location}</span>
         </div>
+      )}
+
+      {/* Lead button */}
+      {event?.id && (
+        <SponsorLeadButton sponsorId={sponsor.id} eventId={event.id} className="w-full" />
       )}
 
       {/* Actions */}

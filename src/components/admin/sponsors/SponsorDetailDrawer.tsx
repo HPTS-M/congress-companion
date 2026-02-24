@@ -3,8 +3,13 @@ import { useTranslation } from 'react-i18next';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Globe, Mail, MessageCircle, Linkedin, Instagram, MapPin, Play, FileText, Eye, MousePointerClick, Download } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Globe, Mail, MessageCircle, Linkedin, Instagram, MapPin, Play, FileText, Eye, MousePointerClick, Download, Users, Heart } from 'lucide-react';
 import { adminSponsorsService, type SponsorRow } from '@/services/admin-sponsors.service';
+import { sponsorLeadsService, type SponsorLeadWithAttendee } from '@/services/sponsor-leads.service';
+import { writeExcelFile } from '@/lib/excel';
+import { toast } from 'sonner';
 
 interface Props {
   open: boolean;
@@ -26,6 +31,8 @@ const LEVEL_LABELS: Record<string, string> = {
 export function SponsorDetailDrawer({ open, onClose, sponsor }: Props) {
   const { t } = useTranslation('admin');
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [leads, setLeads] = useState<SponsorLeadWithAttendee[]>([]);
+  const [leadsLoading, setLeadsLoading] = useState(false);
 
   useEffect(() => {
     if (sponsor?.logo_url) {
@@ -35,9 +42,45 @@ export function SponsorDetailDrawer({ open, onClose, sponsor }: Props) {
     }
   }, [sponsor?.logo_url]);
 
+  useEffect(() => {
+    if (sponsor?.id && open) {
+      setLeadsLoading(true);
+      sponsorLeadsService.getLeadsForSponsor(sponsor.id)
+        .then(setLeads)
+        .catch(() => setLeads([]))
+        .finally(() => setLeadsLoading(false));
+    }
+  }, [sponsor?.id, open]);
+
   if (!sponsor) return null;
 
   const initials = sponsor.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+
+  const exportLeads = async () => {
+    try {
+      await writeExcelFile({
+        filename: `leads-${sponsor.name.replace(/\s+/g, '-').toLowerCase()}.xlsx`,
+        sheetName: 'Leads',
+        columns: [
+          { header: 'nombre', key: 'nombre', width: 30 },
+          { header: 'especialidad', key: 'especialidad', width: 20 },
+          { header: 'organizacion', key: 'organizacion', width: 25 },
+          { header: 'email', key: 'email', width: 25 },
+          { header: 'fecha', key: 'fecha', width: 20 },
+        ],
+        rows: leads.map(l => ({
+          nombre: l.attendees.full_name,
+          especialidad: l.attendees.specialty ?? '',
+          organizacion: l.attendees.institution ?? '',
+          email: l.attendees.email,
+          fecha: new Date(l.created_at).toLocaleString(),
+        })),
+      });
+      toast.success(t('sponsors.leads.exportSuccess'));
+    } catch {
+      toast.error(t('sponsors.leads.exportError'));
+    }
+  };
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
@@ -69,65 +112,112 @@ export function SponsorDetailDrawer({ open, onClose, sponsor }: Props) {
             <p className="text-sm text-muted-foreground">{sponsor.description}</p>
           )}
 
-          <Separator />
+          <Tabs defaultValue="info" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="info">{t('sponsors.detailContact')}</TabsTrigger>
+              <TabsTrigger value="stats">{t('sponsors.detailStats')}</TabsTrigger>
+              <TabsTrigger value="leads">
+                Leads {leads.length > 0 && <Badge variant="secondary" className="ml-1 text-xs">{leads.length}</Badge>}
+              </TabsTrigger>
+            </TabsList>
 
-          {/* Contact info */}
-          <div className="space-y-3">
-            <h4 className="text-sm font-semibold text-foreground">{t('sponsors.detailContact')}</h4>
-            {sponsor.stand_location && (
-              <div className="flex items-center gap-2 text-sm"><MapPin className="h-4 w-4 text-muted-foreground" /> {sponsor.stand_location}</div>
-            )}
-            {sponsor.website_url && (
-              <div className="flex items-center gap-2 text-sm"><Globe className="h-4 w-4 text-muted-foreground" /> <a href={sponsor.website_url} target="_blank" rel="noopener noreferrer" className="text-primary underline truncate">{sponsor.website_url}</a></div>
-            )}
-            {sponsor.contact_email && (
-              <div className="flex items-center gap-2 text-sm"><Mail className="h-4 w-4 text-muted-foreground" /> {sponsor.contact_email}</div>
-            )}
-            {sponsor.whatsapp && (
-              <div className="flex items-center gap-2 text-sm"><MessageCircle className="h-4 w-4 text-muted-foreground" /> {sponsor.whatsapp}</div>
-            )}
-            {sponsor.social_linkedin && (
-              <div className="flex items-center gap-2 text-sm"><Linkedin className="h-4 w-4 text-muted-foreground" /> {sponsor.social_linkedin}</div>
-            )}
-            {sponsor.social_instagram && (
-              <div className="flex items-center gap-2 text-sm"><Instagram className="h-4 w-4 text-muted-foreground" /> {sponsor.social_instagram}</div>
-            )}
-            {sponsor.video_url && (
-              <div className="flex items-center gap-2 text-sm"><Play className="h-4 w-4 text-muted-foreground" /> <a href={sponsor.video_url} target="_blank" rel="noopener noreferrer" className="text-primary underline truncate">{sponsor.video_url}</a></div>
-            )}
-            {sponsor.materials_url && (
-              <div className="flex items-center gap-2 text-sm"><FileText className="h-4 w-4 text-muted-foreground" /> {t('sponsors.hasMaterials')}</div>
-            )}
-          </div>
+            {/* Contact info tab */}
+            <TabsContent value="info" className="space-y-3 mt-4">
+              {sponsor.stand_location && (
+                <div className="flex items-center gap-2 text-sm"><MapPin className="h-4 w-4 text-muted-foreground" /> {sponsor.stand_location}</div>
+              )}
+              {sponsor.website_url && (
+                <div className="flex items-center gap-2 text-sm"><Globe className="h-4 w-4 text-muted-foreground" /> <a href={sponsor.website_url} target="_blank" rel="noopener noreferrer" className="text-primary underline truncate">{sponsor.website_url}</a></div>
+              )}
+              {sponsor.contact_email && (
+                <div className="flex items-center gap-2 text-sm"><Mail className="h-4 w-4 text-muted-foreground" /> {sponsor.contact_email}</div>
+              )}
+              {sponsor.whatsapp && (
+                <div className="flex items-center gap-2 text-sm"><MessageCircle className="h-4 w-4 text-muted-foreground" /> {sponsor.whatsapp}</div>
+              )}
+              {sponsor.social_linkedin && (
+                <div className="flex items-center gap-2 text-sm"><Linkedin className="h-4 w-4 text-muted-foreground" /> {sponsor.social_linkedin}</div>
+              )}
+              {sponsor.social_instagram && (
+                <div className="flex items-center gap-2 text-sm"><Instagram className="h-4 w-4 text-muted-foreground" /> {sponsor.social_instagram}</div>
+              )}
+              {sponsor.video_url && (
+                <div className="flex items-center gap-2 text-sm"><Play className="h-4 w-4 text-muted-foreground" /> <a href={sponsor.video_url} target="_blank" rel="noopener noreferrer" className="text-primary underline truncate">{sponsor.video_url}</a></div>
+              )}
+              {sponsor.materials_url && (
+                <div className="flex items-center gap-2 text-sm"><FileText className="h-4 w-4 text-muted-foreground" /> {t('sponsors.hasMaterials')}</div>
+              )}
+            </TabsContent>
 
-          <Separator />
+            {/* Stats tab */}
+            <TabsContent value="stats" className="mt-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg border border-border p-3 text-center">
+                  <Eye className="mx-auto h-5 w-5 text-muted-foreground mb-1" />
+                  <p className="text-lg font-bold text-foreground">{sponsor.profile_views}</p>
+                  <p className="text-xs text-muted-foreground">{t('sponsors.statViews')}</p>
+                </div>
+                <div className="rounded-lg border border-border p-3 text-center">
+                  <MousePointerClick className="mx-auto h-5 w-5 text-muted-foreground mb-1" />
+                  <p className="text-lg font-bold text-foreground">{sponsor.whatsapp_clicks}</p>
+                  <p className="text-xs text-muted-foreground">{t('sponsors.statWhatsapp')}</p>
+                </div>
+                <div className="rounded-lg border border-border p-3 text-center">
+                  <Globe className="mx-auto h-5 w-5 text-muted-foreground mb-1" />
+                  <p className="text-lg font-bold text-foreground">{sponsor.website_clicks}</p>
+                  <p className="text-xs text-muted-foreground">{t('sponsors.statWebsite')}</p>
+                </div>
+                <div className="rounded-lg border border-border p-3 text-center">
+                  <Download className="mx-auto h-5 w-5 text-muted-foreground mb-1" />
+                  <p className="text-lg font-bold text-foreground">{sponsor.materials_downloads}</p>
+                  <p className="text-xs text-muted-foreground">{t('sponsors.statMaterials')}</p>
+                </div>
+              </div>
+            </TabsContent>
 
-          {/* Interaction stats */}
-          <div className="space-y-3">
-            <h4 className="text-sm font-semibold text-foreground">{t('sponsors.detailStats')}</h4>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-lg border border-border p-3 text-center">
-                <Eye className="mx-auto h-5 w-5 text-muted-foreground mb-1" />
-                <p className="text-lg font-bold text-foreground">{sponsor.profile_views}</p>
-                <p className="text-xs text-muted-foreground">{t('sponsors.statViews')}</p>
+            {/* Leads tab */}
+            <TabsContent value="leads" className="mt-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  <Heart className="inline h-4 w-4 mr-1" />
+                  {t('sponsors.leads.count', { count: leads.length })}
+                </p>
+                {leads.length > 0 && (
+                  <Button variant="outline" size="sm" onClick={exportLeads}>
+                    <Download className="mr-1 h-4 w-4" /> {t('sponsors.leads.export')}
+                  </Button>
+                )}
               </div>
-              <div className="rounded-lg border border-border p-3 text-center">
-                <MousePointerClick className="mx-auto h-5 w-5 text-muted-foreground mb-1" />
-                <p className="text-lg font-bold text-foreground">{sponsor.whatsapp_clicks}</p>
-                <p className="text-xs text-muted-foreground">{t('sponsors.statWhatsapp')}</p>
-              </div>
-              <div className="rounded-lg border border-border p-3 text-center">
-                <Globe className="mx-auto h-5 w-5 text-muted-foreground mb-1" />
-                <p className="text-lg font-bold text-foreground">{sponsor.website_clicks}</p>
-                <p className="text-xs text-muted-foreground">{t('sponsors.statWebsite')}</p>
-              </div>
-              <div className="rounded-lg border border-border p-3 text-center">
-                <Download className="mx-auto h-5 w-5 text-muted-foreground mb-1" />
-                <p className="text-lg font-bold text-foreground">{sponsor.materials_downloads}</p>
-                <p className="text-xs text-muted-foreground">{t('sponsors.statMaterials')}</p>
-              </div>
-            </div>
-          </div>
+
+              {leadsLoading ? (
+                <p className="text-sm text-muted-foreground">{t('sponsors.leads.loading')}</p>
+              ) : leads.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-8 text-center">{t('sponsors.leads.noLeads')}</p>
+              ) : (
+                <div className="space-y-2">
+                  {leads.map(lead => (
+                    <div key={lead.id} className="flex items-start gap-3 p-3 rounded-lg border border-border">
+                      <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0">
+                        {lead.attendees.full_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground">{lead.attendees.full_name}</p>
+                        {lead.attendees.specialty && (
+                          <p className="text-xs text-muted-foreground">{lead.attendees.specialty}</p>
+                        )}
+                        {lead.attendees.institution && (
+                          <p className="text-xs text-muted-foreground">{lead.attendees.institution}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {new Date(lead.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         </div>
       </SheetContent>
     </Sheet>

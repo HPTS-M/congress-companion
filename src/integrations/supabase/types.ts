@@ -1219,6 +1219,55 @@ export type Database = {
           },
         ]
       }
+      sponsor_leads: {
+        Row: {
+          attendee_id: string
+          created_at: string
+          event_id: string
+          id: string
+          note: string | null
+          sponsor_id: string
+        }
+        Insert: {
+          attendee_id: string
+          created_at?: string
+          event_id: string
+          id?: string
+          note?: string | null
+          sponsor_id: string
+        }
+        Update: {
+          attendee_id?: string
+          created_at?: string
+          event_id?: string
+          id?: string
+          note?: string | null
+          sponsor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sponsor_leads_attendee_id_fkey"
+            columns: ["attendee_id"]
+            isOneToOne: false
+            referencedRelation: "attendees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sponsor_leads_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sponsor_leads_sponsor_id_fkey"
+            columns: ["sponsor_id"]
+            isOneToOne: false
+            referencedRelation: "sponsors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sponsors: {
         Row: {
           category: string
