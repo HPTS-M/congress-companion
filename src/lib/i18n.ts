@@ -12,6 +12,7 @@ import esContacts from '@/locales/es/contacts.json';
 import esAdmin from '@/locales/es/admin.json';
 import esDocuments from '@/locales/es/documents.json';
 import esNotes from '@/locales/es/notes.json';
+import esMessaging from '@/locales/es/messaging.json';
 
 // EN locale files
 import enCommon from '@/locales/en/common.json';
@@ -23,6 +24,7 @@ import enContacts from '@/locales/en/contacts.json';
 import enAdmin from '@/locales/en/admin.json';
 import enDocuments from '@/locales/en/documents.json';
 import enNotes from '@/locales/en/notes.json';
+import enMessaging from '@/locales/en/messaging.json';
 
 i18n
   .use(LanguageDetector)
@@ -39,6 +41,7 @@ i18n
         admin: esAdmin,
         documents: esDocuments,
         notes: esNotes,
+        messaging: esMessaging,
       },
       en: {
         common: enCommon,
@@ -50,11 +53,12 @@ i18n
         admin: enAdmin,
         documents: enDocuments,
         notes: enNotes,
+        messaging: enMessaging,
       },
     },
     fallbackLng: 'es',
     defaultNS: 'common',
-    ns: ['common', 'agenda', 'checkin', 'tickets', 'commercial', 'contacts', 'admin', 'documents', 'notes'],
+    ns: ['common', 'agenda', 'checkin', 'tickets', 'commercial', 'contacts', 'admin', 'documents', 'notes', 'messaging'],
     interpolation: {
       escapeValue: false,
     },
