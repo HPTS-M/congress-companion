@@ -21,33 +21,34 @@ export default function ProviderServiceAttendees() {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    const s = providerPortalService.getSession();
-    if (!s || s.event_code !== eventSlug) {
-      navigate(`/${eventSlug}/provider`, { replace: true });
-      return;
-    }
-    setSession(s);
+    const loadSession = async () => {
+      const s = await providerPortalService.getProviderSession();
+      if (!s || s.event_code !== eventSlug) {
+        navigate(`/${eventSlug}/provider`, { replace: true });
+        return;
+      }
+      setSession(s);
+    };
+    loadSession();
   }, [eventSlug, navigate]);
 
-  // Get service info
   const { data: services = [] } = useQuery({
-    queryKey: ['provider-services', session?.id],
-    queryFn: () => providerPortalService.getServices(session!.id),
-    enabled: !!session?.id,
+    queryKey: ['provider-services', session?.provider_id],
+    queryFn: () => providerPortalService.getServices(session!.provider_id),
+    enabled: !!session?.provider_id,
   });
   const service = services.find((s) => s.id === serviceId);
 
-  // Get attendees
-  const attendeesKey = ['provider-attendees', session?.id, serviceId];
+  const attendeesKey = ['provider-attendees', session?.provider_id, serviceId];
   const { data: attendees = [], isLoading } = useQuery({
     queryKey: attendeesKey,
-    queryFn: () => providerPortalService.getServiceAttendees(session!.id, serviceId!),
-    enabled: !!session?.id && !!serviceId,
+    queryFn: () => providerPortalService.getServiceAttendees(session!.provider_id, serviceId!),
+    enabled: !!session?.provider_id && !!serviceId,
   });
 
   const validateMut = useMutation({
     mutationFn: (attendeeServiceId: string) =>
-      providerPortalService.validateTicket(session!.id, attendeeServiceId),
+      providerPortalService.validateTicket(session!.provider_id, attendeeServiceId),
     onSuccess: (result) => {
       if (result.success) {
         toast.success('✅ ' + t('ticketValidated'));

@@ -18,37 +18,48 @@ export default function ProviderDashboard() {
   const { eventSlug } = useParams();
   const navigate = useNavigate();
   const [session, setSession] = useState<ProviderSession | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const s = providerPortalService.getSession();
-    if (!s || s.event_code !== eventSlug) {
-      navigate(`/${eventSlug}/provider`, { replace: true });
-      return;
-    }
-    setSession(s);
+    const loadSession = async () => {
+      const s = await providerPortalService.getProviderSession();
+      if (!s || s.event_code !== eventSlug) {
+        navigate(`/${eventSlug}/provider`, { replace: true });
+        return;
+      }
+      setSession(s);
+      setLoading(false);
+    };
+    loadSession();
   }, [eventSlug, navigate]);
 
   const { data: services = [], isLoading } = useQuery({
-    queryKey: ['provider-services', session?.id],
-    queryFn: () => providerPortalService.getServices(session!.id),
-    enabled: !!session?.id,
+    queryKey: ['provider-services', session?.provider_id],
+    queryFn: () => providerPortalService.getServices(session!.provider_id),
+    enabled: !!session?.provider_id,
   });
 
-  const handleLogout = () => {
-    providerPortalService.logout();
+  const handleLogout = async () => {
+    await providerPortalService.logout();
     navigate(`/${eventSlug}/provider`, { replace: true });
   };
 
-  if (!session) return null;
+  if (loading || !session) {
+    return (
+      <div className="min-h-screen bg-muted/30 flex items-center justify-center">
+        <Skeleton className="h-8 w-32" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-muted/30">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-gradient-to-r from-[hsl(var(--congress-primary))] to-[hsl(var(--congress-accent))] text-white shadow-md"
+      <header className="sticky top-0 z-40 shadow-md"
         style={{ background: 'linear-gradient(135deg, #1A56A0 0%, #00B89F 100%)' }}>
         <div className="max-w-4xl mx-auto flex items-center justify-between px-4 py-3">
           <div>
-            <h1 className="text-lg font-bold">{session.company_name}</h1>
+            <h1 className="text-lg font-bold text-white">{session.company_name}</h1>
             <p className="text-xs text-white/70">{session.event_name}</p>
           </div>
           <Button variant="ghost" size="sm" onClick={handleLogout} className="text-white hover:bg-white/10">
