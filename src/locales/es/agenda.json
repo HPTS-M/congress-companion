@@ -19,6 +19,9 @@
     "conference": "Conferencia",
     "workshop": "Taller",
     "break": "Receso",
-    "plenary": "Plenaria"
+    "plenary": "Plenaria",
+    "symposium": "Simposio",
+    "conferenceDay": "Jornada",
+    "networking": "Networking"
   }
 }
