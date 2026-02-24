@@ -20,7 +20,13 @@ const AdminDocuments = lazy(() => import('@/pages/admin/Documents'));
 const AdminSponsors = lazy(() => import('@/pages/admin/Sponsors'));
 const AdminLogistics = lazy(() => import('@/pages/admin/Logistics'));
 const AdminLogisticsAssign = lazy(() => import('@/pages/admin/LogisticsAssign'));
+const AdminProviders = lazy(() => import('@/pages/admin/Providers'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
+
+// Provider portal
+const ProviderLogin = lazy(() => import('@/pages/provider/Login'));
+const ProviderDashboard = lazy(() => import('@/pages/provider/Dashboard'));
+const ProviderServiceAttendees = lazy(() => import('@/pages/provider/ServiceAttendees'));
 
 // Attendee pages
 const Home = lazy(() => import('@/pages/attendee/Home'));
@@ -83,7 +89,13 @@ const App = () => (
                   <Route path="sponsors" element={<AdminSponsors />} />
                   <Route path="logistics" element={<AdminLogistics />} />
                   <Route path="logistics/:serviceId/assign" element={<AdminLogisticsAssign />} />
+                  <Route path="providers" element={<AdminProviders />} />
                 </Route>
+
+                {/* Provider portal routes */}
+                <Route path="provider" element={<ProviderLogin />} />
+                <Route path="provider/dashboard" element={<ProviderDashboard />} />
+                <Route path="provider/service/:serviceId" element={<ProviderServiceAttendees />} />
 
                 {/* Protected attendee routes */}
                 <Route element={<AttendeeLayout />}>
