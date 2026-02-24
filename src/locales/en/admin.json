@@ -519,6 +519,36 @@
     "deleteError": "Error deleting service",
     "assigneesTitle": "Assigned attendees",
     "assigneesCount": "{{count}} assigned attendees",
-    "noAssignees": "No attendees assigned to this service"
+    "noAssignees": "No attendees assigned to this service",
+    "assign": {
+      "assignedTitle": "Assigned",
+      "unassignedTitle": "Without this service",
+      "searchAssigned": "Search assigned...",
+      "searchUnassigned": "Search by name, email, or code...",
+      "allAssigned": "All attendees are assigned",
+      "assignSuccess": "Attendee assigned successfully",
+      "assignError": "Error assigning attendee",
+      "unassignSuccess": "Attendee unassigned",
+      "unassignError": "Error unassigning",
+      "removeTitle": "Remove Attendee",
+      "removeConfirm": "Remove this attendee from the service? Their ticket will be deleted.",
+      "remove": "Remove",
+      "changeStatus": "Change Status",
+      "statusPending": "Pending",
+      "statusUsed": "Used",
+      "statusCancelled": "Cancelled",
+      "statusUpdated": "Status updated",
+      "statusError": "Error updating status",
+      "notePlaceholder": "Optional note...",
+      "specialty": "Specialty",
+      "bulkAssign": "Bulk Assign",
+      "bulkDescription": "Select the attendee group to assign:",
+      "bulkConfirmed": "Confirmed only",
+      "bulkAll": "All attendees",
+      "bulkConfirmBtn": "Assign",
+      "assigning": "Assigning...",
+      "bulkResult": "{{assigned}} assigned, {{errors}} errors",
+      "bulkError": "Error in bulk assignment"
+    }
   }
 }

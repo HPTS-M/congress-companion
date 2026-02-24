@@ -28,19 +28,29 @@ export interface ServiceCatalogForm {
 }
 
 export interface ServiceAssignee {
+  attendee_service_id: string;
   attendee_id: string;
   full_name: string;
   email: string;
   specialty: string | null;
+  credential_code: string;
   status: string | null;
   scheduled_date: string | null;
   ticket_code: string | null;
   is_used: boolean | null;
+  used_at: string | null;
+}
+
+export interface UnassignedAttendee {
+  id: string;
+  full_name: string;
+  email: string;
+  specialty: string | null;
+  credential_code: string;
 }
 
 export const adminLogisticsService = {
   async getAll(eventId: string): Promise<ServiceCatalogRow[]> {
-    // Get catalog items
     const { data: catalog, error } = await supabase
       .from('service_catalog')
       .select('*')
@@ -49,16 +59,13 @@ export const adminLogisticsService = {
       .order('name');
     if (error) throw new Error(error.message);
 
-    // Get ticket stats per service
+    const ids = (catalog ?? []).map((c) => c.id);
+    if (ids.length === 0) return [];
+
     const { data: stats, error: statsErr } = await supabase
       .from('attendee_services')
-      .select(`
-        service_catalog_id,
-        status,
-        service_tickets (is_used)
-      `)
-      .in('service_catalog_id', (catalog ?? []).map((c) => c.id));
-
+      .select(`service_catalog_id, status, service_tickets (is_used)`)
+      .in('service_catalog_id', ids);
     if (statsErr) throw new Error(statsErr.message);
 
     const countsMap = new Map<string, { total: number; used: number; cancelled: number }>();
@@ -76,35 +83,22 @@ export const adminLogisticsService = {
 
     return (catalog ?? []).map((c) => {
       const counts = countsMap.get(c.id) ?? { total: 0, used: 0, cancelled: 0 };
-      return {
-        ...c,
-        total_tickets: counts.total,
-        used_tickets: counts.used,
-        cancelled_tickets: counts.cancelled,
-      } as ServiceCatalogRow;
+      return { ...c, total_tickets: counts.total, used_tickets: counts.used, cancelled_tickets: counts.cancelled } as ServiceCatalogRow;
     });
   },
 
   async create(eventId: string, form: ServiceCatalogForm): Promise<void> {
-    const { error } = await supabase
-      .from('service_catalog')
-      .insert({ event_id: eventId, ...form });
+    const { error } = await supabase.from('service_catalog').insert({ event_id: eventId, ...form });
     if (error) throw new Error(error.message);
   },
 
   async update(id: string, form: Partial<ServiceCatalogForm>): Promise<void> {
-    const { error } = await supabase
-      .from('service_catalog')
-      .update(form)
-      .eq('id', id);
+    const { error } = await supabase.from('service_catalog').update(form).eq('id', id);
     if (error) throw new Error(error.message);
   },
 
   async remove(id: string): Promise<void> {
-    const { error } = await supabase
-      .from('service_catalog')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('service_catalog').delete().eq('id', id);
     if (error) throw new Error(error.message);
   },
 
@@ -112,24 +106,120 @@ export const adminLogisticsService = {
     const { data, error } = await supabase
       .from('attendee_services')
       .select(`
-        attendee_id,
-        status,
-        scheduled_date,
-        attendees!attendee_services_attendee_id_fkey (full_name, email, specialty),
-        service_tickets (ticket_code, is_used)
+        id, attendee_id, status, scheduled_date,
+        attendees!attendee_services_attendee_id_fkey (full_name, email, specialty, credential_code),
+        service_tickets (ticket_code, is_used, used_at)
       `)
       .eq('service_catalog_id', serviceCatalogId);
     if (error) throw new Error(error.message);
 
     return (data ?? []).map((row: any) => ({
+      attendee_service_id: row.id,
       attendee_id: row.attendee_id,
       full_name: row.attendees?.full_name ?? '',
       email: row.attendees?.email ?? '',
       specialty: row.attendees?.specialty ?? null,
+      credential_code: row.attendees?.credential_code ?? '',
       status: row.status,
       scheduled_date: row.scheduled_date,
       ticket_code: row.service_tickets?.[0]?.ticket_code ?? null,
       is_used: row.service_tickets?.[0]?.is_used ?? null,
+      used_at: row.service_tickets?.[0]?.used_at ?? null,
     }));
+  },
+
+  async getUnassigned(eventId: string, serviceCatalogId: string): Promise<UnassignedAttendee[]> {
+    // Get already assigned attendee IDs
+    const { data: assigned, error: aErr } = await supabase
+      .from('attendee_services')
+      .select('attendee_id')
+      .eq('service_catalog_id', serviceCatalogId);
+    if (aErr) throw new Error(aErr.message);
+    const assignedIds = new Set((assigned ?? []).map((a) => a.attendee_id));
+
+    // Get all event attendees
+    const { data: attendees, error: atErr } = await supabase
+      .from('attendees')
+      .select('id, full_name, email, specialty, credential_code')
+      .eq('event_id', eventId)
+      .is('deleted_at', null)
+      .order('full_name');
+    if (atErr) throw new Error(atErr.message);
+
+    return (attendees ?? []).filter((a) => !assignedIds.has(a.id)).map((a) => ({
+      id: a.id,
+      full_name: a.full_name,
+      email: a.email,
+      specialty: a.specialty,
+      credential_code: a.credential_code,
+    }));
+  },
+
+  async assignAttendee(serviceCatalogId: string, attendeeId: string): Promise<void> {
+    const { error } = await supabase.from('attendee_services').insert({
+      service_catalog_id: serviceCatalogId,
+      attendee_id: attendeeId,
+      status: 'scheduled',
+    });
+    if (error) throw new Error(error.message);
+  },
+
+  async unassignAttendee(attendeeServiceId: string): Promise<void> {
+    // Delete tickets first
+    const { error: tErr } = await supabase.from('service_tickets').delete().eq('attendee_service_id', attendeeServiceId);
+    if (tErr) throw new Error(tErr.message);
+    const { error } = await supabase.from('attendee_services').delete().eq('id', attendeeServiceId);
+    if (error) throw new Error(error.message);
+  },
+
+  async bulkAssign(serviceCatalogId: string, attendeeIds: string[]): Promise<{ assigned: number; errors: number }> {
+    let assigned = 0;
+    let errors = 0;
+    for (const attendeeId of attendeeIds) {
+      try {
+        await this.assignAttendee(serviceCatalogId, attendeeId);
+        assigned++;
+      } catch {
+        errors++;
+      }
+    }
+    return { assigned, errors };
+  },
+
+  async updateTicketStatus(attendeeServiceId: string, newStatus: string, note?: string): Promise<void> {
+    const updates: Record<string, any> = { status: newStatus };
+    if (note !== undefined) updates.notes = note;
+    const { error } = await supabase.from('attendee_services').update(updates).eq('id', attendeeServiceId);
+    if (error) throw new Error(error.message);
+
+    // If marking as used, also mark the ticket
+    if (newStatus === 'completed') {
+      const { error: tErr } = await supabase
+        .from('service_tickets')
+        .update({ is_used: true, used_at: new Date().toISOString() })
+        .eq('attendee_service_id', attendeeServiceId);
+      if (tErr) throw new Error(tErr.message);
+    }
+  },
+
+  async getConfirmedAttendeeIds(eventId: string): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('attendees')
+      .select('id')
+      .eq('event_id', eventId)
+      .eq('registration_status', 'confirmed')
+      .is('deleted_at', null);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((a) => a.id);
+  },
+
+  async getAllAttendeeIds(eventId: string): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('attendees')
+      .select('id')
+      .eq('event_id', eventId)
+      .is('deleted_at', null);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((a) => a.id);
   },
 };
