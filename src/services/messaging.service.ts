@@ -50,13 +50,13 @@ export const messagingService = {
   async getAttendeeNames(eventId: string): Promise<Record<string, string>> {
     const { data } = await supabase
       .from('attendees')
-      .select('user_id, full_name')
+      .select('id, full_name')
       .eq('event_id', eventId)
       .is('deleted_at', null);
 
     const map: Record<string, string> = {};
     (data ?? []).forEach((a: any) => {
-      if (a.user_id) map[a.user_id] = a.full_name;
+      map[a.id] = a.full_name;
     });
     return map;
   },
