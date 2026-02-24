@@ -8,10 +8,10 @@ interface AdminRouteProps {
 }
 
 export function AdminRoute({ children }: AdminRouteProps) {
-  const { isAuthenticated, isAdmin, isLoading } = useAuth();
+  const { isAuthenticated, isAdmin, isLoading, isProfileLoading } = useAuth();
   const eventSlug = useEventSlug();
 
-  if (isLoading) {
+  if (isLoading || isProfileLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Skeleton className="h-8 w-32" />
