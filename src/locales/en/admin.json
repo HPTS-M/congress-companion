@@ -13,20 +13,30 @@
   },
   "nav": {
     "dashboard": "Dashboard",
-    "eventConfig": "Configuration",
-    "users": "Users",
+    "users": "Attendees",
     "agenda": "Agenda",
     "documents": "Documents",
-    "tickets": "Tickets",
     "sponsors": "Sponsors",
+    "tickets": "Logistics",
     "communications": "Communications",
+    "checkinStaff": "Check-in Staff",
     "reports": "Reports"
+  },
+  "layout": {
+    "backToApp": "Back to app",
+    "logout": "Log out"
   },
   "dashboard": {
     "title": "Dashboard",
     "totalAttendees": "Total Attendees",
     "confirmedAttendees": "Confirmed",
     "checkedIn": "Check-ins",
-    "totalActivities": "Activities"
+    "documents": "Documents",
+    "announcements": "Announcements",
+    "totalActivities": "Activities",
+    "recentActivity": "Recent Activity",
+    "noActivity": "No recent activity",
+    "sendAnnouncement": "Send Announcement",
+    "viewAgenda": "View Agenda"
   }
 }

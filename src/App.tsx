@@ -12,6 +12,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 const Index = lazy(() => import('@/pages/Index'));
 const AttendeeLogin = lazy(() => import('@/pages/attendee/Login'));
 const AdminLogin = lazy(() => import('@/pages/admin/Login'));
+const AdminLayout = lazy(() => import('@/components/layout/AdminLayout'));
+const AdminDashboard = lazy(() => import('@/pages/admin/Dashboard'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 
 // Attendee pages
@@ -65,6 +67,11 @@ const App = () => (
               <Route path="/:eventSlug" element={<EventProvider />}>
                 <Route index element={<AttendeeLogin />} />
                 <Route path="admin/login" element={<AdminLogin />} />
+
+                {/* Protected admin routes */}
+                <Route path="admin" element={<AdminLayout />}>
+                  <Route path="dashboard" element={<AdminDashboard />} />
+                </Route>
 
                 {/* Protected attendee routes */}
                 <Route element={<AttendeeLayout />}>
