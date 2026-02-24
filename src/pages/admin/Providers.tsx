@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useParams } from 'react-router-dom';
 import { useEvent } from '@/hooks/useEvent';
 import { useAdminProviders } from '@/hooks/useAdminProviders';
 import { Button } from '@/components/ui/button';
@@ -14,7 +15,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  Plus, Search, Pencil, Trash2, Link2, UserPlus,
+  Plus, Search, Pencil, Trash2, Link2, Mail, RefreshCw,
   Bus, UtensilsCrossed, Map, Sparkles,
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -34,8 +35,30 @@ const TYPE_COLORS: Record<string, string> = {
   special: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
 };
 
+function getInvitationStatus(p: ProviderRow): 'none' | 'pending' | 'active' | 'expired' {
+  if (!p.user_id) return 'none';
+  if (p.access_expires_at && new Date(p.access_expires_at) < new Date()) return 'expired';
+  if (p.last_login) return 'active';
+  return 'pending';
+}
+
+function InvitationBadge({ status }: { status: ReturnType<typeof getInvitationStatus> }) {
+  const { t } = useTranslation('admin');
+  switch (status) {
+    case 'active':
+      return <Badge className="bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">{t('providers.inviteActive')}</Badge>;
+    case 'pending':
+      return <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">{t('providers.invitePending')}</Badge>;
+    case 'expired':
+      return <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">{t('providers.inviteExpired')}</Badge>;
+    default:
+      return <span className="text-xs text-muted-foreground">—</span>;
+  }
+}
+
 export default function AdminProviders() {
   const { t } = useTranslation('admin');
+  const { eventSlug } = useParams();
   const { event } = useEvent();
   const { providers, isLoading, createProvider, updateProvider, deleteProvider, toggleProvider, isCreating, isUpdating, refetch } = useAdminProviders(event?.id);
 
@@ -44,7 +67,7 @@ export default function AdminProviders() {
   const [editing, setEditing] = useState<ProviderRow | null>(null);
   const [assigning, setAssigning] = useState<ProviderRow | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [creatingAccountId, setCreatingAccountId] = useState<string | null>(null);
+  const [invitingId, setInvitingId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return providers;
@@ -100,22 +123,39 @@ export default function AdminProviders() {
     setEditing(null);
   }, []);
 
-  const handleCreateAccount = useCallback(async (p: ProviderRow) => {
-    if (!p.contact_email || !event) {
+  const handleInvite = useCallback(async (p: ProviderRow) => {
+    if (!p.contact_email || !event || !eventSlug) {
       toast.error(t('providers.emailRequired'));
       return;
     }
-    setCreatingAccountId(p.id);
+    setInvitingId(p.id);
     try {
-      const { password } = await adminProvidersService.createProviderAccount(p.id, p.contact_email, event.id);
-      toast.success(t('providers.accountCreated', { email: p.contact_email, password }), { duration: 15000 });
+      const { action } = await adminProvidersService.inviteProvider(p.id, p.contact_email, event.id, eventSlug);
+      if (action === 'linked_existing') {
+        toast.success(t('providers.accountLinked', { email: p.contact_email }));
+      } else {
+        toast.success(t('providers.inviteSent', { email: p.contact_email }));
+      }
       refetch();
     } catch (err: any) {
-      toast.error(t('providers.accountError') + ': ' + (err.message ?? ''));
+      toast.error(t('providers.inviteError') + ': ' + (err.message ?? ''));
     } finally {
-      setCreatingAccountId(null);
+      setInvitingId(null);
     }
-  }, [event, t, refetch]);
+  }, [event, eventSlug, t, refetch]);
+
+  const handleResendInvite = useCallback(async (p: ProviderRow) => {
+    if (!p.contact_email || !event || !eventSlug) return;
+    setInvitingId(p.id);
+    try {
+      await adminProvidersService.resendInvite(p.id, p.contact_email, event.id, eventSlug);
+      toast.success(t('providers.inviteResent', { email: p.contact_email }));
+    } catch (err: any) {
+      toast.error(t('providers.inviteError') + ': ' + (err.message ?? ''));
+    } finally {
+      setInvitingId(null);
+    }
+  }, [event, eventSlug, t]);
 
   if (isLoading) {
     return (
@@ -154,6 +194,7 @@ export default function AdminProviders() {
               <TableHead>{t('providers.colCategory')}</TableHead>
               <TableHead>{t('providers.colContact')}</TableHead>
               <TableHead>{t('providers.colServices')}</TableHead>
+              <TableHead>{t('providers.colInvitation')}</TableHead>
               <TableHead>{t('providers.colLastLogin')}</TableHead>
               <TableHead>{t('providers.colStatus')}</TableHead>
               <TableHead className="text-right">{t('providers.colActions')}</TableHead>
@@ -162,12 +203,14 @@ export default function AdminProviders() {
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   {t('providers.noProviders')}
                 </TableCell>
               </TableRow>
             ) : filtered.map((p) => {
               const Icon = TYPE_ICONS[p.category] ?? Bus;
+              const invStatus = getInvitationStatus(p);
+              const isPendingLong = invStatus === 'pending' && p.user_id && !p.last_login;
               return (
                 <TableRow key={p.id}>
                   <TableCell>
@@ -196,6 +239,23 @@ export default function AdminProviders() {
                     <span className="text-sm font-medium text-foreground">{p.assigned_services}</span>
                   </TableCell>
                   <TableCell>
+                    <div className="flex items-center gap-2">
+                      <InvitationBadge status={invStatus} />
+                      {isPendingLong && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => handleResendInvite(p)}
+                          disabled={invitingId === p.id}
+                          title={t('providers.resendInvite')}
+                        >
+                          <RefreshCw className={`h-3 w-3 ${invitingId === p.id ? 'animate-spin' : ''}`} />
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
                     {p.last_login ? (
                       <div>
                         <p className="text-xs text-foreground">{new Date(p.last_login).toLocaleDateString()}</p>
@@ -217,16 +277,13 @@ export default function AdminProviders() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleCreateAccount(p)}
-                          disabled={creatingAccountId === p.id}
-                          title={t('providers.createAccount')}
+                          onClick={() => handleInvite(p)}
+                          disabled={invitingId === p.id}
+                          title={t('providers.sendInvite')}
                           className="text-primary"
                         >
-                          <UserPlus className="h-4 w-4" />
+                          <Mail className={`h-4 w-4 ${invitingId === p.id ? 'animate-pulse' : ''}`} />
                         </Button>
-                      )}
-                      {p.user_id && (
-                        <Badge variant="outline" className="text-xs mr-1">✓</Badge>
                       )}
                       <Button variant="ghost" size="icon" onClick={() => setAssigning(p)} title={t('providers.assignServices')}>
                         <Link2 className="h-4 w-4" />

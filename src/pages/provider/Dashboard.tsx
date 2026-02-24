@@ -27,6 +27,11 @@ export default function ProviderDashboard() {
         navigate(`/${eventSlug}/provider`, { replace: true });
         return;
       }
+      // Check if password needs to be changed
+      if (!s.password_changed) {
+        navigate(`/${eventSlug}/provider/change-password`, { replace: true });
+        return;
+      }
       setSession(s);
       setLoading(false);
     };

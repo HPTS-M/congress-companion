@@ -16,6 +16,7 @@ export interface ProviderRow {
   last_login: string | null;
   login_count: number;
   access_expires_at: string | null;
+  password_changed: boolean;
 }
 
 export interface ProviderForm {
@@ -38,7 +39,15 @@ export const adminProvidersService = {
     if (error) throw new Error(error.message);
 
     const ids = (data ?? []).map((p) => p.id);
-    if (ids.length === 0) return (data ?? []).map((p) => ({ ...p, assigned_services: 0, user_id: p.user_id ?? null, last_login: p.last_login ?? null, login_count: p.login_count ?? 0, access_expires_at: p.access_expires_at ?? null }));
+    if (ids.length === 0) return (data ?? []).map((p) => ({
+      ...p,
+      assigned_services: 0,
+      user_id: p.user_id ?? null,
+      last_login: p.last_login ?? null,
+      login_count: p.login_count ?? 0,
+      access_expires_at: p.access_expires_at ?? null,
+      password_changed: (p as any).password_changed ?? false,
+    }));
 
     const { data: ps, error: psErr } = await supabase
       .from('provider_services')
@@ -58,6 +67,7 @@ export const adminProvidersService = {
       last_login: p.last_login ?? null,
       login_count: p.login_count ?? 0,
       access_expires_at: p.access_expires_at ?? null,
+      password_changed: (p as any).password_changed ?? false,
     }));
   },
 
@@ -100,14 +110,12 @@ export const adminProvidersService = {
   },
 
   async setAssignedServices(providerId: string, serviceIds: string[]): Promise<void> {
-    // Delete existing
     const { error: delErr } = await supabase
       .from('provider_services')
       .delete()
       .eq('provider_id', providerId);
     if (delErr) throw new Error(delErr.message);
 
-    // Insert new
     if (serviceIds.length > 0) {
       const rows = serviceIds.map((sid) => ({
         provider_id: providerId,
@@ -127,38 +135,38 @@ export const adminProvidersService = {
     return code;
   },
 
-  generateTempPassword(): string {
-    const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-    const lower = 'abcdefghjkmnpqrstuvwxyz';
-    const digits = '23456789';
-    const special = '!@#$%';
-    const all = upper + lower + digits + special;
-    let pwd = '';
-    pwd += upper[Math.floor(Math.random() * upper.length)];
-    pwd += lower[Math.floor(Math.random() * lower.length)];
-    pwd += digits[Math.floor(Math.random() * digits.length)];
-    pwd += special[Math.floor(Math.random() * special.length)];
-    for (let i = 0; i < 8; i++) {
-      pwd += all[Math.floor(Math.random() * all.length)];
-    }
-    return pwd.split('').sort(() => Math.random() - 0.5).join('');
-  },
+  async inviteProvider(providerId: string, email: string, eventId: string, eventSlug: string): Promise<{ action: string }> {
+    const redirectTo = `${window.location.origin}/${eventSlug}/provider`;
 
-  async createProviderAccount(providerId: string, email: string, eventId: string): Promise<{ password: string }> {
-    const tempPassword = adminProvidersService.generateTempPassword();
-    
     const { data, error } = await supabase.functions.invoke('create-provider-user', {
       body: {
         provider_id: providerId,
         email,
-        temp_password: tempPassword,
         event_id: eventId,
+        redirect_to: redirectTo,
       },
     });
 
     if (error) throw new Error(error.message);
     if (data?.error) throw new Error(data.error);
 
-    return { password: tempPassword };
+    return { action: data?.action ?? 'invited' };
+  },
+
+  async resendInvite(providerId: string, email: string, eventId: string, eventSlug: string): Promise<void> {
+    const redirectTo = `${window.location.origin}/${eventSlug}/provider`;
+
+    const { data, error } = await supabase.functions.invoke('create-provider-user', {
+      body: {
+        provider_id: providerId,
+        email,
+        event_id: eventId,
+        redirect_to: redirectTo,
+        action: 'resend',
+      },
+    });
+
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
   },
 };
