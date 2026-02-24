@@ -969,6 +969,89 @@ export type Database = {
           },
         ]
       }
+      provider_services: {
+        Row: {
+          created_at: string | null
+          id: string
+          provider_id: string
+          service_catalog_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          provider_id: string
+          service_catalog_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          provider_id?: string
+          service_catalog_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_services_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "providers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_services_service_catalog_id_fkey"
+            columns: ["service_catalog_id"]
+            isOneToOne: false
+            referencedRelation: "service_catalog"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      providers: {
+        Row: {
+          access_code: string
+          category: string
+          company_name: string
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string | null
+          event_id: string
+          id: string
+          is_active: boolean | null
+        }
+        Insert: {
+          access_code: string
+          category: string
+          company_name: string
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          event_id: string
+          id?: string
+          is_active?: boolean | null
+        }
+        Update: {
+          access_code?: string
+          category?: string
+          company_name?: string
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          event_id?: string
+          id?: string
+          is_active?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "providers_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       push_subscriptions: {
         Row: {
           created_at: string | null
@@ -1415,6 +1498,14 @@ export type Database = {
         }
         Returns: string
       }
+      get_provider_assigned_services: {
+        Args: { _provider_id: string }
+        Returns: Json
+      }
+      get_provider_service_attendees: {
+        Args: { _provider_id: string; _service_catalog_id: string }
+        Returns: Json
+      }
       get_unread_count: { Args: { _user_id: string }; Returns: number }
       get_user_organization: { Args: { _user_id: string }; Returns: string }
       get_user_permissions: {
@@ -1474,8 +1565,16 @@ export type Database = {
         }
         Returns: Json
       }
+      provider_validate_ticket: {
+        Args: { _attendee_service_id: string; _provider_id: string }
+        Returns: Json
+      }
       validate_service_ticket: {
         Args: { _ticket_code: string; _validator_user_id: string }
+        Returns: Json
+      }
+      verify_provider_access: {
+        Args: { _access_code: string; _event_code: string }
         Returns: Json
       }
     }

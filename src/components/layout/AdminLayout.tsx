@@ -2,7 +2,7 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   LayoutDashboard, Users, Calendar, FolderOpen, Building2,
-  Ticket, Megaphone, ScanLine, BarChart3, LogOut, ArrowLeft,
+  Ticket, Truck, Megaphone, ScanLine, BarChart3, LogOut, ArrowLeft,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/hooks/useAuth';
@@ -23,6 +23,7 @@ const navItems = [
   { key: 'documents', icon: FolderOpen, path: 'documents' },
   { key: 'sponsors', icon: Building2, path: 'sponsors' },
   { key: 'tickets', icon: Ticket, path: 'logistics' },
+  { key: 'providers', icon: Truck, path: 'providers' },
   { key: 'communications', icon: Megaphone, path: 'communications' },
   { key: 'checkinStaff', icon: ScanLine, path: 'checkin-staff' },
   { key: 'reports', icon: BarChart3, path: 'reports' },

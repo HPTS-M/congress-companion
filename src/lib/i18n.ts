@@ -15,6 +15,7 @@ import esNotes from '@/locales/es/notes.json';
 import esMessaging from '@/locales/es/messaging.json';
 import esAnnouncements from '@/locales/es/announcements.json';
 import esRatings from '@/locales/es/ratings.json';
+import esProvider from '@/locales/es/provider.json';
 
 // EN locale files
 import enCommon from '@/locales/en/common.json';
@@ -29,6 +30,7 @@ import enNotes from '@/locales/en/notes.json';
 import enMessaging from '@/locales/en/messaging.json';
 import enAnnouncements from '@/locales/en/announcements.json';
 import enRatings from '@/locales/en/ratings.json';
+import enProvider from '@/locales/en/provider.json';
 
 i18n
   .use(LanguageDetector)
@@ -48,6 +50,7 @@ i18n
         messaging: esMessaging,
         announcements: esAnnouncements,
         ratings: esRatings,
+        provider: esProvider,
       },
       en: {
         common: enCommon,
@@ -62,11 +65,12 @@ i18n
         messaging: enMessaging,
         announcements: enAnnouncements,
         ratings: enRatings,
+        provider: enProvider,
       },
     },
     fallbackLng: 'es',
     defaultNS: 'common',
-    ns: ['common', 'agenda', 'checkin', 'tickets', 'commercial', 'contacts', 'admin', 'documents', 'notes', 'messaging', 'announcements', 'ratings'],
+    ns: ['common', 'agenda', 'checkin', 'tickets', 'commercial', 'contacts', 'admin', 'documents', 'notes', 'messaging', 'announcements', 'ratings', 'provider'],
     interpolation: {
       escapeValue: false,
     },
