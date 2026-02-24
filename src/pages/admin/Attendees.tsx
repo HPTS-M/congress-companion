@@ -1,20 +1,26 @@
 import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Users, UserPlus, Upload, Search } from 'lucide-react';
+import { Users, UserPlus, Upload, Download, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from '@/hooks/use-toast';
 import { useAdminAttendees } from '@/hooks/useAdminAttendees';
+import { adminAttendeesService } from '@/services/admin-attendees.service';
+import { useEvent } from '@/hooks/useEvent';
 import { AttendeesTable } from '@/components/admin/attendees/AttendeesTable';
 import { NewAttendeeModal } from '@/components/admin/attendees/NewAttendeeModal';
 import { ImportCsvModal } from '@/components/admin/attendees/ImportCsvModal';
 import { AttendeeDetailDrawer } from '@/components/admin/attendees/AttendeeDetailDrawer';
 import { DeleteAttendeeDialog } from '@/components/admin/attendees/DeleteAttendeeDialog';
+import { DataQualityPanel } from '@/components/admin/attendees/DataQualityPanel';
 
 export default function AdminAttendees() {
   const { t } = useTranslation('admin');
+  const { event } = useEvent();
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -22,15 +28,56 @@ export default function AdminAttendees() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [selectedAttendeeId, setSelectedAttendeeId] = useState<string | null>(null);
   const [deleteAttendee, setDeleteAttendee] = useState<{ id: string; name: string } | null>(null);
+  const [qualityFilterIds, setQualityFilterIds] = useState<string[] | null>(null);
+  const [qualityFilterLabel, setQualityFilterLabel] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
 
   const { attendees, isLoading, counts, isCountsLoading } = useAdminAttendees(debouncedSearch, statusFilter);
 
-  // Simple debounce
   const handleSearchChange = useCallback((value: string) => {
     setSearch(value);
     const timer = setTimeout(() => setDebouncedSearch(value), 300);
     return () => clearTimeout(timer);
   }, []);
+
+  const handleExportCsv = async () => {
+    if (!event?.id) return;
+    setIsExporting(true);
+    try {
+      const rows = await adminAttendeesService.getExportData(event.id);
+      const header = 'full_name,email,credential_code,specialty,institution,registration_status,services_count,checkins_count\n';
+      const csv = rows.map((r) =>
+        `"${r.full_name}","${r.email}","${r.credential_code}","${r.specialty}","${r.institution}","${r.registration_status}",${r.services_count},${r.checkins_count}`
+      ).join('\n');
+      const blob = new Blob([header + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `attendees_${event.event_code || 'export'}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: t('attendees.exportSuccess') });
+    } catch {
+      toast({ title: t('attendees.exportError'), variant: 'destructive' });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleQualityFilter = (ids: string[], label: string) => {
+    setQualityFilterIds(ids);
+    setQualityFilterLabel(label);
+  };
+
+  const clearQualityFilter = () => {
+    setQualityFilterIds(null);
+    setQualityFilterLabel('');
+  };
+
+  // Apply quality filter client-side
+  const displayedAttendees = qualityFilterIds
+    ? attendees.filter((a) => qualityFilterIds.includes(a.id))
+    : attendees;
 
   const statCards = [
     { label: t('attendees.totalRegistered'), value: counts.total, color: 'text-primary' },
@@ -43,7 +90,11 @@ export default function AdminAttendees() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-foreground">{t('attendees.title')}</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={handleExportCsv} disabled={isExporting}>
+            <Download className="mr-2 h-4 w-4" />
+            {isExporting ? t('attendees.exporting') : t('attendees.exportCsv')}
+          </Button>
           <Button variant="outline" onClick={() => setShowImportModal(true)}>
             <Upload className="mr-2 h-4 w-4" />
             {t('attendees.importCsv')}
@@ -74,6 +125,21 @@ export default function AdminAttendees() {
         ))}
       </div>
 
+      {/* Data Quality */}
+      <DataQualityPanel onFilterByIds={handleQualityFilter} />
+
+      {/* Quality filter indicator */}
+      {qualityFilterIds && (
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="gap-1">
+            {t('attendees.qualityFilterActive')}: {qualityFilterLabel}
+            <button onClick={clearQualityFilter}>
+              <X className="h-3 w-3" />
+            </button>
+          </Badge>
+        </div>
+      )}
+
       {/* Search + Filters */}
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
@@ -100,7 +166,7 @@ export default function AdminAttendees() {
 
       {/* Table */}
       <AttendeesTable
-        attendees={attendees}
+        attendees={displayedAttendees}
         isLoading={isLoading}
         onView={(id) => setSelectedAttendeeId(id)}
         onDelete={(id, name) => setDeleteAttendee({ id, name })}
