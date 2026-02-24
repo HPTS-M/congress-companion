@@ -54,13 +54,13 @@ export const providerPortalService = {
       event_code: result.event.event_code,
     };
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(session));
     return session;
   },
 
   getSession(): ProviderSession | null {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = sessionStorage.getItem(STORAGE_KEY);
       if (!stored) return null;
       return JSON.parse(stored) as ProviderSession;
     } catch {
@@ -69,7 +69,7 @@ export const providerPortalService = {
   },
 
   logout(): void {
-    localStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(STORAGE_KEY);
   },
 
   async getServices(providerId: string): Promise<ProviderServiceItem[]> {
