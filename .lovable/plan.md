@@ -1,82 +1,109 @@
 
-# Documents Module
+
+# Notes Module
 
 ## Overview
-Build the Documents page at `/:eventSlug/documents` showing event documents with filter tabs, download via signed URLs, and test data insertion.
+Build a personal notes feature at `/:eventSlug/notes` with CRUD operations, session linking, auto-save with debounce, and a note editor modal.
 
 ## Database Changes
 
-### 1. Grant SELECT on `documents` table
-Same issue as `attendees` -- no table-level SELECT privilege for `authenticated`/`anon`.
+### 1. GRANT SELECT/INSERT/UPDATE/DELETE on `attendee_notes`
+The table has zero grants for any role. Need full CRUD for `authenticated`.
 
 ```sql
-GRANT SELECT ON public.documents TO authenticated;
-GRANT SELECT ON public.documents TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.attendee_notes TO authenticated;
+GRANT SELECT ON public.attendee_notes TO anon;
 ```
 
-### 2. Insert 4 test documents
-Using event_id `5efca36a-deef-489b-be85-3dc9d1501ed7` and linking to real sessions:
-- "Capítulo Oncología..." = `ecf95cd6-ca59-4999-ae71-e7033df99c21`
-- "Implementación de programas de uso racional de opioides" = `5c39d6f2-037d-4ee6-a360-d4c167f08aca`
+### 2. Fix RLS policies
+The existing "Attendees manage own notes" policy is RESTRICTIVE (not PERMISSIVE). Combined with `block_anon_access` (also RESTRICTIVE), authenticated users will get denied. Need to either drop and recreate as PERMISSIVE, or add a PERMISSIVE policy.
 
 ```sql
-INSERT INTO documents (event_id, title, file_type, file_path, session_id) VALUES
-  ('5efca36a-...', 'Programa Académico XIII Congreso', 'pdf', 'event-documents/5efca36a-.../programa-academico.pdf', NULL),
-  ('5efca36a-...', 'Farmacología Oncológica Avanzada', 'pptx', 'event-documents/5efca36a-.../farmacologia-oncologica.pptx', 'ecf95cd6-...'),
-  ('5efca36a-...', 'Guía de Uso Racional de Opioides', 'pdf', 'event-documents/5efca36a-.../guia-opioides.pdf', '5c39d6f2-...'),
-  ('5efca36a-...', 'Abstract Book - XIII Congreso ACQFH', 'pdf', 'event-documents/5efca36a-.../abstract-book.pdf', NULL);
+-- Drop the broken RESTRICTIVE policy
+DROP POLICY IF EXISTS "Attendees manage own notes" ON attendee_notes;
+
+-- Create as PERMISSIVE
+CREATE POLICY "Attendees manage own notes"
+ON attendee_notes FOR ALL TO authenticated
+USING (user_id IN (SELECT id FROM attendees WHERE user_id = auth.uid()))
+WITH CHECK (user_id IN (SELECT id FROM attendees WHERE user_id = auth.uid()));
 ```
+
+### 3. Insert 2 test notes
+For attendee `fb9cb992-242e-41d2-98f8-cc28bf70edce` (Usuario de Prueba), event `5efca36a-deef-489b-be85-3dc9d1501ed7`.
 
 ## New Files
 
-### `src/locales/es/documents.json` and `src/locales/en/documents.json`
-i18n keys for:
-- title, subtitle
-- filter tabs: all, presentations, abstracts, guides
-- empty state, general label, download error toast, file size units
+### `src/locales/es/notes.json`
+i18n keys: title, subtitle, newNote, generalNote, placeholder, saved, saving, deleteConfirm, empty, sessionFilter, allSessions, exportPdf, editor title, delete toast, back
 
-### `src/services/documents.service.ts`
-- `getByEvent(eventId)` -- fetches documents with joined session title from `event_activities`
-- `getSignedUrl(filePath)` -- creates a 1-hour signed URL from Supabase Storage
+### `src/locales/en/notes.json`
+English mirror of above.
 
-### `src/hooks/useDocuments.ts`
-- TanStack Query hook wrapping `documentsService.getByEvent`
+### `src/services/notes.service.ts`
+- `getByEvent(eventId, attendeeId)` -- fetch notes with joined session title
+- `create(eventId, attendeeId, sessionId, content)` -- insert new note
+- `update(noteId, content, sessionId)` -- update note content/session
+- `remove(noteId)` -- delete note
 
-### `src/pages/attendee/Documents.tsx`
+### `src/hooks/useNotes.ts`
+- `useNotes(eventId, attendeeId)` -- TanStack Query hook
+- `useCreateNote()` -- mutation
+- `useUpdateNote()` -- mutation with debounced auto-save
+- `useDeleteNote()` -- mutation
+
+### `src/pages/attendee/Notes.tsx`
 Full page with:
-- Header: title + subtitle
-- Filter tabs (Todos / Presentaciones / Abstracts / Guias) -- active tab styled with `#1A56A0` bg, white text
-- Document cards: file-type icon in colored circle (red=pdf, orange=pptx, blue=docx, green=xlsx), title, session name or "General", file size
-- Download button: calls `getSignedUrl`, opens in new tab, shows error toast if file missing
-- Empty state
-- Loading skeleton
+
+**List view:**
+- Title "Mis Notas" + subtitle
+- Session filter dropdown (top left) using shadcn Select
+- "Nueva Nota" button (top right, primary color)
+- Note cards: session badge (teal), content preview (2 lines), last edit timestamp
+- Tap card opens editor dialog
+- Delete via alert dialog confirmation
+- Empty state, loading skeletons
+
+**Editor (Dialog/modal):**
+- Session selector dropdown
+- Full-height textarea with auto-save (3s debounce)
+- "Guardado" / "Guardando..." indicator
+- Back/close saves and returns
 
 ## Modified Files
 
 ### `src/lib/i18n.ts`
-Add `documents` namespace imports for both ES and EN.
+Add `notes` namespace imports for ES and EN.
 
 ### `src/App.tsx`
-Replace `PlaceholderPage` for the documents route with the new `Documents` component (lazy loaded).
+Replace `PlaceholderPage` on the notes route with the new lazy-loaded `Notes` component.
 
 ## Technical Details
 
-### Filter Logic
-- "Todos": show all
-- "Presentaciones": `file_type === 'pptx'`
-- "Abstracts": title contains "abstract" (case-insensitive)
-- "Guias": title contains "guía" or "guia" (case-insensitive)
+### Auto-save
+- Use `useEffect` with a 3-second debounce timer
+- On content or session change, reset timer
+- Call `notesService.update()` when timer fires
+- Show "Guardando..." during save, "Guardado" on success
 
-### File Type Icon Config
-| Type | Color | Icon |
-|------|-------|------|
-| pdf | red-500 circle | FileText |
-| pptx | orange-500 circle | Presentation |
-| docx | blue-500 circle | FileText |
-| xlsx | green-500 circle | Sheet |
+### Session filter
+- Fetch sessions from `event_activities` for the event
+- Dropdown options: "Todas las sesiones" + session list
+- Filter notes by selected session_id (or show all)
 
-### Signed URL Flow
-1. User taps download icon
-2. Call `supabase.storage.from('event-documents').createSignedUrl(path, 3600)`
-3. On success: `window.open(url, '_blank')`
-4. On error: show toast with error message (files don't exist yet, expected)
+### Note card layout
+```text
+[Teal badge: Session name or "Nota general"]
+Preview text (2 lines, truncated)...
+                          hace 2 horas  (bottom right)
+```
+
+### Date formatting
+Use `date-fns` with `formatDistanceToNow` for relative timestamps.
+
+### Export PDF
+Defer to a simple `window.print()` approach or a basic blob generation -- keep it simple for now, can enhance later.
+
+### Delete flow
+- Long press not easily implementable in web -- use a trash icon on each card instead
+- Confirm with AlertDialog before deletion
