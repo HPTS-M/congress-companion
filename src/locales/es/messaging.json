@@ -1,0 +1,14 @@
+{
+  "title": "Mensajería",
+  "tabs": {
+    "groupChat": "Chat General",
+    "directMessages": "Mensajes"
+  },
+  "placeholder": "Escribe un mensaje...",
+  "send": "Enviar",
+  "directComingSoon": "Mensajes directos próximamente",
+  "directComingSoonSub": "Podrás enviar mensajes privados a otros asistentes.",
+  "empty": "No hay mensajes aún. ¡Sé el primero en escribir!",
+  "today": "Hoy",
+  "yesterday": "Ayer"
+}

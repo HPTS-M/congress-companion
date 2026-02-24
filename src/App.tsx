@@ -20,6 +20,7 @@ const Agenda = lazy(() => import('@/pages/attendee/Agenda'));
 const PlaceholderPage = lazy(() => import('@/pages/attendee/PlaceholderPage'));
 const Documents = lazy(() => import('@/pages/attendee/Documents'));
 const Notes = lazy(() => import('@/pages/attendee/Notes'));
+const Messaging = lazy(() => import('@/pages/attendee/Messaging'));
 const CheckIn = lazy(() => import('@/pages/attendee/CheckIn'));
 const Tickets = lazy(() => import('@/pages/attendee/Tickets'));
 const Commercial = lazy(() => import('@/pages/attendee/Commercial'));
@@ -75,7 +76,7 @@ const App = () => (
                   <Route path="contacts/:attendeeId" element={<AttendeeProfile />} />
                   <Route path="documents" element={<Documents />} />
                   <Route path="notes" element={<Notes />} />
-                  <Route path="messaging" element={<PlaceholderPage titleKey="nav.messaging" />} />
+                  <Route path="messaging" element={<Messaging />} />
                   <Route path="announcements" element={<PlaceholderPage titleKey="nav.announcements" />} />
                   <Route path="ratings" element={<PlaceholderPage titleKey="nav.ratings" />} />
                 </Route>
