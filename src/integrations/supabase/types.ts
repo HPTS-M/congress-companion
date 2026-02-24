@@ -1229,15 +1229,19 @@ export type Database = {
           id: string
           level: string
           logo_url: string | null
+          materials_downloads: number
           materials_url: string | null
           name: string
+          profile_views: number
           social_instagram: string | null
           social_linkedin: string | null
           social_twitter: string | null
           stand_location: string | null
           video_url: string | null
+          website_clicks: number
           website_url: string | null
           whatsapp: string | null
+          whatsapp_clicks: number
           whatsapp_message: string | null
         }
         Insert: {
@@ -1249,15 +1253,19 @@ export type Database = {
           id?: string
           level: string
           logo_url?: string | null
+          materials_downloads?: number
           materials_url?: string | null
           name: string
+          profile_views?: number
           social_instagram?: string | null
           social_linkedin?: string | null
           social_twitter?: string | null
           stand_location?: string | null
           video_url?: string | null
+          website_clicks?: number
           website_url?: string | null
           whatsapp?: string | null
+          whatsapp_clicks?: number
           whatsapp_message?: string | null
         }
         Update: {
@@ -1269,15 +1277,19 @@ export type Database = {
           id?: string
           level?: string
           logo_url?: string | null
+          materials_downloads?: number
           materials_url?: string | null
           name?: string
+          profile_views?: number
           social_instagram?: string | null
           social_linkedin?: string | null
           social_twitter?: string | null
           stand_location?: string | null
           video_url?: string | null
+          website_clicks?: number
           website_url?: string | null
           whatsapp?: string | null
+          whatsapp_clicks?: number
           whatsapp_message?: string | null
         }
         Relationships: [
