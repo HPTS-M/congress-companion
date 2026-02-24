@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { adminAttendeesService, type CreateAttendeeData } from '@/services/admin-attendees.service';
+import { adminAttendeesService, type CreateAttendeeData, type AddServiceData } from '@/services/admin-attendees.service';
 import { useEvent } from '@/hooks/useEvent';
 
 export function useAdminAttendees(search?: string, statusFilter?: string) {
@@ -72,5 +72,66 @@ export function useAttendeeDetail(attendeeId: string | null) {
     queryKey: ['admin-attendee-detail', attendeeId],
     queryFn: () => adminAttendeesService.getAttendeeDetail(attendeeId!),
     enabled: !!attendeeId,
+  });
+}
+
+export function useAddService() {
+  const queryClient = useQueryClient();
+  const { event } = useEvent();
+
+  return useMutation({
+    mutationFn: ({ attendeeId, data }: { attendeeId: string; data: AddServiceData }) =>
+      adminAttendeesService.addServiceToAttendee(attendeeId, event!.id, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-attendee-detail', variables.attendeeId] });
+      queryClient.invalidateQueries({ queryKey: ['admin-attendees'] });
+    },
+  });
+}
+
+export function useUpdateServiceStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ serviceId, status }: { serviceId: string; status: string }) =>
+      adminAttendeesService.updateServiceStatus(serviceId, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-attendee-detail'] });
+    },
+  });
+}
+
+export function useDeleteService() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (serviceId: string) => adminAttendeesService.deleteService(serviceId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-attendee-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-attendees'] });
+    },
+  });
+}
+
+export function useDataQuality() {
+  const { event } = useEvent();
+  const eventId = event?.id ?? '';
+
+  return useQuery({
+    queryKey: ['admin-data-quality', eventId],
+    queryFn: () => adminAttendeesService.getDataQuality(eventId),
+    enabled: !!eventId,
+    staleTime: 30000,
+  });
+}
+
+export function useExistingEmails() {
+  const { event } = useEvent();
+  const eventId = event?.id ?? '';
+
+  return useQuery({
+    queryKey: ['admin-existing-emails', eventId],
+    queryFn: () => adminAttendeesService.getExistingEmails(eventId),
+    enabled: !!eventId,
   });
 }

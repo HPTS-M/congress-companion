@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Upload, Download, FileText } from 'lucide-react';
+import { Upload, Download, FileText, AlertCircle, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -9,8 +9,10 @@ import { Progress } from '@/components/ui/progress';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+import { Card, CardContent } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
-import { useBulkCreateAttendees } from '@/hooks/useAdminAttendees';
+import { useBulkCreateAttendees, useExistingEmails } from '@/hooks/useAdminAttendees';
+import { cn } from '@/lib/utils';
 
 interface CsvRow {
   full_name: string;
@@ -19,10 +21,26 @@ interface CsvRow {
   institution?: string;
 }
 
+type RowStatus = 'valid' | 'warning' | 'error';
+
+interface ValidatedRow extends CsvRow {
+  status: RowStatus;
+  issue?: string;
+}
+
+interface ImportResult {
+  imported: number;
+  warnings: number;
+  errors: number;
+  errorRows: ValidatedRow[];
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function parseCsv(text: string): CsvRow[] {
   const lines = text.trim().split('\n');
@@ -38,11 +56,11 @@ function parseCsv(text: string): CsvRow[] {
       specialty: row.specialty || row.especialidad || undefined,
       institution: row.institution || row.institucion || undefined,
     };
-  }).filter((r) => r.full_name && r.email);
+  });
 }
 
 function downloadTemplate() {
-  const csv = 'full_name,email,specialty,institution\n"Dr. Juan Pérez","juan@ejemplo.com","Cardiología","Hospital General"\n';
+  const csv = 'full_name,email,specialty,institution\n"Dr. Juan Pérez","juan@ejemplo.com","Cardiología","Hospital General"\n"Dra. María López","maria@ejemplo.com","Neurología","Clínica Central"\n';
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -52,13 +70,70 @@ function downloadTemplate() {
   URL.revokeObjectURL(url);
 }
 
+function downloadErrorReport(errorRows: ValidatedRow[]) {
+  const header = 'full_name,email,specialty,institution,status,issue\n';
+  const lines = errorRows.map((r) =>
+    `"${r.full_name}","${r.email}","${r.specialty || ''}","${r.institution || ''}","${r.status}","${r.issue || ''}"`
+  ).join('\n');
+  const blob = new Blob([header + lines], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'import_errors.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function ImportCsvModal({ open, onOpenChange }: Props) {
   const { t } = useTranslation('admin');
   const bulkMutation = useBulkCreateAttendees();
+  const { data: existingEmails } = useExistingEmails();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [rows, setRows] = useState<CsvRow[]>([]);
+  const [rawRows, setRawRows] = useState<CsvRow[]>([]);
   const [fileName, setFileName] = useState('');
   const [progress, setProgress] = useState(0);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+
+  const existingEmailSet = useMemo(
+    () => new Set((existingEmails ?? []).map((e) => e.toLowerCase())),
+    [existingEmails],
+  );
+
+  const validatedRows: ValidatedRow[] = useMemo(() => {
+    if (rawRows.length === 0) return [];
+    const emailsSeen = new Map<string, number>();
+
+    return rawRows.map((row) => {
+      // Required fields
+      if (!row.full_name?.trim() || !row.email?.trim()) {
+        return { ...row, status: 'error' as const, issue: t('attendees.importModal.missingRequired') };
+      }
+      // Email format
+      if (!EMAIL_REGEX.test(row.email)) {
+        return { ...row, status: 'error' as const, issue: t('attendees.importModal.invalidEmail') };
+      }
+
+      const emailKey = row.email.toLowerCase();
+
+      // Duplicate in CSV
+      const prevIdx = emailsSeen.get(emailKey);
+      emailsSeen.set(emailKey, (prevIdx ?? 0) + 1);
+      if (prevIdx !== undefined && prevIdx >= 1) {
+        return { ...row, status: 'warning' as const, issue: t('attendees.importModal.duplicateEmail') };
+      }
+
+      // Duplicate in DB
+      if (existingEmailSet.has(emailKey)) {
+        return { ...row, status: 'warning' as const, issue: t('attendees.importModal.duplicateEmailDb') };
+      }
+
+      return { ...row, status: 'valid' as const };
+    });
+  }, [rawRows, existingEmailSet, t]);
+
+  const validCount = validatedRows.filter((r) => r.status !== 'error').length;
+  const warningCount = validatedRows.filter((r) => r.status === 'warning').length;
+  const errorCount = validatedRows.filter((r) => r.status === 'error').length;
 
   const handleFile = useCallback((file: File) => {
     if (!file.name.endsWith('.csv')) {
@@ -66,6 +141,7 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
       return;
     }
     setFileName(file.name);
+    setImportResult(null);
     const reader = new FileReader();
     reader.onload = (e) => {
       const text = e.target?.result as string;
@@ -74,7 +150,7 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
         toast({ title: t('attendees.importModal.emptyFile'), variant: 'destructive' });
         return;
       }
-      setRows(parsed);
+      setRawRows(parsed);
     };
     reader.readAsText(file);
   }, [t]);
@@ -86,22 +162,23 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
   }, [handleFile]);
 
   const handleImport = async () => {
+    const rowsToImport = validatedRows.filter((r) => r.status !== 'error');
+    if (rowsToImport.length === 0) return;
+
     try {
       setProgress(10);
-      const result = await bulkMutation.mutateAsync(rows);
+      const result = await bulkMutation.mutateAsync(rowsToImport);
       setProgress(100);
-      toast({
-        title: t('attendees.importModal.success', { count: result.inserted }),
-        ...(result.errors > 0 && {
-          description: t('attendees.importModal.errors', { count: result.errors }),
-        }),
+
+      const errorRows = validatedRows.filter((r) => r.status === 'error');
+      setImportResult({
+        imported: result.inserted,
+        warnings: warningCount,
+        errors: errorCount,
+        errorRows,
       });
-      setTimeout(() => {
-        setRows([]);
-        setFileName('');
-        setProgress(0);
-        onOpenChange(false);
-      }, 1000);
+
+      toast({ title: t('attendees.importModal.success', { count: result.inserted }) });
     } catch {
       toast({ title: t('attendees.newAttendeeModal.error'), variant: 'destructive' });
       setProgress(0);
@@ -109,9 +186,10 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
   };
 
   const reset = () => {
-    setRows([]);
+    setRawRows([]);
     setFileName('');
     setProgress(0);
+    setImportResult(null);
   };
 
   return (
@@ -126,7 +204,44 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
           {t('attendees.importModal.downloadTemplate')}
         </Button>
 
-        {rows.length === 0 ? (
+        {importResult ? (
+          /* Summary card after import */
+          <div className="space-y-4">
+            <Card>
+              <CardContent className="p-4 space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium text-accent">
+                  <CheckCircle2 className="h-4 w-4" />
+                  {t('attendees.importModal.summaryImported', { count: importResult.imported })}
+                </div>
+                {importResult.warnings > 0 && (
+                  <div className="flex items-center gap-2 text-sm text-amber-600">
+                    <AlertTriangle className="h-4 w-4" />
+                    {t('attendees.importModal.summaryWarnings', { count: importResult.warnings })}
+                  </div>
+                )}
+                {importResult.errors > 0 && (
+                  <div className="flex items-center gap-2 text-sm text-destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    {t('attendees.importModal.summaryErrors', { count: importResult.errors })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            {importResult.errorRows.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => downloadErrorReport(importResult.errorRows)}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                {t('attendees.importModal.downloadErrors')}
+              </Button>
+            )}
+            <Button className="w-full" onClick={() => { reset(); onOpenChange(false); }}>
+              OK
+            </Button>
+          </div>
+        ) : rawRows.length === 0 ? (
           <div
             onDrop={handleDrop}
             onDragOver={(e) => e.preventDefault()}
@@ -152,29 +267,65 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
               <span>{t('attendees.importModal.selectedFile')}: <strong>{fileName}</strong></span>
             </div>
 
+            {/* Validation summary */}
+            <div className="flex gap-3 text-xs">
+              <span className="flex items-center gap-1 text-accent">
+                <CheckCircle2 className="h-3 w-3" /> {validCount - warningCount} {t('attendees.importModal.validRow')}
+              </span>
+              {warningCount > 0 && (
+                <span className="flex items-center gap-1 text-amber-600">
+                  <AlertTriangle className="h-3 w-3" /> {warningCount} {t('attendees.importModal.warningRow')}
+                </span>
+              )}
+              {errorCount > 0 && (
+                <span className="flex items-center gap-1 text-destructive">
+                  <AlertCircle className="h-3 w-3" /> {errorCount} {t('attendees.importModal.errorRow')}
+                </span>
+              )}
+            </div>
+
             <div className="text-sm font-medium text-foreground">{t('attendees.importModal.previewTitle')}</div>
             <div className="max-h-48 overflow-auto rounded border">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-8">#</TableHead>
                     <TableHead>Nombre</TableHead>
                     <TableHead>Email</TableHead>
-                    <TableHead>Especialidad</TableHead>
+                    <TableHead>{t('attendees.importModal.columnStatus')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.slice(0, 10).map((r, i) => (
-                    <TableRow key={i}>
-                      <TableCell className="text-sm">{r.full_name}</TableCell>
-                      <TableCell className="text-sm">{r.email}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{r.specialty || '—'}</TableCell>
+                  {validatedRows.slice(0, 20).map((r, i) => (
+                    <TableRow
+                      key={i}
+                      className={cn(
+                        r.status === 'valid' && 'bg-accent/5',
+                        r.status === 'warning' && 'bg-amber-500/10',
+                        r.status === 'error' && 'bg-destructive/10',
+                      )}
+                    >
+                      <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
+                      <TableCell className="text-sm">{r.full_name || '—'}</TableCell>
+                      <TableCell className="text-sm">{r.email || '—'}</TableCell>
+                      <TableCell>
+                        {r.status === 'valid' && (
+                          <span className="text-xs text-accent">{t('attendees.importModal.validRow')}</span>
+                        )}
+                        {r.status === 'warning' && (
+                          <span className="text-xs text-amber-600" title={r.issue}>{r.issue}</span>
+                        )}
+                        {r.status === 'error' && (
+                          <span className="text-xs text-destructive" title={r.issue}>{r.issue}</span>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
-              {rows.length > 10 && (
+              {validatedRows.length > 20 && (
                 <div className="px-4 py-2 text-xs text-muted-foreground">
-                  +{rows.length - 10} más...
+                  +{validatedRows.length - 20} más...
                 </div>
               )}
             </div>
@@ -184,11 +335,13 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
             <Button
               className="w-full"
               onClick={handleImport}
-              disabled={bulkMutation.isPending}
+              disabled={bulkMutation.isPending || validCount === 0}
             >
               {bulkMutation.isPending
                 ? t('attendees.importModal.importing')
-                : t('attendees.importModal.importButton', { count: rows.length })}
+                : errorCount > 0
+                  ? t('attendees.importModal.importValidOnly', { count: validCount })
+                  : t('attendees.importModal.importButton', { count: validatedRows.length })}
             </Button>
           </div>
         )}
