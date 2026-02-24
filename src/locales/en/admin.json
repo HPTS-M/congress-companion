@@ -279,6 +279,8 @@
   "documents": {
     "title": "Documents",
     "uploadButton": "Upload Document",
+    "viewIndex": "View Index",
+    "completenessCheck": "Check completeness",
     "exportList": "Export list",
     "statTotal": "Total documents",
     "statPdfs": "PDFs",
@@ -295,6 +297,7 @@
     "colSession": "Session",
     "colSize": "Size",
     "colDate": "Uploaded",
+    "colDownloads": "Downloads",
     "colActions": "Actions",
     "generalBadge": "General",
     "selectedCount": "{{count}} selected",
@@ -329,6 +332,40 @@
     "deleteSuccess": "Document deleted",
     "deleteError": "Error deleting document",
     "bulkDeleteSuccess": "{{count}} documents deleted",
-    "downloadError": "Error downloading document"
+    "downloadError": "Error downloading document",
+    "index": {
+      "title": "Document Index",
+      "header": "DOCUMENT INDEX — {{name}}",
+      "generated": "Generated: {{date}}",
+      "generalGroup": "GENERAL ({{count}} documents)",
+      "dayGroup": "DAY {{day}} — {{date}} ({{count}} documents)",
+      "docsLabel": "documents",
+      "exportPdf": "Export index TXT",
+      "exportExcel": "Export index Excel"
+    },
+    "quality": {
+      "title": "Document Quality",
+      "noIssues": "✅ Everything looks good",
+      "duplicates": "Documents with duplicate title",
+      "duplicateFiles": "Duplicate files",
+      "noSession": "Documents without session",
+      "noFile": "Documents without physical file",
+      "viewAffected": "View affected",
+      "clearFilter": "Clear filter"
+    },
+    "completeness": {
+      "title": "Check Completeness",
+      "description": "Upload a reference file (.xlsx or .csv) with the expected document list to compare against uploaded documents.",
+      "columns": "Expected columns: titulo_esperado, sesion, tipo",
+      "dropHere": "Drag & drop an .xlsx or .csv file here or click to select",
+      "fileLoaded": "File: {{name}} — {{count}} reference documents",
+      "found": "Found",
+      "missing": "Missing",
+      "extra": "Extra",
+      "missingList": "Missing documents",
+      "extraList": "Extra documents (not in reference)",
+      "downloadReport": "Download report",
+      "changeFile": "Change file"
+    }
   }
 }

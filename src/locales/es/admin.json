@@ -279,6 +279,8 @@
   "documents": {
     "title": "Documentos",
     "uploadButton": "Subir Documento",
+    "viewIndex": "Ver Índice",
+    "completenessCheck": "Verificar completitud",
     "exportList": "Exportar listado",
     "statTotal": "Total documentos",
     "statPdfs": "PDFs",
@@ -295,6 +297,7 @@
     "colSession": "Sesión",
     "colSize": "Tamaño",
     "colDate": "Subido",
+    "colDownloads": "Descargas",
     "colActions": "Acciones",
     "generalBadge": "General",
     "selectedCount": "{{count}} seleccionados",
@@ -329,6 +332,40 @@
     "deleteSuccess": "Documento eliminado",
     "deleteError": "Error al eliminar documento",
     "bulkDeleteSuccess": "{{count}} documentos eliminados",
-    "downloadError": "Error al descargar documento"
+    "downloadError": "Error al descargar documento",
+    "index": {
+      "title": "Índice de Documentos",
+      "header": "ÍNDICE DE DOCUMENTOS — {{name}}",
+      "generated": "Generado: {{date}}",
+      "generalGroup": "GENERAL ({{count}} documentos)",
+      "dayGroup": "DÍA {{day}} — {{date}} ({{count}} documentos)",
+      "docsLabel": "documentos",
+      "exportPdf": "Exportar índice TXT",
+      "exportExcel": "Exportar índice Excel"
+    },
+    "quality": {
+      "title": "Calidad de Documentos",
+      "noIssues": "✅ Todo en orden",
+      "duplicates": "Documentos con título duplicado",
+      "duplicateFiles": "Archivos duplicados",
+      "noSession": "Documentos sin sesión asociada",
+      "noFile": "Documentos sin archivo físico",
+      "viewAffected": "Ver afectados",
+      "clearFilter": "Limpiar filtro"
+    },
+    "completeness": {
+      "title": "Verificar Completitud",
+      "description": "Sube un archivo de referencia (.xlsx o .csv) con la lista de documentos esperados para comparar contra los documentos ya cargados.",
+      "columns": "Columnas esperadas: titulo_esperado, sesion, tipo",
+      "dropHere": "Arrastra un archivo .xlsx o .csv aquí o haz clic para seleccionar",
+      "fileLoaded": "Archivo: {{name}} — {{count}} documentos de referencia",
+      "found": "Encontrados",
+      "missing": "Faltantes",
+      "extra": "Extra",
+      "missingList": "Documentos faltantes",
+      "extraList": "Documentos extra (no en referencia)",
+      "downloadReport": "Descargar reporte",
+      "changeFile": "Cambiar archivo"
+    }
   }
 }
