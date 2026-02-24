@@ -1,0 +1,21 @@
+{
+  "title": "Mis Notas",
+  "subtitle": "Apuntes personales del congreso",
+  "newNote": "Nueva Nota",
+  "generalNote": "Nota general",
+  "placeholder": "Escribe tus apuntes aquí...",
+  "saved": "Guardado ✓",
+  "saving": "Guardando...",
+  "deleteConfirm": "¿Estás seguro de que deseas eliminar esta nota?",
+  "deleteTitle": "Eliminar nota",
+  "deleted": "Nota eliminada",
+  "empty": "Aún no tienes notas.",
+  "emptyAction": "Toca + para crear tu primera nota.",
+  "allSessions": "Todas las sesiones",
+  "exportPdf": "Exportar PDF",
+  "editorTitle": "Editar nota",
+  "selectSession": "Sesión (opcional)",
+  "back": "Volver",
+  "cancel": "Cancelar",
+  "delete": "Eliminar"
+}
