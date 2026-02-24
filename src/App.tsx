@@ -28,6 +28,7 @@ const Commercial = lazy(() => import('@/pages/attendee/Commercial'));
 const SponsorDetail = lazy(() => import('@/pages/attendee/SponsorDetail'));
 const Contacts = lazy(() => import('@/pages/attendee/Contacts'));
 const AttendeeProfile = lazy(() => import('@/pages/attendee/AttendeeProfile'));
+const Ratings = lazy(() => import('@/pages/attendee/Ratings'));
 
 // Layout
 const AttendeeLayout = lazy(() => import('@/pages/attendee/AttendeeLayoutWrapper'));
@@ -79,7 +80,7 @@ const App = () => (
                   <Route path="notes" element={<Notes />} />
                   <Route path="messaging" element={<Messaging />} />
                   <Route path="announcements" element={<Announcements />} />
-                  <Route path="ratings" element={<PlaceholderPage titleKey="nav.ratings" />} />
+                  <Route path="ratings" element={<Ratings />} />
                 </Route>
               </Route>
 
