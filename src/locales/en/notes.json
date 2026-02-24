@@ -1,0 +1,21 @@
+{
+  "title": "My Notes",
+  "subtitle": "Personal congress notes",
+  "newNote": "New Note",
+  "generalNote": "General note",
+  "placeholder": "Write your notes here...",
+  "saved": "Saved ✓",
+  "saving": "Saving...",
+  "deleteConfirm": "Are you sure you want to delete this note?",
+  "deleteTitle": "Delete note",
+  "deleted": "Note deleted",
+  "empty": "You don't have any notes yet.",
+  "emptyAction": "Tap + to create your first note.",
+  "allSessions": "All sessions",
+  "exportPdf": "Export PDF",
+  "editorTitle": "Edit note",
+  "selectSession": "Session (optional)",
+  "back": "Back",
+  "cancel": "Cancel",
+  "delete": "Delete"
+}
