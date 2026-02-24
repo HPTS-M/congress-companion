@@ -38,7 +38,7 @@ export type RegistrationStatus = 'confirmed' | 'pending' | 'cancelled';
 
 export type SponsorLevel = 'gold' | 'silver' | 'bronze' | 'exhibitor';
 
-export type ActivityType = 'conference' | 'workshop' | 'break' | 'plenary';
+export type ActivityType = 'talk' | 'workshop' | 'other' | 'ceremony' | 'networking' | 'symposium' | 'conference_day';
 
 export interface EventActivity {
   id: string;
