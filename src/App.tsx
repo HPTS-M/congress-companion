@@ -14,6 +14,7 @@ const AttendeeLogin = lazy(() => import('@/pages/attendee/Login'));
 const AdminLogin = lazy(() => import('@/pages/admin/Login'));
 const AdminLayout = lazy(() => import('@/components/layout/AdminLayout'));
 const AdminDashboard = lazy(() => import('@/pages/admin/Dashboard'));
+const AdminAttendees = lazy(() => import('@/pages/admin/Attendees'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 
 // Attendee pages
@@ -71,6 +72,7 @@ const App = () => (
                 {/* Protected admin routes */}
                 <Route path="admin" element={<AdminLayout />}>
                   <Route path="dashboard" element={<AdminDashboard />} />
+                  <Route path="users" element={<AdminAttendees />} />
                 </Route>
 
                 {/* Protected attendee routes */}
