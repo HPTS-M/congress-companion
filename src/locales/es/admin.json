@@ -602,6 +602,13 @@
     "resendInvite": "Reenviar invitación",
     "invitePending": "Pendiente",
     "inviteActive": "Activo",
-    "inviteExpired": "Expirado"
+    "inviteExpired": "Expirado",
+    "resendConfirm": "¿Reenviar invitación a {{email}}?",
+    "resendConfirmTitle": "Reenviar Invitación",
+    "emailChangedTitle": "Email actualizado",
+    "emailChangedMessage": "El email fue actualizado. ¿Deseas reenviar la invitación al nuevo correo {{email}}?",
+    "emailChangedYes": "Sí, reenviar",
+    "emailChangedNo": "No, mantener pendiente",
+    "reinviteSent": "Invitación reenviada al nuevo email {{email}}"
   }
 }

@@ -169,4 +169,23 @@ export const adminProvidersService = {
     if (error) throw new Error(error.message);
     if (data?.error) throw new Error(data.error);
   },
+
+  async reinviteProvider(providerId: string, newEmail: string, eventId: string, eventSlug: string): Promise<{ action: string }> {
+    const redirectTo = `${window.location.origin}/${eventSlug}/provider`;
+
+    const { data, error } = await supabase.functions.invoke('create-provider-user', {
+      body: {
+        provider_id: providerId,
+        email: newEmail,
+        event_id: eventId,
+        redirect_to: redirectTo,
+        action: 'reinvite',
+      },
+    });
+
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+
+    return { action: data?.action ?? 'reinvited' };
+  },
 };

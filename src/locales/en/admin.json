@@ -602,6 +602,13 @@
     "resendInvite": "Resend invitation",
     "invitePending": "Pending",
     "inviteActive": "Active",
-    "inviteExpired": "Expired"
+    "inviteExpired": "Expired",
+    "resendConfirm": "Resend invitation to {{email}}?",
+    "resendConfirmTitle": "Resend Invitation",
+    "emailChangedTitle": "Email updated",
+    "emailChangedMessage": "The email was updated. Do you want to resend the invitation to the new email {{email}}?",
+    "emailChangedYes": "Yes, resend",
+    "emailChangedNo": "No, keep pending",
+    "reinviteSent": "Invitation resent to new email {{email}}"
   }
 }
