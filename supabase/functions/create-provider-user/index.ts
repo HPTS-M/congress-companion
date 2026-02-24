@@ -37,11 +37,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Verify caller has admin role
     const { data: roles } = await anonClient.rpc("get_user_roles", { _user_id: caller.id });
-    const isAdmin = (roles ?? []).some((r: string) =>
-      ["superuser", "admin"].includes(r)
-    );
+    const isAdmin = (roles ?? []).some((r: string) => ["superuser", "admin"].includes(r));
     if (!isAdmin) {
       return new Response(JSON.stringify({ error: "Forbidden" }), {
         status: 403,
@@ -61,92 +58,78 @@ Deno.serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // Check if this is a resend action
-    if (action === "resend") {
-      // Check if user already exists
-      const { data: provider } = await adminClient
+    // Get current provider record
+    const { data: provider } = await adminClient
+      .from("providers")
+      .select("user_id, contact_email")
+      .eq("id", provider_id)
+      .single();
+
+    // === ACTION: reinvite (email changed, delete old user + send new invite) ===
+    if (action === "reinvite" && provider?.user_id) {
+      // Delete old auth user
+      await adminClient.auth.admin.deleteUser(provider.user_id);
+
+      // Clear provider link
+      await adminClient
         .from("providers")
-        .select("user_id")
-        .eq("id", provider_id)
-        .single();
+        .update({ user_id: null, last_login: null, login_count: 0, password_changed: false })
+        .eq("id", provider_id);
 
-      if (provider?.user_id) {
-        // User exists, resend invite by generating a new magic link
-        const { error: resendError } = await adminClient.auth.admin.generateLink({
-          type: "magiclink",
-          email,
-          options: {
-            redirectTo: redirect_to || `${supabaseUrl}`,
-          },
-        });
-
-        if (resendError) {
-          return new Response(
-            JSON.stringify({ error: resendError.message }),
-            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-
-        return new Response(
-          JSON.stringify({ success: true, action: "resent" }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+      // Fall through to invite flow below
     }
 
-    // Invite user by email
+    // === ACTION: resend (same email, generate new magic link) ===
+    if (action === "resend" && provider?.user_id) {
+      const { error: resendError } = await adminClient.auth.admin.generateLink({
+        type: "magiclink",
+        email,
+        options: { redirectTo: redirect_to || supabaseUrl },
+      });
+
+      if (resendError) {
+        return new Response(
+          JSON.stringify({ error: resendError.message }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, action: "resent" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // === INVITE: create new auth user via invite ===
+    const { data: eventData } = await adminClient
+      .from("events")
+      .select("organization_id")
+      .eq("id", event_id)
+      .single();
+
     const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
       email,
       {
-        redirectTo: redirect_to || `${supabaseUrl}`,
-        data: {
-          role: "provider",
-          provider_id,
-          event_id,
-        },
+        redirectTo: redirect_to || supabaseUrl,
+        data: { role: "provider", provider_id, event_id },
       }
     );
 
     if (inviteError) {
       // If user already exists, try to link them
       if (inviteError.message?.includes("already been registered") || inviteError.message?.includes("already exists")) {
-        // Look up existing user
         const { data: { users } } = await adminClient.auth.admin.listUsers();
         const existingUser = users?.find((u: any) => u.email === email);
 
         if (existingUser) {
           const userId = existingUser.id;
 
-          // Create profile if not exists
-          await adminClient.from("profiles").upsert({
-            id: userId,
-            email,
-            full_name: `Provider: ${email}`,
-          });
-
-          // Get org id
-          const { data: eventData } = await adminClient
-            .from("events")
-            .select("organization_id")
-            .eq("id", event_id)
-            .single();
-
-          // Assign provider role if not exists
+          await adminClient.from("profiles").upsert({ id: userId, email, full_name: `Provider: ${email}` });
           await adminClient.from("user_roles").upsert(
-            {
-              user_id: userId,
-              role: "provider",
-              organization_id: eventData?.organization_id,
-              assigned_by: caller.id,
-            },
+            { user_id: userId, role: "provider", organization_id: eventData?.organization_id, assigned_by: caller.id },
             { onConflict: "user_id,role" }
           );
-
-          // Link to provider record
-          await adminClient
-            .from("providers")
-            .update({ user_id: userId })
-            .eq("id", provider_id);
+          await adminClient.from("providers").update({ user_id: userId }).eq("id", provider_id);
 
           return new Response(
             JSON.stringify({ success: true, user_id: userId, action: "linked_existing" }),
@@ -163,33 +146,11 @@ Deno.serve(async (req) => {
 
     const userId = inviteData.user.id;
 
-    // Create profile
-    await adminClient.from("profiles").upsert({
-      id: userId,
-      email,
-      full_name: `Provider: ${email}`,
-    });
-
-    // Get org id
-    const { data: eventData } = await adminClient
-      .from("events")
-      .select("organization_id")
-      .eq("id", event_id)
-      .single();
-
-    // Assign provider role
+    await adminClient.from("profiles").upsert({ id: userId, email, full_name: `Provider: ${email}` });
     await adminClient.from("user_roles").insert({
-      user_id: userId,
-      role: "provider",
-      organization_id: eventData?.organization_id,
-      assigned_by: caller.id,
+      user_id: userId, role: "provider", organization_id: eventData?.organization_id, assigned_by: caller.id,
     });
-
-    // Link auth user to provider record
-    await adminClient
-      .from("providers")
-      .update({ user_id: userId })
-      .eq("id", provider_id);
+    await adminClient.from("providers").update({ user_id: userId }).eq("id", provider_id);
 
     return new Response(
       JSON.stringify({ success: true, user_id: userId, action: "invited" }),

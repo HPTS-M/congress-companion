@@ -69,6 +69,10 @@ export default function AdminProviders() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [invitingId, setInvitingId] = useState<string | null>(null);
 
+  // Confirmation dialog states
+  const [resendConfirm, setResendConfirm] = useState<ProviderRow | null>(null);
+  const [emailChangedConfirm, setEmailChangedConfirm] = useState<{ provider: ProviderRow; newEmail: string } | null>(null);
+
   const filtered = useMemo(() => {
     if (!search.trim()) return providers;
     const q = search.toLowerCase();
@@ -82,8 +86,17 @@ export default function AdminProviders() {
   const handleSave = useCallback(async (data: ProviderForm) => {
     try {
       if (editing) {
+        const oldEmail = editing.contact_email;
+        const newEmail = data.contact_email;
+        const emailChanged = oldEmail && newEmail && oldEmail !== newEmail && editing.user_id;
+
         await updateProvider({ id: editing.id, form: data });
         toast.success(t('providers.editSuccess'));
+
+        // If email changed and invitation was already sent, prompt to reinvite
+        if (emailChanged && newEmail) {
+          setEmailChangedConfirm({ provider: editing, newEmail });
+        }
       } else {
         await createProvider(data);
         toast.success(t('providers.createSuccess'));
@@ -144,18 +157,43 @@ export default function AdminProviders() {
     }
   }, [event, eventSlug, t, refetch]);
 
-  const handleResendInvite = useCallback(async (p: ProviderRow) => {
-    if (!p.contact_email || !event || !eventSlug) return;
+  // Resend: show confirmation first
+  const handleResendClick = useCallback((p: ProviderRow) => {
+    setResendConfirm(p);
+  }, []);
+
+  const handleResendConfirmed = useCallback(async () => {
+    const p = resendConfirm;
+    if (!p?.contact_email || !event || !eventSlug) return;
+    setResendConfirm(null);
     setInvitingId(p.id);
     try {
       await adminProvidersService.resendInvite(p.id, p.contact_email, event.id, eventSlug);
       toast.success(t('providers.inviteResent', { email: p.contact_email }));
+      refetch();
     } catch (err: any) {
       toast.error(t('providers.inviteError') + ': ' + (err.message ?? ''));
     } finally {
       setInvitingId(null);
     }
-  }, [event, eventSlug, t]);
+  }, [resendConfirm, event, eventSlug, t, refetch]);
+
+  // Email changed: reinvite with new email (delete old user + new invite)
+  const handleEmailChangedReinvite = useCallback(async () => {
+    if (!emailChangedConfirm || !event || !eventSlug) return;
+    const { provider, newEmail } = emailChangedConfirm;
+    setEmailChangedConfirm(null);
+    setInvitingId(provider.id);
+    try {
+      await adminProvidersService.reinviteProvider(provider.id, newEmail, event.id, eventSlug);
+      toast.success(t('providers.reinviteSent', { email: newEmail }));
+      refetch();
+    } catch (err: any) {
+      toast.error(t('providers.inviteError') + ': ' + (err.message ?? ''));
+    } finally {
+      setInvitingId(null);
+    }
+  }, [emailChangedConfirm, event, eventSlug, t, refetch]);
 
   if (isLoading) {
     return (
@@ -241,12 +279,12 @@ export default function AdminProviders() {
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <InvitationBadge status={invStatus} />
-                      {isPendingLong && (
+                      {(isPendingLong || invStatus === 'expired') && (
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6"
-                          onClick={() => handleResendInvite(p)}
+                          onClick={() => handleResendClick(p)}
                           disabled={invitingId === p.id}
                           title={t('providers.resendInvite')}
                         >
@@ -336,6 +374,42 @@ export default function AdminProviders() {
             <AlertDialogCancel>{t('sponsors.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
               {t('sponsors.deleteButton')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Resend invitation confirm */}
+      <AlertDialog open={!!resendConfirm} onOpenChange={(o) => !o && setResendConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('providers.resendConfirmTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('providers.resendConfirm', { email: resendConfirm?.contact_email ?? '' })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('sponsors.cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleResendConfirmed} className="bg-primary text-primary-foreground">
+              {t('providers.resendInvite')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Email changed — reinvite confirm */}
+      <AlertDialog open={!!emailChangedConfirm} onOpenChange={(o) => !o && setEmailChangedConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('providers.emailChangedTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('providers.emailChangedMessage', { email: emailChangedConfirm?.newEmail ?? '' })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('providers.emailChangedNo')}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleEmailChangedReinvite} className="bg-primary text-primary-foreground">
+              {t('providers.emailChangedYes')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
