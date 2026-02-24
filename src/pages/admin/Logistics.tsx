@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useEvent } from '@/hooks/useEvent';
 import { useAdminLogistics } from '@/hooks/useAdminLogistics';
 import { Button } from '@/components/ui/button';
@@ -47,6 +48,8 @@ const ICON_BG: Record<string, string> = {
 
 export default function AdminLogistics() {
   const { t } = useTranslation('admin');
+  const { eventSlug } = useParams();
+  const navigate = useNavigate();
   const { event } = useEvent();
   const { services, isLoading, createService, updateService, deleteService, isCreating, isUpdating } = useAdminLogistics(event?.id);
 
@@ -240,7 +243,7 @@ export default function AdminLogistics() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => setViewingAssignees(s)} title={t('logistics.viewAssignees')}>
+                      <Button variant="ghost" size="icon" onClick={() => navigate(`/${eventSlug}/admin/logistics/${s.id}/assign`)} title={t('logistics.viewAssignees')}>
                         <Users className="h-4 w-4" />
                       </Button>
                       <Button variant="ghost" size="icon" onClick={() => handleEdit(s)} title={t('sponsors.edit')}>

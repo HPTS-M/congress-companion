@@ -519,6 +519,36 @@
     "deleteError": "Error al eliminar servicio",
     "assigneesTitle": "Asistentes asignados",
     "assigneesCount": "{{count}} asistentes asignados",
-    "noAssignees": "No hay asistentes asignados a este servicio"
+    "noAssignees": "No hay asistentes asignados a este servicio",
+    "assign": {
+      "assignedTitle": "Asignados",
+      "unassignedTitle": "Sin este servicio",
+      "searchAssigned": "Buscar asignados...",
+      "searchUnassigned": "Buscar por nombre, email o código...",
+      "allAssigned": "Todos los asistentes están asignados",
+      "assignSuccess": "Asistente asignado exitosamente",
+      "assignError": "Error al asignar asistente",
+      "unassignSuccess": "Asistente desasignado",
+      "unassignError": "Error al desasignar",
+      "removeTitle": "Quitar Asistente",
+      "removeConfirm": "¿Quitar este asistente del servicio? Su ticket será eliminado.",
+      "remove": "Quitar",
+      "changeStatus": "Cambiar Estado",
+      "statusPending": "Pendiente",
+      "statusUsed": "Usado",
+      "statusCancelled": "Cancelado",
+      "statusUpdated": "Estado actualizado",
+      "statusError": "Error al actualizar estado",
+      "notePlaceholder": "Nota opcional...",
+      "specialty": "Especialidad",
+      "bulkAssign": "Asignar masivamente",
+      "bulkDescription": "Selecciona el grupo de asistentes a asignar:",
+      "bulkConfirmed": "Solo confirmados",
+      "bulkAll": "Todos los asistentes",
+      "bulkConfirmBtn": "Asignar",
+      "assigning": "Asignando...",
+      "bulkResult": "{{assigned}} asignados, {{errors}} errores",
+      "bulkError": "Error en asignación masiva"
+    }
   }
 }

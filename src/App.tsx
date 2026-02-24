@@ -19,6 +19,7 @@ const AdminAgenda = lazy(() => import('@/pages/admin/Agenda'));
 const AdminDocuments = lazy(() => import('@/pages/admin/Documents'));
 const AdminSponsors = lazy(() => import('@/pages/admin/Sponsors'));
 const AdminLogistics = lazy(() => import('@/pages/admin/Logistics'));
+const AdminLogisticsAssign = lazy(() => import('@/pages/admin/LogisticsAssign'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 
 // Attendee pages
@@ -81,6 +82,7 @@ const App = () => (
                   <Route path="documents" element={<AdminDocuments />} />
                   <Route path="sponsors" element={<AdminSponsors />} />
                   <Route path="logistics" element={<AdminLogistics />} />
+                  <Route path="logistics/:serviceId/assign" element={<AdminLogisticsAssign />} />
                 </Route>
 
                 {/* Protected attendee routes */}
