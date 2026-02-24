@@ -7,6 +7,7 @@ export interface ProviderSession {
   event_id: string;
   event_name: string;
   event_code: string;
+  password_changed: boolean;
 }
 
 export interface ProviderServiceItem {
@@ -40,7 +41,7 @@ export const providerPortalService = {
 
     const { data: provider } = await supabase
       .from('providers')
-      .select('id, company_name, category, event_id')
+      .select('id, company_name, category, event_id, password_changed')
       .eq('user_id', session.user.id)
       .maybeSingle();
 
@@ -61,6 +62,7 @@ export const providerPortalService = {
       event_id: provider.event_id,
       event_name: event.name,
       event_code: event.event_code,
+      password_changed: (provider as any).password_changed ?? false,
     };
   },
 

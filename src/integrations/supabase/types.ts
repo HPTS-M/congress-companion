@@ -1020,6 +1020,7 @@ export type Database = {
           is_active: boolean | null
           last_login: string | null
           login_count: number
+          password_changed: boolean
           user_id: string | null
         }
         Insert: {
@@ -1036,6 +1037,7 @@ export type Database = {
           is_active?: boolean | null
           last_login?: string | null
           login_count?: number
+          password_changed?: boolean
           user_id?: string | null
         }
         Update: {
@@ -1052,6 +1054,7 @@ export type Database = {
           is_active?: boolean | null
           last_login?: string | null
           login_count?: number
+          password_changed?: boolean
           user_id?: string | null
         }
         Relationships: [

@@ -25,6 +25,7 @@ const NotFound = lazy(() => import('@/pages/NotFound'));
 
 // Provider portal
 const ProviderLogin = lazy(() => import('@/pages/provider/Login'));
+const ProviderChangePassword = lazy(() => import('@/pages/provider/ChangePassword'));
 const ProviderDashboard = lazy(() => import('@/pages/provider/Dashboard'));
 const ProviderServiceAttendees = lazy(() => import('@/pages/provider/ServiceAttendees'));
 
@@ -94,6 +95,7 @@ const App = () => (
 
                 {/* Provider portal routes */}
                 <Route path="provider" element={<ProviderLogin />} />
+                <Route path="provider/change-password" element={<ProviderChangePassword />} />
                 <Route path="provider/dashboard" element={<ProviderDashboard />} />
                 <Route path="provider/service/:serviceId" element={<ProviderServiceAttendees />} />
 

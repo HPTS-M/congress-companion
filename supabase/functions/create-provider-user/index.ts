@@ -50,33 +50,118 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { provider_id, email, temp_password, event_id } = body;
+    const { provider_id, email, event_id, redirect_to, action } = body;
 
-    if (!provider_id || !email || !temp_password || !event_id) {
+    if (!provider_id || !email || !event_id) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: provider_id, email, temp_password, event_id" }),
+        JSON.stringify({ error: "Missing required fields: provider_id, email, event_id" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // Create auth user
-    const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
-      email,
-      password: temp_password,
-      email_confirm: true,
-      user_metadata: { role: "provider", provider_id },
-    });
+    // Check if this is a resend action
+    if (action === "resend") {
+      // Check if user already exists
+      const { data: provider } = await adminClient
+        .from("providers")
+        .select("user_id")
+        .eq("id", provider_id)
+        .single();
 
-    if (createError) {
+      if (provider?.user_id) {
+        // User exists, resend invite by generating a new magic link
+        const { error: resendError } = await adminClient.auth.admin.generateLink({
+          type: "magiclink",
+          email,
+          options: {
+            redirectTo: redirect_to || `${supabaseUrl}`,
+          },
+        });
+
+        if (resendError) {
+          return new Response(
+            JSON.stringify({ error: resendError.message }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, action: "resent" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // Invite user by email
+    const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
+      email,
+      {
+        redirectTo: redirect_to || `${supabaseUrl}`,
+        data: {
+          role: "provider",
+          provider_id,
+          event_id,
+        },
+      }
+    );
+
+    if (inviteError) {
+      // If user already exists, try to link them
+      if (inviteError.message?.includes("already been registered") || inviteError.message?.includes("already exists")) {
+        // Look up existing user
+        const { data: { users } } = await adminClient.auth.admin.listUsers();
+        const existingUser = users?.find((u: any) => u.email === email);
+
+        if (existingUser) {
+          const userId = existingUser.id;
+
+          // Create profile if not exists
+          await adminClient.from("profiles").upsert({
+            id: userId,
+            email,
+            full_name: `Provider: ${email}`,
+          });
+
+          // Get org id
+          const { data: eventData } = await adminClient
+            .from("events")
+            .select("organization_id")
+            .eq("id", event_id)
+            .single();
+
+          // Assign provider role if not exists
+          await adminClient.from("user_roles").upsert(
+            {
+              user_id: userId,
+              role: "provider",
+              organization_id: eventData?.organization_id,
+              assigned_by: caller.id,
+            },
+            { onConflict: "user_id,role" }
+          );
+
+          // Link to provider record
+          await adminClient
+            .from("providers")
+            .update({ user_id: userId })
+            .eq("id", provider_id);
+
+          return new Response(
+            JSON.stringify({ success: true, user_id: userId, action: "linked_existing" }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+
       return new Response(
-        JSON.stringify({ error: createError.message }),
+        JSON.stringify({ error: inviteError.message }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const userId = newUser.user.id;
+    const userId = inviteData.user.id;
 
     // Create profile
     await adminClient.from("profiles").upsert({
@@ -85,13 +170,18 @@ Deno.serve(async (req) => {
       full_name: `Provider: ${email}`,
     });
 
+    // Get org id
+    const { data: eventData } = await adminClient
+      .from("events")
+      .select("organization_id")
+      .eq("id", event_id)
+      .single();
+
     // Assign provider role
     await adminClient.from("user_roles").insert({
       user_id: userId,
       role: "provider",
-      organization_id: (
-        await adminClient.from("events").select("organization_id").eq("id", event_id).single()
-      ).data?.organization_id,
+      organization_id: eventData?.organization_id,
       assigned_by: caller.id,
     });
 
@@ -102,7 +192,7 @@ Deno.serve(async (req) => {
       .eq("id", provider_id);
 
     return new Response(
-      JSON.stringify({ success: true, user_id: userId }),
+      JSON.stringify({ success: true, user_id: userId, action: "invited" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
