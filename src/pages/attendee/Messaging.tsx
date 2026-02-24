@@ -43,7 +43,7 @@ export default function Messaging() {
   const dateFnsLocale = i18n.language?.startsWith('es') ? es : enUS;
 
   const eventId = event?.id ?? '';
-  const userId = user?.id ?? '';
+  const attendeeId = attendee?.id ?? '';
 
   const { data: conversationId, isLoading: loadingConv } = useGroupConversation(eventId);
   const { data: messages = [], isLoading: loadingMsgs } = useMessages(conversationId ?? null);
@@ -95,13 +95,13 @@ export default function Messaging() {
     setInput('');
     setSending(true);
     try {
-      await messagingService.sendMessage(conversationId, userId, content);
+      await messagingService.sendMessage(conversationId, attendeeId, content);
     } catch {
       setInput(content); // Restore on error
     } finally {
       setSending(false);
     }
-  }, [input, conversationId, userId, sending]);
+  }, [input, conversationId, attendeeId, sending]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -174,7 +174,7 @@ export default function Messaging() {
                   </div>
 
                   {group.msgs.map(msg => {
-                    const isOwn = msg.sender_id === userId;
+                    const isOwn = msg.sender_id === attendeeId;
                     const senderName = nameMap[msg.sender_id] || 'Asistente';
                     const initials = getInitials(senderName);
 
