@@ -1,0 +1,20 @@
+{
+  "title": "Calificaciones",
+  "subtitle": "Evalúa las sesiones del congreso",
+  "summary": {
+    "rated": "{{count}} sesiones calificadas de {{total}} totales",
+    "average": "Promedio"
+  },
+  "noSessions": "No hay sesiones para calificar este día",
+  "card": {
+    "rate": "Calificar",
+    "rated": "Calificado ✓"
+  },
+  "modal": {
+    "title": "Calificar sesión",
+    "commentLabel": "Comentario (opcional)",
+    "commentPlaceholder": "¿Qué te pareció esta sesión?",
+    "submit": "Enviar calificación",
+    "success": "Calificación enviada"
+  }
+}

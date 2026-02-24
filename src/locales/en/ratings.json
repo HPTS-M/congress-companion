@@ -1,0 +1,20 @@
+{
+  "title": "Ratings",
+  "subtitle": "Rate the congress sessions",
+  "summary": {
+    "rated": "{{count}} sessions rated out of {{total}} total",
+    "average": "Average"
+  },
+  "noSessions": "No sessions to rate for this day",
+  "card": {
+    "rate": "Rate",
+    "rated": "Rated ✓"
+  },
+  "modal": {
+    "title": "Rate session",
+    "commentLabel": "Comment (optional)",
+    "commentPlaceholder": "What did you think of this session?",
+    "submit": "Submit rating",
+    "success": "Rating submitted"
+  }
+}
