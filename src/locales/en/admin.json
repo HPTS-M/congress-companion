@@ -187,6 +187,7 @@
     "title": "Agenda",
     "newSession": "New Session",
     "exportAgenda": "Export Agenda",
+    "importAgenda": "Import Agenda",
     "duplicateDay": "Duplicate Day",
     "duplicateDayFrom": "Copy sessions from day",
     "duplicateDayTo": "To day",
@@ -251,6 +252,28 @@
       "checkins": "Check-ins",
       "qrCode": "Check-in QR",
       "noDescription": "No description"
+    },
+    "import": {
+      "title": "Import Agenda",
+      "downloadTemplate": "Download template (.xlsx)",
+      "dropHere": "Drag & drop an .xlsx or .csv file here",
+      "selectFile": "Select file",
+      "invalidFormat": "Invalid format. Use .xlsx, .xls or .csv",
+      "parseError": "Error reading file",
+      "valid": "valid",
+      "invalid": "with errors",
+      "colTitle": "Title",
+      "colTime": "Time",
+      "colType": "Type",
+      "colRoom": "Room",
+      "colStatus": "Status",
+      "changeFile": "Change file",
+      "importButton": "Import {{count}} sessions",
+      "importing": "Importing",
+      "resultImported": "{{count}} imported",
+      "resultErrors": "{{count}} errors",
+      "downloadErrors": "Download error report",
+      "close": "Close"
     }
   }
 }

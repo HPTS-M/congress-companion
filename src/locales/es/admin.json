@@ -187,6 +187,7 @@
     "title": "Agenda",
     "newSession": "Nueva Sesión",
     "exportAgenda": "Exportar Agenda",
+    "importAgenda": "Importar Agenda",
     "duplicateDay": "Duplicar Día",
     "duplicateDayFrom": "Copiar sesiones del día",
     "duplicateDayTo": "Al día",
@@ -251,6 +252,28 @@
       "checkins": "Check-ins",
       "qrCode": "QR de Check-in",
       "noDescription": "Sin descripción"
+    },
+    "import": {
+      "title": "Importar Agenda",
+      "downloadTemplate": "Descargar plantilla (.xlsx)",
+      "dropHere": "Arrastra un archivo .xlsx o .csv aquí",
+      "selectFile": "Seleccionar archivo",
+      "invalidFormat": "Formato inválido. Usa .xlsx, .xls o .csv",
+      "parseError": "Error al leer el archivo",
+      "valid": "válidas",
+      "invalid": "con errores",
+      "colTitle": "Título",
+      "colTime": "Horario",
+      "colType": "Tipo",
+      "colRoom": "Sala",
+      "colStatus": "Estado",
+      "changeFile": "Cambiar archivo",
+      "importButton": "Importar {{count}} sesiones",
+      "importing": "Importando",
+      "resultImported": "{{count}} importadas",
+      "resultErrors": "{{count}} errores",
+      "downloadErrors": "Descargar reporte de errores",
+      "close": "Cerrar"
     }
   }
 }

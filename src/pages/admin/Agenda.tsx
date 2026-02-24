@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useEvent } from '@/hooks/useEvent';
+import { exportAgendaToExcel } from '@/services/admin-agenda-excel.service';
 import {
   useAdminActivities,
   useAdminInterestCounts,
@@ -16,6 +17,7 @@ import type { EventActivity, ActivityType } from '@/types';
 import { DaySelector } from '@/components/attendee/DaySelector';
 import { SessionModal } from '@/components/admin/agenda/SessionModal';
 import { SessionDetailDrawer } from '@/components/admin/agenda/SessionDetailDrawer';
+import { ImportAgendaModal } from '@/components/admin/agenda/ImportAgendaModal';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -36,10 +38,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, Copy, Star, Users, Download, CopyPlus } from 'lucide-react';
+import { Plus, Pencil, Trash2, Copy, Star, Users, Download, CopyPlus, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
 import { es, enUS } from 'date-fns/locale';
+import { useQueryClient } from '@tanstack/react-query';
 
 const TYPE_COLORS: Record<string, string> = {
   talk: '#1A56A0',
@@ -84,6 +87,8 @@ export default function AdminAgenda() {
   const [duplicateDayOpen, setDuplicateDayOpen] = useState(false);
   const [dupFrom, setDupFrom] = useState('');
   const [dupTo, setDupTo] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
+  const qc = useQueryClient();
 
   const locale = i18n.language.startsWith('es') ? es : enUS;
 
@@ -156,24 +161,7 @@ export default function AdminAgenda() {
 
   const handleExport = useCallback(() => {
     if (!activities || activities.length === 0) return;
-    const headers = ['Date', 'Start', 'End', 'Type', 'Title', 'Room', 'Speaker'];
-    const rows = activities.map((a) => [
-      a.scheduled_date,
-      a.start_time?.slice(0, 5),
-      a.end_time?.slice(0, 5) ?? '',
-      a.activity_type ?? '',
-      a.title,
-      a.location ?? '',
-      a.speaker_name ?? '',
-    ]);
-    const csv = [headers, ...rows].map((r) => r.map((c) => `"${c}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `agenda-${event?.event_code ?? 'export'}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    exportAgendaToExcel(activities, event?.name ?? 'agenda');
   }, [activities, event]);
 
   return (
@@ -185,6 +173,10 @@ export default function AdminAgenda() {
           <Button variant="outline" size="sm" onClick={handleExport}>
             <Download className="mr-1 h-4 w-4" />
             {t('agenda.exportAgenda')}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+            <Upload className="mr-1 h-4 w-4" />
+            {t('agenda.importAgenda')}
           </Button>
           <Button variant="outline" size="sm" onClick={() => { setDuplicateDayOpen(true); setDupFrom(selectedDate); setDupTo(''); }}>
             <CopyPlus className="mr-1 h-4 w-4" />
@@ -347,6 +339,14 @@ export default function AdminAgenda() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Import Modal */}
+      <ImportAgendaModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        eventId={eventId ?? ''}
+        onImported={() => qc.invalidateQueries({ queryKey: ['admin-activities', eventId] })}
+      />
     </div>
   );
 }
