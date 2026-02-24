@@ -12,6 +12,10 @@ export interface ProviderRow {
   is_active: boolean | null;
   created_at: string | null;
   assigned_services: number;
+  user_id: string | null;
+  last_login: string | null;
+  login_count: number;
+  access_expires_at: string | null;
 }
 
 export interface ProviderForm {
@@ -34,7 +38,7 @@ export const adminProvidersService = {
     if (error) throw new Error(error.message);
 
     const ids = (data ?? []).map((p) => p.id);
-    if (ids.length === 0) return (data ?? []).map((p) => ({ ...p, assigned_services: 0 }));
+    if (ids.length === 0) return (data ?? []).map((p) => ({ ...p, assigned_services: 0, user_id: p.user_id ?? null, last_login: p.last_login ?? null, login_count: p.login_count ?? 0, access_expires_at: p.access_expires_at ?? null }));
 
     const { data: ps, error: psErr } = await supabase
       .from('provider_services')
@@ -50,6 +54,10 @@ export const adminProvidersService = {
     return (data ?? []).map((p) => ({
       ...p,
       assigned_services: countMap.get(p.id) ?? 0,
+      user_id: p.user_id ?? null,
+      last_login: p.last_login ?? null,
+      login_count: p.login_count ?? 0,
+      access_expires_at: p.access_expires_at ?? null,
     }));
   },
 
@@ -117,5 +125,40 @@ export const adminProvidersService = {
       code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return code;
+  },
+
+  generateTempPassword(): string {
+    const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const lower = 'abcdefghjkmnpqrstuvwxyz';
+    const digits = '23456789';
+    const special = '!@#$%';
+    const all = upper + lower + digits + special;
+    let pwd = '';
+    pwd += upper[Math.floor(Math.random() * upper.length)];
+    pwd += lower[Math.floor(Math.random() * lower.length)];
+    pwd += digits[Math.floor(Math.random() * digits.length)];
+    pwd += special[Math.floor(Math.random() * special.length)];
+    for (let i = 0; i < 8; i++) {
+      pwd += all[Math.floor(Math.random() * all.length)];
+    }
+    return pwd.split('').sort(() => Math.random() - 0.5).join('');
+  },
+
+  async createProviderAccount(providerId: string, email: string, eventId: string): Promise<{ password: string }> {
+    const tempPassword = adminProvidersService.generateTempPassword();
+    
+    const { data, error } = await supabase.functions.invoke('create-provider-user', {
+      body: {
+        provider_id: providerId,
+        email,
+        temp_password: tempPassword,
+        event_id: eventId,
+      },
+    });
+
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+
+    return { password: tempPassword };
   },
 };

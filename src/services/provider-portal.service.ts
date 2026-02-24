@@ -1,7 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 
 export interface ProviderSession {
-  id: string;
+  provider_id: string;
   company_name: string;
   category: string;
   event_id: string;
@@ -30,46 +30,42 @@ export interface ProviderAttendeeItem {
   used_at: string | null;
 }
 
-const STORAGE_KEY = 'provider_session';
-
 export const providerPortalService = {
-  async login(accessCode: string, eventCode: string): Promise<ProviderSession> {
-    const { data, error } = await supabase.rpc('verify_provider_access', {
-      _access_code: accessCode.toUpperCase().trim(),
-      _event_code: eventCode,
-    });
-    if (error) throw new Error(error.message);
+  /**
+   * Get the current provider session from Supabase Auth.
+   */
+  async getProviderSession(): Promise<ProviderSession | null> {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return null;
 
-    const result = data as any;
-    if (!result?.success) {
-      throw new Error(result?.error ?? 'Invalid code');
-    }
+    const { data: provider } = await supabase
+      .from('providers')
+      .select('id, company_name, category, event_id')
+      .eq('user_id', session.user.id)
+      .maybeSingle();
 
-    const session: ProviderSession = {
-      id: result.provider.id,
-      company_name: result.provider.company_name,
-      category: result.provider.category,
-      event_id: result.provider.event_id,
-      event_name: result.event.name,
-      event_code: result.event.event_code,
+    if (!provider) return null;
+
+    const { data: event } = await supabase
+      .from('events')
+      .select('name, event_code')
+      .eq('id', provider.event_id)
+      .single();
+
+    if (!event) return null;
+
+    return {
+      provider_id: provider.id,
+      company_name: provider.company_name,
+      category: provider.category,
+      event_id: provider.event_id,
+      event_name: event.name,
+      event_code: event.event_code,
     };
-
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(session));
-    return session;
   },
 
-  getSession(): ProviderSession | null {
-    try {
-      const stored = sessionStorage.getItem(STORAGE_KEY);
-      if (!stored) return null;
-      return JSON.parse(stored) as ProviderSession;
-    } catch {
-      return null;
-    }
-  },
-
-  logout(): void {
-    sessionStorage.removeItem(STORAGE_KEY);
+  async logout(): Promise<void> {
+    await supabase.auth.signOut();
   },
 
   async getServices(providerId: string): Promise<ProviderServiceItem[]> {

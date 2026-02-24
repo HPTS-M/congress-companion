@@ -1008,6 +1008,7 @@ export type Database = {
       providers: {
         Row: {
           access_code: string
+          access_expires_at: string | null
           category: string
           company_name: string
           contact_email: string | null
@@ -1017,9 +1018,13 @@ export type Database = {
           event_id: string
           id: string
           is_active: boolean | null
+          last_login: string | null
+          login_count: number
+          user_id: string | null
         }
         Insert: {
           access_code: string
+          access_expires_at?: string | null
           category: string
           company_name: string
           contact_email?: string | null
@@ -1029,9 +1034,13 @@ export type Database = {
           event_id: string
           id?: string
           is_active?: boolean | null
+          last_login?: string | null
+          login_count?: number
+          user_id?: string | null
         }
         Update: {
           access_code?: string
+          access_expires_at?: string | null
           category?: string
           company_name?: string
           contact_email?: string | null
@@ -1041,6 +1050,9 @@ export type Database = {
           event_id?: string
           id?: string
           is_active?: boolean | null
+          last_login?: string | null
+          login_count?: number
+          user_id?: string | null
         }
         Relationships: [
           {

@@ -14,13 +14,14 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  Plus, Search, Pencil, Trash2, Link2,
+  Plus, Search, Pencil, Trash2, Link2, UserPlus,
   Bus, UtensilsCrossed, Map, Sparkles,
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { ProviderModal } from '@/components/admin/providers/ProviderModal';
 import { AssignServicesModal } from '@/components/admin/providers/AssignServicesModal';
+import { adminProvidersService } from '@/services/admin-providers.service';
 import type { ProviderRow, ProviderForm } from '@/services/admin-providers.service';
 
 const TYPE_ICONS: Record<string, React.ElementType> = {
@@ -36,13 +37,14 @@ const TYPE_COLORS: Record<string, string> = {
 export default function AdminProviders() {
   const { t } = useTranslation('admin');
   const { event } = useEvent();
-  const { providers, isLoading, createProvider, updateProvider, deleteProvider, toggleProvider, isCreating, isUpdating } = useAdminProviders(event?.id);
+  const { providers, isLoading, createProvider, updateProvider, deleteProvider, toggleProvider, isCreating, isUpdating, refetch } = useAdminProviders(event?.id);
 
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<ProviderRow | null>(null);
   const [assigning, setAssigning] = useState<ProviderRow | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [creatingAccountId, setCreatingAccountId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return providers;
@@ -98,6 +100,23 @@ export default function AdminProviders() {
     setEditing(null);
   }, []);
 
+  const handleCreateAccount = useCallback(async (p: ProviderRow) => {
+    if (!p.contact_email || !event) {
+      toast.error(t('providers.emailRequired'));
+      return;
+    }
+    setCreatingAccountId(p.id);
+    try {
+      const { password } = await adminProvidersService.createProviderAccount(p.id, p.contact_email, event.id);
+      toast.success(t('providers.accountCreated', { email: p.contact_email, password }), { duration: 15000 });
+      refetch();
+    } catch (err: any) {
+      toast.error(t('providers.accountError') + ': ' + (err.message ?? ''));
+    } finally {
+      setCreatingAccountId(null);
+    }
+  }, [event, t, refetch]);
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -135,6 +154,7 @@ export default function AdminProviders() {
               <TableHead>{t('providers.colCategory')}</TableHead>
               <TableHead>{t('providers.colContact')}</TableHead>
               <TableHead>{t('providers.colServices')}</TableHead>
+              <TableHead>{t('providers.colLastLogin')}</TableHead>
               <TableHead>{t('providers.colStatus')}</TableHead>
               <TableHead className="text-right">{t('providers.colActions')}</TableHead>
             </TableRow>
@@ -142,7 +162,7 @@ export default function AdminProviders() {
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   {t('providers.noProviders')}
                 </TableCell>
               </TableRow>
@@ -176,6 +196,16 @@ export default function AdminProviders() {
                     <span className="text-sm font-medium text-foreground">{p.assigned_services}</span>
                   </TableCell>
                   <TableCell>
+                    {p.last_login ? (
+                      <div>
+                        <p className="text-xs text-foreground">{new Date(p.last_login).toLocaleDateString()}</p>
+                        <p className="text-xs text-muted-foreground">{t('providers.loginCount', { count: p.login_count })}</p>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">{t('providers.neverLoggedIn')}</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
                     <Switch
                       checked={p.is_active ?? true}
                       onCheckedChange={(checked) => handleToggle(p.id, checked)}
@@ -183,6 +213,21 @@ export default function AdminProviders() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center justify-end gap-1">
+                      {!p.user_id && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleCreateAccount(p)}
+                          disabled={creatingAccountId === p.id}
+                          title={t('providers.createAccount')}
+                          className="text-primary"
+                        >
+                          <UserPlus className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {p.user_id && (
+                        <Badge variant="outline" className="text-xs mr-1">✓</Badge>
+                      )}
                       <Button variant="ghost" size="icon" onClick={() => setAssigning(p)} title={t('providers.assignServices')}>
                         <Link2 className="h-4 w-4" />
                       </Button>

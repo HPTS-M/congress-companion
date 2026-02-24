@@ -36,6 +36,7 @@ export function useAdminProviders(eventId: string | undefined) {
   return {
     providers: query.data ?? [],
     isLoading: query.isLoading,
+    refetch: () => qc.invalidateQueries({ queryKey: key }),
     createProvider: createMutation.mutateAsync,
     updateProvider: updateMutation.mutateAsync,
     deleteProvider: deleteMutation.mutateAsync,

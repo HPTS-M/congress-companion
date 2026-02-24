@@ -565,6 +565,8 @@
     "colServices": "Servicios",
     "colStatus": "Estado",
     "colActions": "Acciones",
+    "colLastLogin": "Último acceso",
+    "colAccount": "Cuenta",
     "noProviders": "No hay proveedores registrados",
     "fieldCompany": "Nombre de la empresa",
     "fieldCompanyPlaceholder": "Transportes Medellín S.A.",
@@ -573,8 +575,8 @@
     "fieldContactNamePlaceholder": "Carlos Vélez",
     "fieldEmail": "Email",
     "fieldPhone": "Teléfono",
-    "fieldAccessCode": "Código de acceso",
-    "accessCodeHint": "Este código es la contraseña del proveedor para el portal",
+    "fieldAccessCode": "Código de referencia",
+    "accessCodeHint": "Código interno de referencia (no se usa para login)",
     "companyRequired": "El nombre de la empresa es obligatorio",
     "assignServices": "Asignar servicios",
     "assignTitle": "Asignar Servicios",
@@ -588,6 +590,13 @@
     "deleteConfirm": "¿Eliminar este proveedor? Esta acción no se puede deshacer.",
     "deleteButton": "Eliminar",
     "deleteSuccess": "Proveedor eliminado",
-    "deleteError": "Error al eliminar proveedor"
+    "deleteError": "Error al eliminar proveedor",
+    "createAccount": "Crear cuenta",
+    "accountCreated": "Cuenta creada. Credenciales: {{email}} / {{password}}",
+    "accountError": "Error al crear cuenta de proveedor",
+    "accountExists": "Cuenta ya creada",
+    "emailRequired": "Se requiere email de contacto para crear la cuenta",
+    "neverLoggedIn": "Sin acceso",
+    "loginCount": "{{count}} accesos"
   }
 }
