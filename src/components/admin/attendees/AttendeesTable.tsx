@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Eye, Trash2, Copy } from 'lucide-react';
+import { Eye, Pencil, Trash2, Copy } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -34,7 +34,7 @@ function StatusBadge({ status }: { status: string | null }) {
       className={cn(
         'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
         s === 'confirmed' && 'bg-accent/15 text-accent',
-        s === 'pending' && 'bg-secondary text-muted-foreground',
+        s === 'pending' && 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300',
         s === 'cancelled' && 'bg-destructive/15 text-destructive',
       )}
     >
@@ -121,6 +121,9 @@ export function AttendeesTable({ attendees, isLoading, onView, onDelete }: Props
                   <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                     <Button variant="ghost" size="icon" onClick={() => onView(a.id)} title={t('attendees.view')}>
                       <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => onView(a.id)} title={t('attendees.edit')}>
+                      <Pencil className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"
