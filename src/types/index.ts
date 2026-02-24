@@ -73,3 +73,16 @@ export interface AttendeeCheckin {
   attendee_id: string;
   checked_in_at: string | null;
 }
+
+export interface DocumentRow {
+  id: string;
+  event_id: string;
+  session_id: string | null;
+  title: string;
+  file_path: string;
+  file_type: string | null;
+  file_size: number | null;
+  description: string | null;
+  download_count: number;
+  created_at: string | null;
+}
