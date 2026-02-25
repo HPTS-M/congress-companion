@@ -31,6 +31,16 @@ export const adminCommunicationsService = {
     return data ?? [];
   },
 
+  async getAnnouncementsCount(eventId: string): Promise<number> {
+    const { count, error } = await supabase
+      .from('announcements')
+      .select('*', { count: 'exact', head: true })
+      .eq('event_id', eventId);
+
+    if (error) throw new Error(error.message);
+    return count ?? 0;
+  },
+
   async createAnnouncement(eventId: string, title: string, body: string, reach = 'all'): Promise<void> {
     // Get confirmed attendee count at send time
     const confirmedCount = await this.getConfirmedAttendeesCount(eventId);
@@ -54,7 +64,7 @@ export const adminCommunicationsService = {
   async getConfirmedAttendeesCount(eventId: string): Promise<number> {
     const { count, error } = await supabase
       .from('attendees')
-      .select('id', { count: 'exact', head: true })
+      .select('*', { count: 'exact', head: true })
       .eq('event_id', eventId)
       .eq('registration_status', 'confirmed')
       .is('deleted_at', null);
@@ -64,14 +74,14 @@ export const adminCommunicationsService = {
   },
 
   async getTodayAnnouncementsCount(eventId: string): Promise<number> {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const today = new Date().toISOString().split('T')[0];
 
     const { count, error } = await supabase
       .from('announcements')
-      .select('id', { count: 'exact', head: true })
+      .select('*', { count: 'exact', head: true })
       .eq('event_id', eventId)
-      .gte('sent_at', todayStart.toISOString());
+      .gte('sent_at', `${today}T00:00:00`)
+      .lte('sent_at', `${today}T23:59:59`);
 
     if (error) throw new Error(error.message);
     return count ?? 0;

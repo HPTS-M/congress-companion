@@ -19,8 +19,8 @@ export const adminService = {
 
     // Supplement with documents + announcements counts
     const [docsResult, announcementsResult] = await Promise.all([
-      supabase.from('documents').select('id', { count: 'exact', head: true }).eq('event_id', eventId),
-      supabase.from('announcements').select('id', { count: 'exact', head: true }).eq('event_id', eventId),
+      supabase.from('documents').select('*', { count: 'exact', head: true }).eq('event_id', eventId),
+      supabase.from('announcements').select('*', { count: 'exact', head: true }).eq('event_id', eventId),
     ]);
 
     return {
