@@ -1520,6 +1520,7 @@ export type Database = {
         Args: { _provider_id: string }
         Returns: Json
       }
+      get_provider_attendee_ids: { Args: never; Returns: string[] }
       get_provider_service_attendees: {
         Args: { _provider_id: string; _service_catalog_id: string }
         Returns: Json
