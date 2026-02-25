@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BarChart3, Plus, Play, Square, Eye, Pencil, Trash2 } from 'lucide-react';
+import { BarChart3, Plus, Play, Square, Eye, Trash2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -12,27 +12,53 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAdminPolls, useAdminPollResults } from '@/hooks/useAdminPolls';
 import { usePollRealtime } from '@/hooks/usePolls';
+import { adminPollsService } from '@/services/admin-polls.service';
+import { ImportPollsModal } from '@/components/admin/polls/ImportPollsModal';
+import { useEvent } from '@/hooks/useEvent';
+import { useAuth } from '@/hooks/useAuth';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
+
+
+// ---- Format session label ----
+function formatSessionLabel(
+  s: { title: string; scheduled_date: string; start_time: string },
+  eventStartDate: string | undefined,
+): string {
+  let dayNum = 1;
+  if (eventStartDate && s.scheduled_date) {
+    const diff = Math.floor(
+      (new Date(s.scheduled_date).getTime() - new Date(eventStartDate).getTime()) / 86400000
+    );
+    dayNum = diff + 1;
+  }
+  const time = s.start_time?.slice(0, 5) ?? '';
+  const titleTrunc = s.title.length > 30 ? s.title.slice(0, 30) + '…' : s.title;
+  return `Día ${dayNum} - ${time} - ${titleTrunc}`;
+}
 
 // ---- New Poll Modal ----
 function NewPollModal({
   open,
   onOpenChange,
   sessions,
+  eventStartDate,
   onSave,
   isSaving,
+  prefilledSessionId,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  sessions: { id: string; title: string }[];
+  sessions: { id: string; title: string; scheduled_date: string; start_time: string }[];
+  eventStartDate: string | undefined;
   onSave: (data: { question: string; pollType: string; sessionId: string | null; opensAt: string | null; closesAt: string | null; options: string[] }) => void;
   isSaving: boolean;
+  prefilledSessionId?: string | null;
 }) {
   const { t } = useTranslation('admin');
   const [question, setQuestion] = useState('');
   const [pollType, setPollType] = useState('multiple_choice');
-  const [sessionId, setSessionId] = useState('');
+  const [sessionId, setSessionId] = useState(prefilledSessionId ?? '');
   const [options, setOptions] = useState(['', '']);
 
   const needsOptions = pollType === 'multiple_choice' || pollType === 'single_choice';
@@ -43,12 +69,11 @@ function NewPollModal({
     onSave({
       question: question.trim(),
       pollType,
-      sessionId: sessionId || null,
+      sessionId: sessionId && sessionId !== 'none' ? sessionId : null,
       opensAt: null,
       closesAt: null,
       options: needsOptions ? validOptions : [],
     });
-    // Reset
     setQuestion('');
     setPollType('multiple_choice');
     setSessionId('');
@@ -85,7 +110,9 @@ function NewPollModal({
               <SelectContent>
                 <SelectItem value="none">{t('polls.noSession')}</SelectItem>
                 {sessions.map(s => (
-                  <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>
+                  <SelectItem key={s.id} value={s.id}>
+                    {formatSessionLabel(s, eventStartDate)}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -118,7 +145,7 @@ function NewPollModal({
           )}
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>{t('polls.cancel')}</Button>
-            <Button onClick={handleSave} disabled={!canSave || isSaving}>
+            <Button onClick={handleSave} disabled={!canSave || isSaving} className="bg-[hsl(var(--primary))]">
               {isSaving ? t('polls.saving') : t('polls.save')}
             </Button>
           </div>
@@ -140,12 +167,8 @@ function ResultsModal({
 }) {
   const { t } = useTranslation('admin');
   const { data: results, isLoading, refetch } = useAdminPollResults(pollId);
-  const qc = useQueryClient();
 
-  const handleRealtime = useCallback(() => {
-    refetch();
-  }, [refetch]);
-
+  const handleRealtime = useCallback(() => { refetch(); }, [refetch]);
   usePollRealtime(open ? pollId : null, handleRealtime);
 
   if (!pollId) return null;
@@ -243,10 +266,16 @@ const pollTypeLabels: Record<string, string> = {
 
 // ---- Main Page ----
 export default function AdminPolls() {
-  const { t } = useTranslation('admin');
+  const { t, i18n } = useTranslation('admin');
+  const { event } = useEvent();
+  const { user } = useAuth();
   const { polls, isLoading, sessions, createPoll, updateStatus, deletePoll } = useAdminPolls();
+  const qc = useQueryClient();
   const [showNew, setShowNew] = useState(false);
   const [resultsId, setResultsId] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+
+  
 
   const stats = {
     total: polls.length,
@@ -257,6 +286,16 @@ export default function AdminPolls() {
 
   const handleCreate = (data: any) => {
     createPoll.mutate(data, { onSuccess: () => setShowNew(false) });
+  };
+
+  const handleBulkImport = async (pollsData: { question: string; pollType: string; sessionId: string | null; options: string[] }[]) => {
+    const result = await adminPollsService.bulkCreatePolls(
+      event?.id ?? '',
+      pollsData,
+      user?.id ?? null
+    );
+    qc.invalidateQueries({ queryKey: ['admin-polls', event?.id] });
+    return result;
   };
 
   if (isLoading) {
@@ -279,9 +318,14 @@ export default function AdminPolls() {
           <h1 className="text-2xl font-bold">{t('polls.title')}</h1>
           <p className="text-sm text-muted-foreground">{t('polls.subtitle')}</p>
         </div>
-        <Button onClick={() => setShowNew(true)} className="bg-[hsl(var(--primary))]">
-          <Plus className="mr-2 h-4 w-4" />{t('polls.newPoll')}
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+            <Upload className="mr-1 h-4 w-4" />{t('polls.importButton')}
+          </Button>
+          <Button onClick={() => setShowNew(true)} className="bg-[hsl(var(--primary))]">
+            <Plus className="mr-2 h-4 w-4" />{t('polls.newPoll')}
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -371,6 +415,7 @@ export default function AdminPolls() {
         open={showNew}
         onOpenChange={setShowNew}
         sessions={sessions}
+        eventStartDate={event?.start_date ?? ''}
         onSave={handleCreate}
         isSaving={createPoll.isPending}
       />
@@ -379,6 +424,13 @@ export default function AdminPolls() {
         pollId={resultsId}
         open={!!resultsId}
         onOpenChange={v => { if (!v) setResultsId(null); }}
+      />
+
+      <ImportPollsModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        sessions={sessions}
+        onImport={handleBulkImport}
       />
     </div>
   );
