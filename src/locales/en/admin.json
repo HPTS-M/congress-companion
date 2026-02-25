@@ -743,6 +743,7 @@
     "exportSuccess": "Report exported successfully",
     "exportError": "Error exporting report",
     "noData": "No data available",
+    "noRatingData": "No data",
     "statAttendees": "Total attendees",
     "statSessions": "Sessions held",
     "statAvgRating": "Average rating",
@@ -754,7 +755,9 @@
       "colDay": "Day",
       "colTime": "Time",
       "colCheckins": "Total check-ins",
-      "colInterested": "Total interested"
+      "colInterested": "Total interested",
+      "showAll": "Show all",
+      "showLess": "Show less"
     },
     "ratings": {
       "title": "Ratings",
@@ -763,7 +766,9 @@
       "colAvg": "Average",
       "colTotal": "Total ratings",
       "colComments": "Comments",
-      "reviews": "reviews"
+      "reviews": "reviews",
+      "emptyTitle": "No ratings yet",
+      "emptyDescription": "Ratings will appear here when attendees rate the sessions"
     },
     "logistics": {
       "title": "Logistics",
@@ -782,7 +787,9 @@
       "colLevel": "Level",
       "colViews": "Profile views",
       "colWhatsapp": "WhatsApp clicks",
-      "colLeads": "Leads captured"
+      "colLeads": "Leads captured",
+      "emptyTitle": "No interactions yet",
+      "emptyDescription": "Metrics will update when attendees visit sponsor profiles"
     }
   }
 }
