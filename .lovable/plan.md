@@ -1,101 +1,180 @@
 
 
-## Diagnóstico confirmado
+## Check-in Staff Module — Plan de Implementacion
 
-**Dos problemas encadenados causan los contadores en 0:**
+### Diagnostico del estado actual
 
-### Problema 1: Recursión infinita en `attendees`
+**Lo que ya existe:**
+- Attendee CheckIn page (`src/pages/attendee/CheckIn.tsx`) con scanner QR funcional usando `html5-qrcode`
+- `checkinService` y `useCheckin` hooks para operaciones de check-in
+- Funcion RPC `process_checkin` que previene duplicados
+- Formato QR: `congressapp:{event_id}:{session_id}`
+- `adminAgendaService.getActivities()` para obtener sesiones
+- Ruta `checkin-staff` ya registrada en sidebar del admin (`AdminLayout.tsx` navItems)
+- i18n keys `admin.nav.checkinStaff` ya existen en ES/EN
 
-Los logs de Postgres confirman decenas de errores recientes:
-```
-ERROR: infinite recursion detected in policy for relation "attendees"
-```
-
-**Cadena de recursión:**
-```text
-announcements RLS
-  └─ "Authenticated read event announcements"
-       └─ subquery: SELECT event_id FROM attendees WHERE user_id = auth.uid()
-            └─ attendees RLS evalúa TODAS las políticas PERMISSIVE (OR)
-                 └─ "Providers read attendees for assigned services"
-                      └─ subquery on attendee_services
-                           └─ attendee_services RLS
-                                └─ "Attendees can view own services"
-                                     └─ subquery: SELECT 1 FROM attendees WHERE...
-                                          └─ ← RECURSIÓN INFINITA
-```
-
-### Problema 2: `block_anon_access` en announcements es PERMISSIVE
-
-La migración anterior recreó `block_anon_access` como **PERMISSIVE** (verificado con `pg_policy`). Debería ser **RESTRICTIVE** para bloquear `anon` efectivamente.
+**Lo que falta:**
+- No existe la pagina `src/pages/admin/CheckinStaff.tsx`
+- No existe ruta en `App.tsx` para `checkin-staff`
+- No existe servicio dedicado para check-in staff
+- No existen i18n keys para el modulo check-in staff
+- Falta politica RLS: admins no pueden INSERT/SELECT en `attendee_checkins` (solo superusers y event_staff)
+- `block_anon_access` en `attendee_checkins` es PERMISSIVE (deberia ser RESTRICTIVE)
 
 ---
 
-## Plan de migración (1 archivo SQL)
+### Paso 1: Migracion de base de datos (RLS)
 
-### Paso 1: Crear función SECURITY DEFINER para proveedores
-
-```sql
-CREATE OR REPLACE FUNCTION get_provider_attendee_ids()
-RETURNS SETOF uuid
-LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT DISTINCT aser.attendee_id
-  FROM attendee_services aser
-  JOIN provider_services ps ON ps.service_catalog_id = aser.service_catalog_id
-  JOIN providers p ON p.id = ps.provider_id
-  WHERE p.user_id = auth.uid();
-$$;
-```
-
-Esta función rompe el ciclo: se ejecuta con privilegios de owner, sin evaluar RLS de `attendee_services` ni `attendees`.
-
-### Paso 2: Reemplazar política recursiva en `attendees`
+Crear politica PERMISSIVE para que admins de la organizacion puedan gestionar checkins, y corregir `block_anon_access`:
 
 ```sql
-DROP POLICY "Providers read attendees for assigned services" ON attendees;
+-- Admin org access to attendee_checkins
+CREATE POLICY "Admins manage org checkins"
+ON public.attendee_checkins FOR ALL TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM event_activities act
+    JOIN events e ON e.id = act.event_id
+    WHERE act.id = attendee_checkins.activity_id
+      AND e.organization_id = get_user_organization(auth.uid())
+  )
+);
 
-CREATE POLICY "Providers read attendees for assigned services"
-ON attendees FOR SELECT TO authenticated
-USING (id IN (SELECT get_provider_attendee_ids()));
-```
-
-### Paso 3: Corregir `block_anon_access` en announcements (RESTRICTIVE)
-
-```sql
-DROP POLICY "block_anon_access" ON announcements;
-
+-- Fix block_anon_access (currently PERMISSIVE, should be RESTRICTIVE)
+DROP POLICY "block_anon_access" ON public.attendee_checkins;
 CREATE POLICY "block_anon_access"
-ON announcements AS RESTRICTIVE FOR SELECT TO anon
+ON public.attendee_checkins AS RESTRICTIVE FOR SELECT TO anon
 USING (false);
 ```
 
-### Paso 4: Optimizar announcements para usar `get_my_event_ids()`
+---
 
-```sql
-DROP POLICY "Authenticated read event announcements" ON announcements;
+### Paso 2: Servicio backend — `src/services/admin-checkin-staff.service.ts`
 
-CREATE POLICY "Authenticated read event announcements"
-ON announcements FOR SELECT TO authenticated
-USING (event_id IN (SELECT get_my_event_ids()));
+Funciones:
+- `getTodayActivities(eventId)` — sesiones de hoy primero, luego todas
+- `getCheckinsByActivity(activityId)` — lista de attendees checked-in con nombre y hora
+- `getCheckinCount(activityId)` — contador
+- `getTotalAttendees(eventId)` — total confirmados
+- `manualCheckin(activityId, attendeeId)` — INSERT via `process_checkin` RPC
+- `searchAttendees(eventId, query)` — buscar por nombre o credential_code
+- Supabase Realtime subscription helper para `attendee_checkins`
+
+Tipado estricto:
+```typescript
+interface StaffCheckinRecord {
+  id: string;
+  attendee_id: string;
+  activity_id: string;
+  checked_in_at: string | null;
+  attendee_name: string;
+  credential_code: string;
+}
 ```
-
-Esto evita que el subquery toque `attendees` RLS directamente.
 
 ---
 
-## Archivos afectados
+### Paso 3: Hook — `src/hooks/useAdminCheckinStaff.ts`
 
-| Archivo | Cambio |
+- `useStaffActivities(eventId)` — TanStack Query
+- `useActivityCheckins(activityId)` — TanStack Query + Supabase Realtime invalidation
+- `useStaffManualCheckin()` — mutation
+- `useAttendeeSearch(eventId, query)` — debounced search
+
+---
+
+### Paso 4: Pagina — `src/pages/admin/CheckinStaff.tsx`
+
+Layout responsive con dos paneles:
+
+```text
+┌─────────────────────────────────────────────────┐
+│  Check-in Staff                                 │
+│  Validación de asistencia por sesión            │
+│                                                 │
+│  [Seleccionar sesión...              ▼]         │
+├────────────────────┬────────────────────────────┤
+│  Escanear QR       │  Asistentes registrados    │
+│                    │                            │
+│  ┌──────────────┐  │  12 / 45 asistentes        │
+│  │              │  │  [🔍 Buscar...]            │
+│  │   QR Scan    │  │                            │
+│  │   280x280    │  │  ● Juan García    09:15    │
+│  │              │  │  ● María López    09:18    │
+│  │              │  │  ● Pedro Ruiz     09:22    │
+│  └──────────────┘  │                            │
+│                    │  [+ Agregar manualmente]    │
+│  [Activar cámara]  │                            │
+├────────────────────┴────────────────────────────┤
+│  Sesión: Conferencia AI │ Check-ins: 12 │       │
+│  Última: Pedro Ruiz hace 3 min                  │
+│                    [⛶ Pantalla completa]        │
+└─────────────────────────────────────────────────┘
+```
+
+Componentes internos:
+- `SessionSelector` — dropdown con sesiones agrupadas (hoy primero)
+- `QrScanPanel` — reutiliza logica de `html5-qrcode`, valida formato y sesion seleccionada
+- `CheckedInList` — lista live con Realtime, search, avatar+nombre+hora
+- `ManualCheckinDialog` — modal de busqueda de attendee para check-in manual
+- `StatsBar` — barra inferior con metricas
+- `FullscreenToggle` — usa `document.documentElement.requestFullscreen()`
+
+Flash animations:
+- Verde (exito): `animate-pulse` + borde verde temporal
+- Amarillo (duplicado): borde amarillo temporal
+- Rojo (error): borde rojo temporal
+
+---
+
+### Paso 5: Ruta en App.tsx
+
+```typescript
+const AdminCheckinStaff = lazy(() => import('@/pages/admin/CheckinStaff'));
+// Inside admin routes:
+<Route path="checkin-staff" element={<AdminCheckinStaff />} />
+```
+
+---
+
+### Paso 6: i18n keys
+
+Agregar namespace `admin.checkinStaff` en `es/admin.json` y `en/admin.json`:
+
+**ES:** titulo, subtitulo, selectSession, scanQr, activateCamera, stopCamera, attendeesRegistered, of, searchAttendee, addManually, manualCheckinTitle, searchByNameOrCode, confirmCheckin, accessGranted, alreadyRegistered, wrongSession, invalidQr, selectedSession, checkins, lastEntry, ago, fullscreen, exitFullscreen, noSessionSelected, selectSessionFirst, noCheckinsYet
+
+**EN:** equivalentes en ingles
+
+---
+
+### Paso 7: Modo pantalla completa
+
+Estado `isFullscreen` que:
+- Llama `document.documentElement.requestFullscreen()`
+- Oculta sidebar admin (CSS: `.peer-data-[state=expanded]` o estado en context)
+- Muestra solo scanner + contador en layout simplificado
+- Boton "Salir" para `document.exitFullscreen()`
+
+---
+
+### Archivos a crear/modificar
+
+| Archivo | Accion |
 |---|---|
-| `supabase/migrations/XXXXXX_fix_attendees_recursion.sql` | Nueva migración con los 4 pasos |
-| Ningún archivo frontend | No se necesitan cambios de código |
+| `supabase/migrations/XXXX_admin_checkins_rls.sql` | Nueva migracion RLS |
+| `src/services/admin-checkin-staff.service.ts` | Nuevo servicio |
+| `src/hooks/useAdminCheckinStaff.ts` | Nuevo hook |
+| `src/pages/admin/CheckinStaff.tsx` | Nueva pagina |
+| `src/App.tsx` | Agregar ruta lazy |
+| `src/locales/es/admin.json` | Agregar keys checkinStaff |
+| `src/locales/en/admin.json` | Agregar keys checkinStaff |
 
-## Resultado esperado
+### Orden de ejecucion (backend-first)
 
-- Dashboard "Anuncios enviados": **7**
-- Communications "Total anuncios enviados": **7**
-- Communications "Asistentes alcanzados": **6** (query a `attendees` ya no causa recursión)
-- Logs de Postgres: sin errores de recursión infinita
+1. Migracion RLS
+2. Servicio con tipos
+3. Hook
+4. i18n keys (ES + EN)
+5. Pagina + ruta
+6. Verificacion
 
