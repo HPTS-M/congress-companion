@@ -23,7 +23,12 @@ const AdminLogisticsAssign = lazy(() => import('@/pages/admin/LogisticsAssign'))
 const AdminProviders = lazy(() => import('@/pages/admin/Providers'));
 const AdminCommunications = lazy(() => import('@/pages/admin/Communications'));
 const AdminCheckinStaff = lazy(() => import('@/pages/admin/CheckinStaff'));
+const AdminStaff = lazy(() => import('@/pages/admin/Staff'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
+
+// Staff portal
+const StaffLogin = lazy(() => import('@/pages/staff/Login'));
+const StaffCheckinView = lazy(() => import('@/pages/staff/CheckinView'));
 
 // Provider portal
 const ProviderLogin = lazy(() => import('@/pages/provider/Login'));
@@ -95,7 +100,12 @@ const App = () => (
                   <Route path="providers" element={<AdminProviders />} />
                   <Route path="communications" element={<AdminCommunications />} />
                   <Route path="checkin-staff" element={<AdminCheckinStaff />} />
+                  <Route path="staff" element={<AdminStaff />} />
                 </Route>
+
+                {/* Staff portal routes */}
+                <Route path="staff" element={<StaffLogin />} />
+                <Route path="staff/checkin" element={<StaffCheckinView />} />
 
                 {/* Provider portal routes */}
                 <Route path="provider" element={<ProviderLogin />} />
