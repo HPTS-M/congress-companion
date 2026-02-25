@@ -1,70 +1,101 @@
 
 
-## Diagnosis: All `announcements` RLS policies are RESTRICTIVE — nothing can pass
+## Diagnóstico confirmado
 
-Looking at the RLS policies on the `announcements` table, **every single policy has `Permissive: No`** (i.e., they are all RESTRICTIVE). This is the root cause.
+**Dos problemas encadenados causan los contadores en 0:**
 
-### How PostgreSQL evaluates RLS
+### Problema 1: Recursión infinita en `attendees`
 
-- **PERMISSIVE** policies combine with OR — any one passing grants access
-- **RESTRICTIVE** policies combine with AND — all must pass simultaneously
+Los logs de Postgres confirman decenas de errores recientes:
+```
+ERROR: infinite recursion detected in policy for relation "attendees"
+```
 
-When every policy is RESTRICTIVE, the user must satisfy ALL of them at once. Since `block_anon_access` uses `USING (false)` and is RESTRICTIVE, it creates an impossible AND condition — no authenticated user can ever pass `false AND (anything)`.
+**Cadena de recursión:**
+```text
+announcements RLS
+  └─ "Authenticated read event announcements"
+       └─ subquery: SELECT event_id FROM attendees WHERE user_id = auth.uid()
+            └─ attendees RLS evalúa TODAS las políticas PERMISSIVE (OR)
+                 └─ "Providers read attendees for assigned services"
+                      └─ subquery on attendee_services
+                           └─ attendee_services RLS
+                                └─ "Attendees can view own services"
+                                     └─ subquery: SELECT 1 FROM attendees WHERE...
+                                          └─ ← RECURSIÓN INFINITA
+```
 
-This same pattern (per memory `security/rls-composition-pattern`) was already identified as a known issue: "PostgreSQL denies all access if zero permissive policies exist."
+### Problema 2: `block_anon_access` en announcements es PERMISSIVE
 
-### Fix
+La migración anterior recreó `block_anon_access` como **PERMISSIVE** (verificado con `pg_policy`). Debería ser **RESTRICTIVE** para bloquear `anon` efectivamente.
 
-Drop and recreate the announcement policies so that:
-- `block_anon_access` stays **RESTRICTIVE** (blocks anonymous)
-- All other policies become **PERMISSIVE** (at least one must match for authenticated users)
+---
+
+## Plan de migración (1 archivo SQL)
+
+### Paso 1: Crear función SECURITY DEFINER para proveedores
 
 ```sql
--- Drop existing broken policies
-DROP POLICY IF EXISTS "Admins manage org announcements" ON announcements;
-DROP POLICY IF EXISTS "Authenticated read event announcements" ON announcements;
-DROP POLICY IF EXISTS "Superusers manage all announcements" ON announcements;
-DROP POLICY IF EXISTS "block_anon_access" ON announcements;
+CREATE OR REPLACE FUNCTION get_provider_attendee_ids()
+RETURNS SETOF uuid
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT DISTINCT aser.attendee_id
+  FROM attendee_services aser
+  JOIN provider_services ps ON ps.service_catalog_id = aser.service_catalog_id
+  JOIN providers p ON p.id = ps.provider_id
+  WHERE p.user_id = auth.uid();
+$$;
+```
 
--- Recreate block_anon as RESTRICTIVE
+Esta función rompe el ciclo: se ejecuta con privilegios de owner, sin evaluar RLS de `attendee_services` ni `attendees`.
+
+### Paso 2: Reemplazar política recursiva en `attendees`
+
+```sql
+DROP POLICY "Providers read attendees for assigned services" ON attendees;
+
+CREATE POLICY "Providers read attendees for assigned services"
+ON attendees FOR SELECT TO authenticated
+USING (id IN (SELECT get_provider_attendee_ids()));
+```
+
+### Paso 3: Corregir `block_anon_access` en announcements (RESTRICTIVE)
+
+```sql
+DROP POLICY "block_anon_access" ON announcements;
+
 CREATE POLICY "block_anon_access"
-ON announcements FOR SELECT TO anon
+ON announcements AS RESTRICTIVE FOR SELECT TO anon
 USING (false);
+```
 
--- Recreate others as PERMISSIVE
-CREATE POLICY "Admins manage org announcements"
-ON announcements FOR ALL TO authenticated
-USING (
-  EXISTS (
-    SELECT 1 FROM events
-    WHERE events.id = announcements.event_id
-    AND events.organization_id = get_user_organization(auth.uid())
-  )
-  AND has_org_role(auth.uid(), 'admin', (
-    SELECT events.organization_id FROM events WHERE events.id = announcements.event_id
-  ))
-);
+### Paso 4: Optimizar announcements para usar `get_my_event_ids()`
+
+```sql
+DROP POLICY "Authenticated read event announcements" ON announcements;
 
 CREATE POLICY "Authenticated read event announcements"
 ON announcements FOR SELECT TO authenticated
-USING (
-  event_id IN (SELECT event_id FROM attendees WHERE user_id = auth.uid())
-);
-
-CREATE POLICY "Superusers manage all announcements"
-ON announcements FOR ALL TO authenticated
-USING (has_role(auth.uid(), 'superuser'));
+USING (event_id IN (SELECT get_my_event_ids()));
 ```
 
-### Files changed
+Esto evita que el subquery toque `attendees` RLS directamente.
 
-- **One database migration** — fixes the RLS policies from RESTRICTIVE to PERMISSIVE
-- **No frontend code changes needed** — the service/hook logic is already correct
+---
 
-### Expected result after fix
+## Archivos afectados
 
-- Dashboard "Anuncios enviados" card: **7**
+| Archivo | Cambio |
+|---|---|
+| `supabase/migrations/XXXXXX_fix_attendees_recursion.sql` | Nueva migración con los 4 pasos |
+| Ningún archivo frontend | No se necesitan cambios de código |
+
+## Resultado esperado
+
+- Dashboard "Anuncios enviados": **7**
 - Communications "Total anuncios enviados": **7**
-- Communications "Asistentes alcanzados": **6**
-- Each announcement row shows its stored `reach_count`
+- Communications "Asistentes alcanzados": **6** (query a `attendees` ya no causa recursión)
+- Logs de Postgres: sin errores de recursión infinita
 
