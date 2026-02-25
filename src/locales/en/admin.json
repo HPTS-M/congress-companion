@@ -735,5 +735,54 @@
     "invalidCredentials": "Invalid credentials",
     "noAccess": "You do not have staff access to this event",
     "noSessionsForRoom": "No sessions for this room"
+  },
+  "reports": {
+    "title": "Reports",
+    "subtitle": "Metrics and data export",
+    "exportAll": "Export all",
+    "exportSuccess": "Report exported successfully",
+    "exportError": "Error exporting report",
+    "noData": "No data available",
+    "statAttendees": "Total attendees",
+    "statSessions": "Sessions held",
+    "statAvgRating": "Average rating",
+    "statUsedTickets": "Tickets used",
+    "attendance": {
+      "title": "Attendance",
+      "colSession": "Session",
+      "colRoom": "Room",
+      "colDay": "Day",
+      "colTime": "Time",
+      "colCheckins": "Total check-ins",
+      "colInterested": "Total interested"
+    },
+    "ratings": {
+      "title": "Ratings",
+      "colSession": "Session",
+      "colSpeaker": "Speaker",
+      "colAvg": "Average",
+      "colTotal": "Total ratings",
+      "colComments": "Comments",
+      "reviews": "reviews"
+    },
+    "logistics": {
+      "title": "Logistics",
+      "colService": "Service",
+      "colCategory": "Category",
+      "colDay": "Day",
+      "colTotal": "Total",
+      "colUsed": "Used",
+      "colPending": "Pending",
+      "colCancelled": "Cancelled",
+      "colProgress": "Progress"
+    },
+    "sponsors": {
+      "title": "Commercial Engagement",
+      "colSponsor": "Sponsor",
+      "colLevel": "Level",
+      "colViews": "Profile views",
+      "colWhatsapp": "WhatsApp clicks",
+      "colLeads": "Leads captured"
+    }
   }
 }
