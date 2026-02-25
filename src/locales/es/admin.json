@@ -254,7 +254,12 @@
       "interests": "Interesados",
       "checkins": "Check-ins",
       "qrCode": "QR de Check-in",
-      "noDescription": "Sin descripción"
+      "noDescription": "Sin descripción",
+      "polls": "Encuestas",
+      "noPolls": "No hay encuestas asociadas",
+      "linkPoll": "Vincular encuesta",
+      "noUnlinkedPolls": "No hay encuestas sin sesión",
+      "selectPoll": "Seleccionar encuesta..."
     },
     "import": {
       "title": "Importar Agenda",
@@ -801,6 +806,7 @@
     "newPoll": "Nueva Encuesta",
     "newTitle": "Nueva Encuesta",
     "noPolls": "No hay encuestas creadas",
+    "importButton": "Importar Excel",
     "statTotal": "Total encuestas",
     "statActive": "Activas",
     "statClosed": "Cerradas",
@@ -839,6 +845,30 @@
     "delete": "Eliminar",
     "resultsTitle": "Resultados",
     "totalResponses": "Total respuestas",
-    "openTextNote": "Las respuestas de texto abierto no se muestran en esta vista"
+    "openTextNote": "Las respuestas de texto abierto no se muestran en esta vista",
+    "import": {
+      "title": "Importar Encuestas",
+      "downloadTemplate": "Descargar plantilla (.xlsx)",
+      "dropHere": "Arrastra un archivo .xlsx o .csv aquí o haz clic",
+      "valid": "válidas",
+      "warnings": "advertencias",
+      "errors": "errores",
+      "colQuestion": "Pregunta",
+      "colType": "Tipo",
+      "colSession": "Sesión",
+      "colOptions": "Opciones",
+      "colStatus": "Estado",
+      "changeFile": "Cambiar archivo",
+      "importButton": "Importar {{count}} encuestas",
+      "importing": "Importando...",
+      "resultImported": "{{count}} encuestas importadas",
+      "resultErrors": "{{count}} errores",
+      "downloadErrors": "Descargar reporte de errores",
+      "close": "Cerrar",
+      "missingQuestion": "Pregunta requerida",
+      "invalidType": "Tipo inválido",
+      "minOptions": "Mínimo 2 opciones",
+      "sessionNotFound": "Sesión no encontrada"
+    }
   }
 }

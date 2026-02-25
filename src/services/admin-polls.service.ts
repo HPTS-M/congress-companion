@@ -197,4 +197,65 @@ export const adminPollsService = {
     if (error) throw new Error(error.message);
     return data || [];
   },
+
+  async getPollsBySession(eventId: string, sessionId: string): Promise<Poll[]> {
+    const { data, error } = await supabase
+      .from('polls')
+      .select('*')
+      .eq('event_id', eventId)
+      .eq('session_id', sessionId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw new Error(error.message);
+    return (data || []).map(p => ({ ...p, session: null, response_count: 0 }));
+  },
+
+  async linkPollToSession(pollId: string, sessionId: string): Promise<void> {
+    const { error } = await supabase
+      .from('polls')
+      .update({ session_id: sessionId })
+      .eq('id', pollId);
+
+    if (error) throw new Error(error.message);
+  },
+
+  async getUnlinkedPolls(eventId: string): Promise<Poll[]> {
+    const { data, error } = await supabase
+      .from('polls')
+      .select('*')
+      .eq('event_id', eventId)
+      .is('session_id', null)
+      .order('created_at', { ascending: false });
+
+    if (error) throw new Error(error.message);
+    return (data || []).map(p => ({ ...p, session: null, response_count: 0 }));
+  },
+
+  async bulkCreatePolls(
+    eventId: string,
+    polls: { question: string; pollType: string; sessionId: string | null; options: string[] }[],
+    createdBy: string | null
+  ): Promise<{ imported: number; errors: { row: number; error: string }[] }> {
+    let imported = 0;
+    const errors: { row: number; error: string }[] = [];
+
+    for (let i = 0; i < polls.length; i++) {
+      try {
+        await this.createPoll(
+          eventId,
+          polls[i].question,
+          polls[i].pollType,
+          polls[i].sessionId,
+          null, null,
+          polls[i].options,
+          createdBy
+        );
+        imported++;
+      } catch (err: any) {
+        errors.push({ row: i + 2, error: err.message || 'Unknown error' });
+      }
+    }
+
+    return { imported, errors };
+  },
 };

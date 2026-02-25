@@ -254,7 +254,12 @@
       "interests": "Interested",
       "checkins": "Check-ins",
       "qrCode": "Check-in QR",
-      "noDescription": "No description"
+      "noDescription": "No description",
+      "polls": "Polls",
+      "noPolls": "No polls associated",
+      "linkPoll": "Link poll",
+      "noUnlinkedPolls": "No unlinked polls available",
+      "selectPoll": "Select poll..."
     },
     "import": {
       "title": "Import Agenda",
@@ -801,6 +806,7 @@
     "newPoll": "New Poll",
     "newTitle": "New Poll",
     "noPolls": "No polls created",
+    "importButton": "Import Excel",
     "statTotal": "Total polls",
     "statActive": "Active",
     "statClosed": "Closed",
@@ -839,6 +845,30 @@
     "delete": "Delete",
     "resultsTitle": "Results",
     "totalResponses": "Total responses",
-    "openTextNote": "Open text responses are not shown in this view"
+    "openTextNote": "Open text responses are not shown in this view",
+    "import": {
+      "title": "Import Polls",
+      "downloadTemplate": "Download template (.xlsx)",
+      "dropHere": "Drag & drop an .xlsx or .csv file here or click",
+      "valid": "valid",
+      "warnings": "warnings",
+      "errors": "errors",
+      "colQuestion": "Question",
+      "colType": "Type",
+      "colSession": "Session",
+      "colOptions": "Options",
+      "colStatus": "Status",
+      "changeFile": "Change file",
+      "importButton": "Import {{count}} polls",
+      "importing": "Importing...",
+      "resultImported": "{{count}} polls imported",
+      "resultErrors": "{{count}} errors",
+      "downloadErrors": "Download error report",
+      "close": "Close",
+      "missingQuestion": "Question required",
+      "invalidType": "Invalid type",
+      "minOptions": "Minimum 2 options",
+      "sessionNotFound": "Session not found"
+    }
   }
 }
