@@ -1,0 +1,1 @@
+ALTER TABLE public.announcements ADD COLUMN reach_count integer NOT NULL DEFAULT 0;
