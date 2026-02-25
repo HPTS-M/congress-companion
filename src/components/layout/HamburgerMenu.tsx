@@ -1,4 +1,4 @@
-import { FileText, Edit, MessageCircle, Bell, Star, User, LogOut } from 'lucide-react';
+import { FileText, Edit, MessageCircle, Bell, Star, User, LogOut, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -16,6 +16,7 @@ interface HamburgerMenuProps {
 }
 
 const menuItems = [
+  { key: 'contacts', icon: Users, path: '/contacts' },
   { key: 'documents', icon: FileText, path: '/documents' },
   { key: 'notes', icon: Edit, path: '/notes' },
   { key: 'messaging', icon: MessageCircle, path: '/messaging' },

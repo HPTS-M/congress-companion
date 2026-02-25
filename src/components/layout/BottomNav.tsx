@@ -1,4 +1,4 @@
-import { Home, Calendar, QrCode, Ticket, Building2, Users } from 'lucide-react';
+import { Home, Calendar, QrCode, Ticket, Building2, BarChart3 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { NavLink } from '@/components/NavLink';
 import { useEventSlug } from '@/hooks/useEvent';
@@ -10,7 +10,7 @@ const tabs = [
   { key: 'checkin', icon: QrCode, path: '/checkin' },
   { key: 'tickets', icon: Ticket, path: '/tickets' },
   { key: 'commercial', icon: Building2, path: '/commercial' },
-  { key: 'contacts', icon: Users, path: '/contacts' },
+  { key: 'polls', icon: BarChart3, path: '/polls' },
 ] as const;
 
 export function BottomNav() {

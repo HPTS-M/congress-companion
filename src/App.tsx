@@ -25,6 +25,7 @@ const AdminCommunications = lazy(() => import('@/pages/admin/Communications'));
 const AdminCheckinStaff = lazy(() => import('@/pages/admin/CheckinStaff'));
 const AdminStaff = lazy(() => import('@/pages/admin/Staff'));
 const AdminReports = lazy(() => import('@/pages/admin/Reports'));
+const AdminPolls = lazy(() => import('@/pages/admin/Polls'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 
 // Staff portal
@@ -52,6 +53,7 @@ const SponsorDetail = lazy(() => import('@/pages/attendee/SponsorDetail'));
 const Contacts = lazy(() => import('@/pages/attendee/Contacts'));
 const AttendeeProfile = lazy(() => import('@/pages/attendee/AttendeeProfile'));
 const Ratings = lazy(() => import('@/pages/attendee/Ratings'));
+const AttendeePolls = lazy(() => import('@/pages/attendee/Polls'));
 
 // Layout
 const AttendeeLayout = lazy(() => import('@/pages/attendee/AttendeeLayoutWrapper'));
@@ -102,6 +104,7 @@ const App = () => (
                   <Route path="communications" element={<AdminCommunications />} />
                   <Route path="checkin-staff" element={<AdminCheckinStaff />} />
                   <Route path="staff" element={<AdminStaff />} />
+                  <Route path="polls" element={<AdminPolls />} />
                   <Route path="reports" element={<AdminReports />} />
                 </Route>
 
@@ -130,6 +133,7 @@ const App = () => (
                   <Route path="messaging" element={<Messaging />} />
                   <Route path="announcements" element={<Announcements />} />
                   <Route path="ratings" element={<Ratings />} />
+                  <Route path="polls" element={<AttendeePolls />} />
                 </Route>
               </Route>
 
