@@ -12,7 +12,7 @@ export function useAdminAnnouncements(eventId: string | undefined) {
 export function useAdminCommsStats(eventId: string | undefined) {
   const totalQuery = useQuery({
     queryKey: ['admin-announcements-count', eventId],
-    queryFn: () => adminCommunicationsService.getAnnouncements(eventId!).then((d) => d.length),
+    queryFn: () => adminCommunicationsService.getAnnouncementsCount(eventId!),
     enabled: !!eventId,
   });
 
