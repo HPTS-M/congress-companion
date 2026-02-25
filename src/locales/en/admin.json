@@ -757,7 +757,9 @@
       "colCheckins": "Total check-ins",
       "colInterested": "Total interested",
       "showAll": "Show all",
-      "showLess": "Show less"
+      "showLess": "Show less",
+      "emptyTitle": "No check-ins recorded yet",
+      "summary": "Showing {{shown}} sessions with recorded attendance out of {{total}} total sessions"
     },
     "ratings": {
       "title": "Ratings",

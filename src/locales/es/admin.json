@@ -757,7 +757,9 @@
       "colCheckins": "Total check-ins",
       "colInterested": "Total interesados",
       "showAll": "Ver todas",
-      "showLess": "Ver menos"
+      "showLess": "Ver menos",
+      "emptyTitle": "Aún no hay check-ins registrados",
+      "summary": "Mostrando {{shown}} sesiones con asistencia registrada de {{total}} sesiones totales"
     },
     "ratings": {
       "title": "Calificaciones",
