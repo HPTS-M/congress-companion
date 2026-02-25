@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useEvent } from '@/hooks/useEvent';
 import { useAuth } from '@/hooks/useAuth';
 import { pollsService } from '@/services/polls.service';
@@ -27,6 +27,43 @@ export function usePolls() {
     },
   });
 
+  // Realtime: refetch when polls are updated (e.g. activated/closed)
+  useEffect(() => {
+    if (!eventId) return;
+
+    const channel = supabase
+      .channel(`active-polls-${eventId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'polls',
+          filter: `event_id=eq.${eventId}`,
+        },
+        () => {
+          qc.invalidateQueries({ queryKey: ['attendee-polls', eventId, attendeeId] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'polls',
+          filter: `event_id=eq.${eventId}`,
+        },
+        () => {
+          qc.invalidateQueries({ queryKey: ['attendee-polls', eventId, attendeeId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [eventId, attendeeId, qc]);
+
   return {
     polls: pollsQuery.data ?? [],
     isLoading: pollsQuery.isLoading,
@@ -36,6 +73,8 @@ export function usePolls() {
 }
 
 export function usePollRealtime(pollId: string | null, onUpdate: () => void) {
+  const stableOnUpdate = useCallback(onUpdate, [onUpdate]);
+
   useEffect(() => {
     if (!pollId) return;
 
@@ -49,12 +88,12 @@ export function usePollRealtime(pollId: string | null, onUpdate: () => void) {
           table: 'poll_responses',
           filter: `poll_id=eq.${pollId}`,
         },
-        () => onUpdate()
+        () => stableOnUpdate()
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [pollId, onUpdate]);
+  }, [pollId, stableOnUpdate]);
 }
