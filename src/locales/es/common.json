@@ -68,11 +68,24 @@
   },
   "polls": {
     "title": "Encuestas",
-    "emptyTitle": "No hay encuestas activas en este momento",
-    "emptyDescription": "Las encuestas aparecerán aquí durante las sesiones",
-    "respondedCount": "personas han respondido",
-    "alreadyAnswered": "Ya respondiste esta encuesta",
-    "typePlaceholder": "Escribe tu respuesta...",
-    "submit": "Enviar respuesta"
+    "subtitle": "Participa en las preguntas en vivo",
+    "emptyTitle": "No hay encuestas activas",
+    "emptyDescription": "Las encuestas aparecerán aquí cuando el organizador las active durante las sesiones",
+    "responseCount": "respuestas",
+    "answered": "Ya respondiste esta encuesta",
+    "answerCta": "Responder",
+    "submitResponse": "Enviar respuesta",
+    "submitRating": "Enviar calificación",
+    "yourResponse": "Tu respuesta:",
+    "openPlaceholder": "Escribe tu respuesta aquí...",
+    "typeSingle": "Selección única",
+    "typeMultiple": "Opción múltiple",
+    "typeRating": "Escala 1-5",
+    "typeOpen": "Respuesta abierta",
+    "ratingVeryBad": "Muy malo",
+    "ratingBad": "Malo",
+    "ratingRegular": "Regular",
+    "ratingGood": "Bueno",
+    "ratingExcellent": "Excelente"
   }
 }

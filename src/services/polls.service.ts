@@ -34,25 +34,11 @@ export const pollsService = {
     const pollIds = (polls || []).map(p => p.id);
     if (pollIds.length === 0) return [];
 
-    // Get options
-    const { data: allOptions } = await supabase
-      .from('poll_options')
-      .select('*')
-      .in('poll_id', pollIds)
-      .order('order_index');
-
-    // Get response counts
-    const { data: allResponses } = await supabase
-      .from('poll_responses')
-      .select('poll_id, option_id')
-      .in('poll_id', pollIds);
-
-    // Get my responses
-    const { data: myResponses } = await supabase
-      .from('poll_responses')
-      .select('poll_id, option_id, text_response')
-      .in('poll_id', pollIds)
-      .eq('attendee_id', attendeeId);
+    const [{ data: allOptions }, { data: allResponses }, { data: myResponses }] = await Promise.all([
+      supabase.from('poll_options').select('*').in('poll_id', pollIds).order('order_index'),
+      supabase.from('poll_responses').select('poll_id, option_id').in('poll_id', pollIds),
+      supabase.from('poll_responses').select('poll_id, option_id, text_response').in('poll_id', pollIds).eq('attendee_id', attendeeId),
+    ]);
 
     const optionsByPoll: Record<string, typeof allOptions> = {};
     for (const o of allOptions || []) {
@@ -102,16 +88,10 @@ export const pollsService = {
   },
 
   async getPollResults(pollId: string): Promise<PollResultOption[]> {
-    const { data: options } = await supabase
-      .from('poll_options')
-      .select('*')
-      .eq('poll_id', pollId)
-      .order('order_index');
-
-    const { data: responses } = await supabase
-      .from('poll_responses')
-      .select('option_id')
-      .eq('poll_id', pollId);
+    const [{ data: options }, { data: responses }] = await Promise.all([
+      supabase.from('poll_options').select('*').eq('poll_id', pollId).order('order_index'),
+      supabase.from('poll_responses').select('option_id').eq('poll_id', pollId),
+    ]);
 
     const total = responses?.length || 0;
     const counts: Record<string, number> = {};
