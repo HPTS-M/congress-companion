@@ -35,7 +35,8 @@
     "messaging": "Mensajería",
     "announcements": "Anuncios",
     "ratings": "Calificaciones",
-    "profile": "Mi Perfil"
+    "profile": "Mi Perfil",
+    "polls": "Encuestas"
   },
   "auth": {
     "enterEventCode": "Ingresa el código de tu evento",
@@ -64,5 +65,14 @@
   "notifications": {
     "title": "Notificaciones",
     "empty": "No tienes notificaciones"
+  },
+  "polls": {
+    "title": "Encuestas",
+    "emptyTitle": "No hay encuestas activas en este momento",
+    "emptyDescription": "Las encuestas aparecerán aquí durante las sesiones",
+    "respondedCount": "personas han respondido",
+    "alreadyAnswered": "Ya respondiste esta encuesta",
+    "typePlaceholder": "Escribe tu respuesta...",
+    "submit": "Enviar respuesta"
   }
 }

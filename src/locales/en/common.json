@@ -35,7 +35,8 @@
     "messaging": "Messaging",
     "announcements": "Announcements",
     "ratings": "Ratings",
-    "profile": "My Profile"
+    "profile": "My Profile",
+    "polls": "Polls"
   },
   "auth": {
     "enterEventCode": "Enter your event code",
@@ -64,5 +65,14 @@
   "notifications": {
     "title": "Notifications",
     "empty": "No notifications"
+  },
+  "polls": {
+    "title": "Polls",
+    "emptyTitle": "No active polls right now",
+    "emptyDescription": "Polls will appear here during sessions",
+    "respondedCount": "people have responded",
+    "alreadyAnswered": "You already answered this poll",
+    "typePlaceholder": "Type your response...",
+    "submit": "Submit response"
   }
 }
