@@ -22,6 +22,7 @@ const AdminLogistics = lazy(() => import('@/pages/admin/Logistics'));
 const AdminLogisticsAssign = lazy(() => import('@/pages/admin/LogisticsAssign'));
 const AdminProviders = lazy(() => import('@/pages/admin/Providers'));
 const AdminCommunications = lazy(() => import('@/pages/admin/Communications'));
+const AdminCheckinStaff = lazy(() => import('@/pages/admin/CheckinStaff'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 
 // Provider portal
@@ -93,6 +94,7 @@ const App = () => (
                   <Route path="logistics/:serviceId/assign" element={<AdminLogisticsAssign />} />
                   <Route path="providers" element={<AdminProviders />} />
                   <Route path="communications" element={<AdminCommunications />} />
+                  <Route path="checkin-staff" element={<AdminCheckinStaff />} />
                 </Route>
 
                 {/* Provider portal routes */}
