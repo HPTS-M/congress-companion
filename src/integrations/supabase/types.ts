@@ -1452,6 +1452,53 @@ export type Database = {
           },
         ]
       }
+      staff_members: {
+        Row: {
+          access_expires_at: string | null
+          assigned_room: string | null
+          contact_email: string
+          created_at: string | null
+          event_id: string
+          full_name: string
+          id: string
+          invitation_status: string | null
+          last_login: string | null
+          user_id: string | null
+        }
+        Insert: {
+          access_expires_at?: string | null
+          assigned_room?: string | null
+          contact_email: string
+          created_at?: string | null
+          event_id: string
+          full_name: string
+          id?: string
+          invitation_status?: string | null
+          last_login?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          access_expires_at?: string | null
+          assigned_room?: string | null
+          contact_email?: string
+          created_at?: string | null
+          event_id?: string
+          full_name?: string
+          id?: string
+          invitation_status?: string | null
+          last_login?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_members_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           assigned_at: string | null
