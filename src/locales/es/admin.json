@@ -743,6 +743,7 @@
     "exportSuccess": "Reporte exportado exitosamente",
     "exportError": "Error al exportar reporte",
     "noData": "Sin datos disponibles",
+    "noRatingData": "Sin datos",
     "statAttendees": "Total asistentes",
     "statSessions": "Sesiones realizadas",
     "statAvgRating": "Promedio calificaciones",
@@ -754,7 +755,9 @@
       "colDay": "Día",
       "colTime": "Hora",
       "colCheckins": "Total check-ins",
-      "colInterested": "Total interesados"
+      "colInterested": "Total interesados",
+      "showAll": "Ver todas",
+      "showLess": "Ver menos"
     },
     "ratings": {
       "title": "Calificaciones",
@@ -763,7 +766,9 @@
       "colAvg": "Promedio",
       "colTotal": "Total calificaciones",
       "colComments": "Comentarios",
-      "reviews": "reseñas"
+      "reviews": "reseñas",
+      "emptyTitle": "Aún no hay calificaciones",
+      "emptyDescription": "Las calificaciones aparecerán aquí cuando los asistentes evalúen las sesiones"
     },
     "logistics": {
       "title": "Logística",
@@ -782,7 +787,9 @@
       "colLevel": "Nivel",
       "colViews": "Vistas perfil",
       "colWhatsapp": "Clics WhatsApp",
-      "colLeads": "Leads capturados"
+      "colLeads": "Leads capturados",
+      "emptyTitle": "Sin interacciones aún",
+      "emptyDescription": "Las métricas se actualizarán cuando los asistentes visiten los perfiles de patrocinadores"
     }
   }
 }

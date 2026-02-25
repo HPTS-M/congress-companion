@@ -1,15 +1,15 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useEvent } from '@/hooks/useEvent';
 import { useAdminReports } from '@/hooks/useAdminReports';
-import { writeExcelFile, writeExcelAoa } from '@/lib/excel';
+import { writeExcelFile } from '@/lib/excel';
 import ExcelJS from 'exceljs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Users, Calendar, Star, Ticket, Download, FileSpreadsheet } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { Users, Calendar, Star, Ticket, Download, FileSpreadsheet, ChevronDown, ChevronUp, Eye } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import type { AttendanceReport, RatingsReport, LogisticsReport, SponsorEngagementReport } from '@/services/admin-reports.service';
 
@@ -105,7 +105,6 @@ async function exportAll(
 ) {
   const workbook = new ExcelJS.Workbook();
 
-  // Sheet 1 — Attendance
   const ws1 = workbook.addWorksheet(t('reports.attendance.title'));
   ws1.columns = [
     { header: t('reports.attendance.colSession'), key: 'title', width: 40 },
@@ -117,7 +116,6 @@ async function exportAll(
   ];
   attendance.forEach((r) => ws1.addRow(r));
 
-  // Sheet 2 — Ratings
   const ws2 = workbook.addWorksheet(t('reports.ratings.title'));
   ws2.columns = [
     { header: t('reports.ratings.colSession'), key: 'title', width: 40 },
@@ -128,7 +126,6 @@ async function exportAll(
   ];
   ratings.forEach((r) => ws2.addRow({ ...r, comments_text: r.comments.join(' | ') }));
 
-  // Sheet 3 — Logistics
   const ws3 = workbook.addWorksheet(t('reports.logistics.title'));
   ws3.columns = [
     { header: t('reports.logistics.colService'), key: 'name', width: 30 },
@@ -141,7 +138,6 @@ async function exportAll(
   ];
   logistics.forEach((r) => ws3.addRow(r));
 
-  // Sheet 4 — Sponsors
   const ws4 = workbook.addWorksheet(t('reports.sponsors.title'));
   ws4.columns = [
     { header: t('reports.sponsors.colSponsor'), key: 'name', width: 30 },
@@ -162,6 +158,113 @@ async function exportAll(
   URL.revokeObjectURL(url);
 }
 
+/* ─── FIX 1: Attendance card with table + mini bars ─── */
+function AttendanceCard({ data, loading, t }: { data: AttendanceReport[] | undefined; loading: boolean; t: (k: string) => string }) {
+  const [expanded, setExpanded] = useState(false);
+  const TOP_N = 5;
+
+  if (loading) return <Skeleton className="h-48 w-full" />;
+  if (!data || data.length === 0) {
+    return <p className="text-sm text-muted-foreground py-8 text-center">{t('reports.noData')}</p>;
+  }
+
+  const maxCheckins = Math.max(...data.map((d) => d.total_checkins), 1);
+  const visible = expanded ? data : data.slice(0, TOP_N);
+  const hasMore = data.length > TOP_N;
+
+  return (
+    <div className="space-y-2">
+      <div className="space-y-1.5">
+        {visible.map((row) => {
+          const pct = (row.total_checkins / maxCheckins) * 100;
+          // Extract day number from scheduled_date
+          const dayLabel = row.scheduled_date ? `Día ${new Date(row.scheduled_date + 'T00:00:00').getDate()}` : '';
+          return (
+            <div key={row.session_id} className="flex items-center gap-3 rounded-lg border p-2.5">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium truncate" title={row.title}>
+                  {row.title.length > 30 ? row.title.slice(0, 30) + '…' : row.title}
+                </p>
+                <div className="flex gap-1.5 mt-1">
+                  {dayLabel && (
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                      {dayLabel}
+                    </Badge>
+                  )}
+                  {row.location && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                      {row.location}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <div className="w-24 h-2.5 rounded-full bg-secondary overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{ width: `${pct}%`, backgroundColor: 'hsl(var(--primary))' }}
+                  />
+                </div>
+                <span className="text-sm font-bold w-8 text-right">{row.total_checkins}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {hasMore && (
+        <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => setExpanded(!expanded)}>
+          {expanded ? (
+            <><ChevronUp className="mr-1 h-3 w-3" /> {t('reports.attendance.showLess')}</>
+          ) : (
+            <><ChevronDown className="mr-1 h-3 w-3" /> {t('reports.attendance.showAll')}</>
+          )}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/* ─── FIX 2: Ratings empty state ─── */
+function RatingsEmptyState({ t }: { t: (k: string) => string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-10 text-center">
+      <Star className="h-12 w-12 text-muted-foreground/40 mb-3" />
+      <p className="text-sm font-medium text-muted-foreground">{t('reports.ratings.emptyTitle')}</p>
+      <p className="text-xs text-muted-foreground/70 mt-1 max-w-xs">{t('reports.ratings.emptyDescription')}</p>
+    </div>
+  );
+}
+
+/* ─── FIX 3: Sponsors empty state ─── */
+function SponsorsEmptyState({ t }: { t: (k: string) => string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-10 text-center">
+      <Eye className="h-12 w-12 text-muted-foreground/40 mb-3" />
+      <p className="text-sm font-medium text-muted-foreground">{t('reports.sponsors.emptyTitle')}</p>
+      <p className="text-xs text-muted-foreground/70 mt-1 max-w-xs">{t('reports.sponsors.emptyDescription')}</p>
+    </div>
+  );
+}
+
+/* ─── FIX 5: Progress bar with color coding ─── */
+function LogisticsProgressBar({ used, total }: { used: number; total: number }) {
+  const pct = total > 0 ? (used / total) * 100 : 0;
+  let barColor: string;
+  if (pct === 0) barColor = 'hsl(var(--muted-foreground) / 0.3)';
+  else if (pct <= 50) barColor = '#F59E0B';
+  else if (pct < 100) barColor = 'hsl(var(--primary))';
+  else barColor = '#10B981';
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="w-full h-2 rounded-full bg-secondary overflow-hidden">
+        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: barColor }} />
+      </div>
+      <span className="text-xs text-muted-foreground w-9 text-right">{Math.round(pct)}%</span>
+    </div>
+  );
+}
+
 export default function Reports() {
   const { t } = useTranslation('admin');
   const { event } = useEvent();
@@ -178,6 +281,11 @@ export default function Reports() {
     }
   };
 
+  // FIX 3: Check if all sponsor engagement values are 0
+  const allSponsorsZero = sponsorEngagement.data?.every(
+    (s) => s.profile_views === 0 && s.whatsapp_clicks === 0 && s.leads_captured === 0
+  ) ?? false;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -192,17 +300,22 @@ export default function Reports() {
         </Button>
       </div>
 
-      {/* Summary Stats */}
+      {/* Summary Stats — FIX 4: "Sin datos" instead of "—" */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard icon={Users} label={t('reports.statAttendees')} value={summary.data?.totalAttendees ?? 0} loading={summary.isLoading} />
         <StatCard icon={Calendar} label={t('reports.statSessions')} value={summary.data?.totalSessions ?? 0} loading={summary.isLoading} />
-        <StatCard icon={Star} label={t('reports.statAvgRating')} value={summary.data?.avgRating ? `⭐ ${summary.data.avgRating}` : '—'} loading={summary.isLoading} />
+        <StatCard
+          icon={Star}
+          label={t('reports.statAvgRating')}
+          value={summary.data?.avgRating ? `⭐ ${summary.data.avgRating}` : t('reports.noRatingData')}
+          loading={summary.isLoading}
+        />
         <StatCard icon={Ticket} label={t('reports.statUsedTickets')} value={summary.data?.usedTickets ?? 0} loading={summary.isLoading} />
       </div>
 
       {/* 2x2 Report Cards */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* CARD 1 — Attendance */}
+        {/* CARD 1 — Attendance (FIX 1) */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base font-semibold">{t('reports.attendance.title')}</CardTitle>
@@ -211,26 +324,11 @@ export default function Reports() {
             </Button>
           </CardHeader>
           <CardContent>
-            {attendance.isLoading ? (
-              <Skeleton className="h-48 w-full" />
-            ) : (attendance.data?.length ?? 0) === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">{t('reports.noData')}</p>
-            ) : (
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={attendance.data} layout="vertical" margin={{ left: 8, right: 12 }}>
-                    <XAxis type="number" />
-                    <YAxis type="category" dataKey="title" width={120} tick={{ fontSize: 11 }} />
-                    <Tooltip />
-                    <Bar dataKey="total_checkins" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
+            <AttendanceCard data={attendance.data} loading={attendance.isLoading} t={t} />
           </CardContent>
         </Card>
 
-        {/* CARD 2 — Ratings */}
+        {/* CARD 2 — Ratings (FIX 2) */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base font-semibold">{t('reports.ratings.title')}</CardTitle>
@@ -242,7 +340,7 @@ export default function Reports() {
             {ratings.isLoading ? (
               <Skeleton className="h-48 w-full" />
             ) : (ratings.data?.length ?? 0) === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">{t('reports.noData')}</p>
+              <RatingsEmptyState t={t} />
             ) : (
               <div className="max-h-64 overflow-y-auto space-y-2">
                 {ratings.data!.map((r) => (
@@ -262,7 +360,7 @@ export default function Reports() {
           </CardContent>
         </Card>
 
-        {/* CARD 3 — Logistics */}
+        {/* CARD 3 — Logistics (FIX 5: color-coded progress) */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base font-semibold">{t('reports.logistics.title')}</CardTitle>
@@ -284,7 +382,7 @@ export default function Reports() {
                       <TableHead className="text-center">{t('reports.logistics.colTotal')}</TableHead>
                       <TableHead className="text-center">{t('reports.logistics.colUsed')}</TableHead>
                       <TableHead className="text-center">{t('reports.logistics.colPending')}</TableHead>
-                      <TableHead className="w-32">{t('reports.logistics.colProgress')}</TableHead>
+                      <TableHead className="w-36">{t('reports.logistics.colProgress')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -295,7 +393,7 @@ export default function Reports() {
                         <TableCell className="text-center">{s.used}</TableCell>
                         <TableCell className="text-center">{s.pending}</TableCell>
                         <TableCell>
-                          <Progress value={s.total > 0 ? (s.used / s.total) * 100 : 0} className="h-2" />
+                          <LogisticsProgressBar used={s.used} total={s.total} />
                         </TableCell>
                       </TableRow>
                     ))}
@@ -306,7 +404,7 @@ export default function Reports() {
           </CardContent>
         </Card>
 
-        {/* CARD 4 — Sponsors */}
+        {/* CARD 4 — Sponsors (FIX 3: empty state when all zeros) */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base font-semibold">{t('reports.sponsors.title')}</CardTitle>
@@ -317,8 +415,8 @@ export default function Reports() {
           <CardContent>
             {sponsorEngagement.isLoading ? (
               <Skeleton className="h-48 w-full" />
-            ) : (sponsorEngagement.data?.length ?? 0) === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">{t('reports.noData')}</p>
+            ) : (sponsorEngagement.data?.length ?? 0) === 0 || allSponsorsZero ? (
+              <SponsorsEmptyState t={t} />
             ) : (
               <div className="overflow-x-auto">
                 <Table>
