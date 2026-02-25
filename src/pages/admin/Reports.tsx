@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useEvent } from '@/hooks/useEvent';
 import { useAdminReports } from '@/hooks/useAdminReports';
@@ -7,9 +7,9 @@ import ExcelJS from 'exceljs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Users, Calendar, Star, Ticket, Download, FileSpreadsheet, ChevronDown, ChevronUp, Eye } from 'lucide-react';
+import { Users, Calendar, Star, Ticket, Download, FileSpreadsheet, Eye, ClipboardCheck } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { toast } from '@/hooks/use-toast';
 import type { AttendanceReport, RatingsReport, LogisticsReport, SponsorEngagementReport } from '@/services/admin-reports.service';
 
@@ -158,68 +158,67 @@ async function exportAll(
   URL.revokeObjectURL(url);
 }
 
-/* ─── FIX 1: Attendance card with table + mini bars ─── */
-function AttendanceCard({ data, loading, t }: { data: AttendanceReport[] | undefined; loading: boolean; t: (k: string) => string }) {
-  const [expanded, setExpanded] = useState(false);
-  const TOP_N = 5;
+/* ─── Attendance card with horizontal bar chart ─── */
+function AttendanceCard({ data, totalSessions, loading, t }: { data: AttendanceReport[] | undefined; totalSessions: number; loading: boolean; t: (k: string, opts?: Record<string, unknown>) => string }) {
+  const filtered = useMemo(() => {
+    if (!data) return [];
+    return data.filter((d) => d.total_checkins > 0).sort((a, b) => b.total_checkins - a.total_checkins).slice(0, 10);
+  }, [data]);
 
   if (loading) return <Skeleton className="h-48 w-full" />;
-  if (!data || data.length === 0) {
-    return <p className="text-sm text-muted-foreground py-8 text-center">{t('reports.noData')}</p>;
+
+  if (filtered.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-10 text-center">
+        <ClipboardCheck className="h-12 w-12 text-muted-foreground/40 mb-3" />
+        <p className="text-sm font-medium text-muted-foreground">{t('reports.attendance.emptyTitle')}</p>
+      </div>
+    );
   }
 
-  const maxCheckins = Math.max(...data.map((d) => d.total_checkins), 1);
-  const visible = expanded ? data : data.slice(0, TOP_N);
-  const hasMore = data.length > TOP_N;
+  const chartData = filtered.map((d) => ({
+    ...d,
+    label: d.title.length > 25 ? d.title.slice(0, 25) + '…' : d.title,
+  }));
+
+  const maxVal = Math.max(...chartData.map((d) => d.total_checkins));
+  const chartHeight = Math.max(120, chartData.length * 60);
 
   return (
-    <div className="space-y-2">
-      <div className="space-y-1.5">
-        {visible.map((row) => {
-          const pct = (row.total_checkins / maxCheckins) * 100;
-          // Extract day number from scheduled_date
-          const dayLabel = row.scheduled_date ? `Día ${new Date(row.scheduled_date + 'T00:00:00').getDate()}` : '';
-          return (
-            <div key={row.session_id} className="flex items-center gap-3 rounded-lg border p-2.5">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium truncate" title={row.title}>
-                  {row.title.length > 30 ? row.title.slice(0, 30) + '…' : row.title}
-                </p>
-                <div className="flex gap-1.5 mt-1">
-                  {dayLabel && (
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                      {dayLabel}
-                    </Badge>
-                  )}
-                  {row.location && (
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                      {row.location}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <div className="w-24 h-2.5 rounded-full bg-secondary overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{ width: `${pct}%`, backgroundColor: 'hsl(var(--primary))' }}
-                  />
-                </div>
-                <span className="text-sm font-bold w-8 text-right">{row.total_checkins}</span>
-              </div>
-            </div>
-          );
-        })}
+    <div className="space-y-3">
+      <div style={{ height: chartHeight }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 40, top: 4, bottom: 4 }}>
+            <XAxis
+              type="number"
+              domain={[0, maxVal + 1]}
+              allowDecimals={false}
+              tickCount={Math.min(maxVal + 1, 6)}
+              tick={{ fontSize: 11 }}
+            />
+            <YAxis
+              type="category"
+              dataKey="label"
+              width={140}
+              tick={{ fontSize: 11 }}
+              tickLine={false}
+            />
+            <Tooltip
+              formatter={(value: number) => [value, t('reports.attendance.colCheckins')]}
+              labelFormatter={(label: string) => label}
+            />
+            <Bar dataKey="total_checkins" radius={[0, 4, 4, 0]} maxBarSize={28}>
+              {chartData.map((_, i) => (
+                <Cell key={i} fill="#1A56A0" />
+              ))}
+              <LabelList dataKey="total_checkins" position="right" style={{ fontSize: 12, fontWeight: 600, fill: 'hsl(var(--foreground))' }} />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
       </div>
-      {hasMore && (
-        <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => setExpanded(!expanded)}>
-          {expanded ? (
-            <><ChevronUp className="mr-1 h-3 w-3" /> {t('reports.attendance.showLess')}</>
-          ) : (
-            <><ChevronDown className="mr-1 h-3 w-3" /> {t('reports.attendance.showAll')}</>
-          )}
-        </Button>
-      )}
+      <p className="text-xs text-muted-foreground text-center">
+        {t('reports.attendance.summary', { shown: filtered.length, total: totalSessions })}
+      </p>
     </div>
   );
 }
@@ -324,7 +323,7 @@ export default function Reports() {
             </Button>
           </CardHeader>
           <CardContent>
-            <AttendanceCard data={attendance.data} loading={attendance.isLoading} t={t} />
+            <AttendanceCard data={attendance.data} totalSessions={summary.data?.totalSessions ?? 0} loading={attendance.isLoading} t={t} />
           </CardContent>
         </Card>
 
