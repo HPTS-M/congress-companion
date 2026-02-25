@@ -168,7 +168,7 @@ export default function AdminCommunications() {
                           {a.sent_at ? format(new Date(a.sent_at), 'dd MMM yyyy HH:mm', { locale: esLocale }) : '—'}
                         </TableCell>
                         <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                          {stats.attendees.data ?? 0} {t('communications.attendeesLabel')}
+                          {a.reach_count} {t('communications.attendeesLabel')}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">

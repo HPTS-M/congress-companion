@@ -82,6 +82,7 @@ export type Database = {
           event_id: string
           id: string
           reach: string | null
+          reach_count: number
           sent_at: string | null
           title: string
         }
@@ -90,6 +91,7 @@ export type Database = {
           event_id: string
           id?: string
           reach?: string | null
+          reach_count?: number
           sent_at?: string | null
           title: string
         }
@@ -98,6 +100,7 @@ export type Database = {
           event_id?: string
           id?: string
           reach?: string | null
+          reach_count?: number
           sent_at?: string | null
           title?: string
         }

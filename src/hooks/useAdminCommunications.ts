@@ -23,8 +23,8 @@ export function useAdminCommsStats(eventId: string | undefined) {
   });
 
   const attendeesQuery = useQuery({
-    queryKey: ['admin-attendees-count', eventId],
-    queryFn: () => adminCommunicationsService.getAttendeesCount(eventId!),
+    queryKey: ['admin-confirmed-attendees-count', eventId],
+    queryFn: () => adminCommunicationsService.getConfirmedAttendeesCount(eventId!),
     enabled: !!eventId,
   });
 

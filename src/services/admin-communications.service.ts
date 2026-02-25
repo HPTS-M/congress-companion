@@ -6,6 +6,7 @@ export interface AdminAnnouncement {
   title: string;
   body: string;
   reach: string | null;
+  reach_count: number;
   sent_at: string | null;
 }
 
@@ -22,7 +23,7 @@ export const adminCommunicationsService = {
   async getAnnouncements(eventId: string): Promise<AdminAnnouncement[]> {
     const { data, error } = await supabase
       .from('announcements')
-      .select('id, event_id, title, body, reach, sent_at')
+      .select('id, event_id, title, body, reach, reach_count, sent_at')
       .eq('event_id', eventId)
       .order('sent_at', { ascending: false });
 
@@ -31,9 +32,12 @@ export const adminCommunicationsService = {
   },
 
   async createAnnouncement(eventId: string, title: string, body: string, reach = 'all'): Promise<void> {
+    // Get confirmed attendee count at send time
+    const confirmedCount = await this.getConfirmedAttendeesCount(eventId);
+
     const { error } = await supabase
       .from('announcements')
-      .insert({ event_id: eventId, title, body, reach });
+      .insert({ event_id: eventId, title, body, reach, reach_count: confirmedCount });
 
     if (error) throw new Error(error.message);
   },
@@ -47,11 +51,12 @@ export const adminCommunicationsService = {
     if (error) throw new Error(error.message);
   },
 
-  async getAttendeesCount(eventId: string): Promise<number> {
+  async getConfirmedAttendeesCount(eventId: string): Promise<number> {
     const { count, error } = await supabase
       .from('attendees')
       .select('id', { count: 'exact', head: true })
       .eq('event_id', eventId)
+      .eq('registration_status', 'confirmed')
       .is('deleted_at', null);
 
     if (error) throw new Error(error.message);
