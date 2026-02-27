@@ -4,6 +4,7 @@ import { useEvent } from '@/hooks/useEvent';
 import { useAuth } from '@/hooks/useAuth';
 import { pollsService } from '@/services/polls.service';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/hooks/use-toast';
 
 export function usePolls() {
   const { event } = useEvent();
@@ -23,7 +24,12 @@ export function usePolls() {
     mutationFn: (data: { pollId: string; optionId: string | null; textResponse: string | null }) =>
       pollsService.submitResponse(data.pollId, attendeeId, data.optionId, data.textResponse),
     onSuccess: () => {
+      toast({ title: '✅ Respuesta enviada', description: 'Tu respuesta ha sido registrada.' });
       qc.invalidateQueries({ queryKey: ['attendee-polls', eventId, attendeeId] });
+    },
+    onError: (error) => {
+      console.error('Poll submit error:', error);
+      toast({ title: 'Error al enviar respuesta', description: error.message, variant: 'destructive' });
     },
   });
 
