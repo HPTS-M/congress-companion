@@ -227,18 +227,33 @@ function OpenTextForm({ onSubmit, isSubmitting }: {
 
 function PollCard({ poll, onSubmit, isSubmitting }: {
   poll: AttendeePoll;
-  onSubmit: (pollId: string, optionId: string | null, text: string | null) => void;
+  onSubmit: (pollId: string, optionId: string | null, text: string | null) => Promise<void>;
   isSubmitting: boolean;
 }) {
   const { t } = useTranslation('common');
   const [showAnswer, setShowAnswer] = useState(false);
-  const hasResponded = !!poll.my_response;
+  const [justSubmitted, setJustSubmitted] = useState(false);
+  const [submittedOptionId, setSubmittedOptionId] = useState<string | null>(null);
+  const hasResponded = !!poll.my_response || justSubmitted;
 
   const isChoice = poll.poll_type === 'multiple_choice' || poll.poll_type === 'single_choice';
   const isRating = poll.poll_type === 'rating_scale';
   const isOpen = poll.poll_type === 'open_text';
 
   const typeKey = POLL_TYPE_KEYS[poll.poll_type] || 'polls.typeSingle';
+
+  const handleSubmit = async (optionId: string | null, text: string | null) => {
+    try {
+      setSubmittedOptionId(optionId);
+      await onSubmit(poll.id, optionId, text);
+      setJustSubmitted(true);
+      setShowAnswer(false);
+    } catch {
+      // error handled by mutation
+    }
+  };
+
+  const myOptionId = poll.my_response?.option_id ?? submittedOptionId;
 
   return (
     <Card className="overflow-hidden">
@@ -265,9 +280,9 @@ function PollCard({ poll, onSubmit, isSubmitting }: {
               <span className="font-medium">{t('polls.answered')}</span>
             </div>
 
-            {isChoice && <ChoiceResults pollId={poll.id} myOptionId={poll.my_response?.option_id ?? null} />}
+            {isChoice && <ChoiceResults pollId={poll.id} myOptionId={myOptionId} />}
             {isRating && <RatingResults pollId={poll.id} />}
-            {isOpen && poll.my_response?.text_response && (
+            {isOpen && (poll.my_response?.text_response) && (
               <div className="mt-2 rounded-lg bg-muted p-3">
                 <p className="text-xs font-medium text-muted-foreground mb-1">{t('polls.yourResponse')}</p>
                 <p className="text-sm">{poll.my_response.text_response}</p>
@@ -280,20 +295,20 @@ function PollCard({ poll, onSubmit, isSubmitting }: {
             {isChoice && (
               <ChoiceForm
                 poll={poll}
-                onSubmit={optId => onSubmit(poll.id, optId, null)}
+                onSubmit={optId => handleSubmit(optId, null)}
                 isSubmitting={isSubmitting}
               />
             )}
             {isRating && (
               <RatingForm
                 poll={poll}
-                onSubmit={optId => onSubmit(poll.id, optId, null)}
+                onSubmit={optId => handleSubmit(optId, null)}
                 isSubmitting={isSubmitting}
               />
             )}
             {isOpen && (
               <OpenTextForm
-                onSubmit={text => onSubmit(poll.id, null, text)}
+                onSubmit={text => handleSubmit(null, text)}
                 isSubmitting={isSubmitting}
               />
             )}
@@ -346,7 +361,7 @@ export default function AttendeePolls() {
             key={poll.id}
             poll={poll}
             onSubmit={(pollId, optionId, text) =>
-              submitResponse.mutate({ pollId, optionId, textResponse: text })
+              submitResponse.mutateAsync({ pollId, optionId, textResponse: text })
             }
             isSubmitting={submitResponse.isPending}
           />
