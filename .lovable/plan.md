@@ -1,25 +1,39 @@
 
 
-## Issue Confirmed
+## Plan: Transactional Email via Resend Edge Function
 
-The event lookup in `src/hooks/useEvent.ts` line 25 uses `.eq('event_code', eventSlug)` — a case-sensitive match. The database stores `ACQFH-2026` but the URL provides `acqfh-2026`.
+The `RESEND_API_KEY` secret already exists in Supabase. We'll create an Edge Function that calls the Resend API to send transactional emails.
 
-## Plan
+### Step 1 — Create Edge Function `send-email`
 
-**Single file change — `src/hooks/useEvent.ts` line 25:**
+Create `supabase/functions/send-email/index.ts`:
+- Accept POST with `{ to, subject, html, from_name? }`
+- Authenticate caller (admin/superuser role check)
+- Call Resend API: `POST https://api.resend.com/emails`
+- Use `RESEND_API_KEY` from `Deno.env`
+- Default `from`: `"CONGRÉSSAPP <noreply@{your-domain}>"`
+- Return success/error JSON
 
-Replace:
-```typescript
-.eq('event_code', eventSlug)
+### Step 2 — Add to `supabase/config.toml`
+
+```toml
+[functions.send-email]
+verify_jwt = false
 ```
-With:
-```typescript
-.ilike('event_code', eventSlug)
-```
 
-This makes the lookup case-insensitive so `/acqfh-2026`, `/ACQFH-2026`, or any casing will resolve correctly.
+### Step 3 — Create frontend service
 
-No database changes needed. No other files affected.
+Create `src/services/email.service.ts` with helper:
+- `sendEmail(to, subject, html, fromName?)` → calls edge function via `supabase.functions.invoke('send-email', ...)`
 
-After this fix, navigating to `/acqfh-2026/admin/login` will load the event and display the admin login form, where you can log in with the admin credentials (`admin@congressapp.com` / `Admin2026!`).
+### Technical Details
+
+- The Edge Function validates the caller is an admin before sending
+- Resend API endpoint: `https://api.resend.com/emails`
+- Headers: `Authorization: Bearer ${RESEND_API_KEY}`, `Content-Type: application/json`
+- The `from` address must use a domain verified in your Resend account
+
+### Before proceeding
+
+You'll need to confirm the **sender email address/domain** verified in your Resend account (e.g., `noreply@yourdomain.com`). Resend requires the `from` address to use a verified domain.
 
