@@ -6,6 +6,40 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+async function sendInviteEmail(email: string, inviteLink: string, resendApiKey: string): Promise<void> {
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${resendApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: "CONGRÉSSAPP <noreply@healtplustravels.app>",
+      to: [email],
+      subject: "Acceso a tu Portal de Proveedor — CONGRÉSSAPP",
+      html: `
+        <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;">
+          <h1 style="color: #1A56A0; font-size: 24px; margin-bottom: 16px;">Bienvenido al Portal de Proveedores</h1>
+          <p style="color: #334155; font-size: 16px; line-height: 1.6;">Has sido invitado a acceder al portal de proveedores de CONGRÉSSAPP.</p>
+          <p style="color: #334155; font-size: 16px; line-height: 1.6;">Haz clic en el botón para configurar tu acceso:</p>
+          <a href="${inviteLink}" style="display: inline-block; background: linear-gradient(135deg, #1A56A0, #00B89F); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px; margin: 24px 0;">
+            Acceder al Portal
+          </a>
+          <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #E2E8F0;">
+            <p style="color: #94A3B8; font-size: 12px;">Si no esperabas este correo, puedes ignorarlo.</p>
+            <p style="color: #94A3B8; font-size: 12px;">Este enlace expira en 24 horas.</p>
+          </div>
+        </div>
+      `,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Resend error: ${JSON.stringify(error)}`);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -15,8 +49,15 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const resendApiKey = Deno.env.get("RESEND_API_KEY")!;
 
-    // Verify caller is authenticated admin
+    if (!resendApiKey) {
+      return new Response(JSON.stringify({ error: "RESEND_API_KEY not configured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -57,42 +98,39 @@ Deno.serve(async (req) => {
     }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
+    const redirectUrl = redirect_to || `${supabaseUrl}/provider`;
 
-    // Get current provider record
     const { data: provider } = await adminClient
       .from("providers")
       .select("user_id, contact_email")
       .eq("id", provider_id)
       .single();
 
-    // === ACTION: reinvite (email changed, delete old user + send new invite) ===
+    // === ACTION: reinvite ===
     if (action === "reinvite" && provider?.user_id) {
-      // Delete old auth user
       await adminClient.auth.admin.deleteUser(provider.user_id);
-
-      // Clear provider link
       await adminClient
         .from("providers")
         .update({ user_id: null, last_login: null, login_count: 0, password_changed: false })
         .eq("id", provider_id);
-
-      // Fall through to invite flow below
     }
 
-    // === ACTION: resend (same email, generate new magic link) ===
+    // === ACTION: resend ===
     if (action === "resend" && provider?.user_id) {
-      const { error: resendError } = await adminClient.auth.admin.generateLink({
+      const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
         type: "magiclink",
         email,
-        options: { redirectTo: redirect_to || supabaseUrl },
+        options: { redirectTo: redirectUrl },
       });
 
-      if (resendError) {
+      if (linkError || !linkData?.properties?.action_link) {
         return new Response(
-          JSON.stringify({ error: resendError.message }),
+          JSON.stringify({ error: linkError?.message ?? "Failed to generate link" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+
+      await sendInviteEmail(email, linkData.properties.action_link, resendApiKey);
 
       return new Response(
         JSON.stringify({ success: true, action: "resent" }),
@@ -100,23 +138,23 @@ Deno.serve(async (req) => {
       );
     }
 
-    // === INVITE: create new auth user via invite ===
+    // === INVITE: nuevo proveedor ===
     const { data: eventData } = await adminClient
       .from("events")
       .select("organization_id")
       .eq("id", event_id)
       .single();
 
-    const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
+    const { data: inviteData, error: inviteError } = await adminClient.auth.admin.generateLink({
+      type: "invite",
       email,
-      {
-        redirectTo: redirect_to || supabaseUrl,
+      options: {
+        redirectTo: redirectUrl,
         data: { role: "provider", provider_id, event_id },
-      }
-    );
+      },
+    });
 
     if (inviteError) {
-      // If user already exists, try to link them
       if (inviteError.message?.includes("already been registered") || inviteError.message?.includes("already exists")) {
         const { data: { users } } = await adminClient.auth.admin.listUsers();
         const existingUser = users?.find((u: any) => u.email === email);
@@ -130,6 +168,16 @@ Deno.serve(async (req) => {
             { onConflict: "user_id,role" }
           );
           await adminClient.from("providers").update({ user_id: userId }).eq("id", provider_id);
+
+          const { data: magicData, error: magicError } = await adminClient.auth.admin.generateLink({
+            type: "magiclink",
+            email,
+            options: { redirectTo: redirectUrl },
+          });
+
+          if (!magicError && magicData?.properties?.action_link) {
+            await sendInviteEmail(email, magicData.properties.action_link, resendApiKey);
+          }
 
           return new Response(
             JSON.stringify({ success: true, user_id: userId, action: "linked_existing" }),
@@ -145,6 +193,7 @@ Deno.serve(async (req) => {
     }
 
     const userId = inviteData.user.id;
+    const inviteLink = inviteData.properties?.action_link;
 
     await adminClient.from("profiles").upsert({ id: userId, email, full_name: `Provider: ${email}` });
     await adminClient.from("user_roles").insert({
@@ -152,10 +201,13 @@ Deno.serve(async (req) => {
     });
     await adminClient.from("providers").update({ user_id: userId }).eq("id", provider_id);
 
+    await sendInviteEmail(email, inviteLink, resendApiKey);
+
     return new Response(
       JSON.stringify({ success: true, user_id: userId, action: "invited" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+
   } catch (err) {
     return new Response(
       JSON.stringify({ error: err.message }),
