@@ -1,6 +1,6 @@
 {
-  "name": "CONGRÉSSAPP — Health Plus Travels",
-  "short_name": "CONGRÉSSAPP",
+  "name": "Health Plus Travels Events",
+  "short_name": "HPT Events",
   "start_url": "/",
   "display": "standalone",
   "theme_color": "#1A56A0",
