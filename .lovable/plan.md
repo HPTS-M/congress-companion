@@ -1,21 +1,24 @@
 
 
-## Plan: Replace "CONGRÉSSAPP" with "Health Plus Travels Events"
+## Plan: Fix logo on Index page and remaining "CONGRÉSSAPP" in tab title
 
-Update all user-facing occurrences of "CONGRÉSSAPP" across the app. Code comments will be left unchanged.
+Two issues found:
+
+### 1. Browser tab still shows "CONGRÉSSAPP"
+**File: `index.html`** — Lines 6, 19, 20 still contain "CONGRÉSSAPP — Health Plus Travels". These were missed in the previous replacement pass.
+
+- Line 6: `<title>` → "Health Plus Travels Events"
+- Line 19: `og:title` → "Health Plus Travels Events"
+- Line 20: `twitter:title` → "Health Plus Travels Events"
+
+### 2. Index page still shows "C" icon instead of logo
+**File: `src/pages/Index.tsx`** — Lines 27-34 render a gradient square with a hardcoded "C" letter. Replace this block with the logo image:
+
+```tsx
+<img src="/logo-250px.png" alt="Logo" className="mx-auto mb-8 h-20 w-auto" />
+```
 
 ### Files to modify
-
-1. **`src/locales/es/common.json`** — `"appName": "Health Plus Travels Events"`
-2. **`src/locales/en/common.json`** — `"appName": "Health Plus Travels Events"`
-3. **`index.html`** — Title and og:title → "Health Plus Travels Events"
-4. **`public/manifest.json`** — `name` and `short_name` → "Health Plus Travels Events"
-5. **`public/sw.js`** — Default notification title → "Health Plus Travels Events"
-6. **`src/components/layout/AdminLayout.tsx`** — Sidebar header text → "Health Plus Travels Events"
-7. **`supabase/functions/send-email/index.ts`** — FROM name → "Health Plus Travels Events"
-8. **`supabase/functions/create-provider-user/index.ts`** — FROM name, email subject, and body text references
-
-### Not modified (code comments only)
-- `tailwind.config.ts`, `src/index.css` — design system comments
-- `docs/PRODUCT_OWNER_USER_STORIES.md` — internal documentation
+- `index.html` (3 lines)
+- `src/pages/Index.tsx` (replace gradient div with img tag)
 
