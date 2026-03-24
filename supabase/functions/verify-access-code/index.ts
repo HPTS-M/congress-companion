@@ -150,6 +150,15 @@ Deno.serve(async (req) => {
       return jsonError(403, 'Registration cancelled');
     }
 
+    // Auto-confirm pending attendees on first successful login
+    if (matchedAttendee.registration_status === 'pending') {
+      await supabaseAdmin
+        .from('attendees')
+        .update({ registration_status: 'confirmed' })
+        .eq('id', matchedAttendee.id);
+      matchedAttendee.registration_status = 'confirmed';
+    }
+
     // 6. Create or find auth user
     let userId = matchedAttendee.user_id;
 

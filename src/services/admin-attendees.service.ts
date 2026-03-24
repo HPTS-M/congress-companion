@@ -151,21 +151,23 @@ export const adminAttendeesService = {
   bulkCreateAttendees: async (
     eventId: string,
     rows: { full_name: string; email: string; specialty?: string; institution?: string }[],
-  ): Promise<{ inserted: number; errors: number }> => {
+    registrationStatus: string = 'confirmed',
+  ): Promise<{ inserted: number; errors: number; ids: string[] }> => {
     const inserts = rows.map((r) => ({
       event_id: eventId,
       full_name: r.full_name,
       email: r.email,
       specialty: r.specialty || null,
       institution: r.institution || null,
-      registration_status: 'confirmed' as const,
+      registration_status: registrationStatus,
       credential_code: '',
     }));
 
     const { data, error } = await supabase.from('attendees').insert(inserts).select('id');
 
     if (error) throw new Error(error.message);
-    return { inserted: data?.length ?? 0, errors: rows.length - (data?.length ?? 0) };
+    const ids = (data ?? []).map((d) => d.id);
+    return { inserted: ids.length, errors: rows.length - ids.length, ids };
   },
 
   deleteAttendee: async (attendeeId: string): Promise<void> => {
@@ -342,5 +344,29 @@ export const adminAttendeesService = {
       .eq('event_id', eventId)
       .is('deleted_at', null);
     return (data ?? []).map((a) => a.email.toLowerCase());
+  },
+
+  sendInvitations: async (attendeeIds: string[], eventId: string): Promise<{ sent: number; failed: number }> => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (!token) throw new Error('Not authenticated');
+
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const response = await fetch(`${supabaseUrl}/functions/v1/send-invitation-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      },
+      body: JSON.stringify({ attendee_ids: attendeeIds, event_id: eventId }),
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error || 'Failed to send invitations');
+    }
+
+    return response.json();
   },
 };

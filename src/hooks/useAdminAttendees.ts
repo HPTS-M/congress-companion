@@ -46,8 +46,8 @@ export function useBulkCreateAttendees() {
   const { event } = useEvent();
 
   return useMutation({
-    mutationFn: (rows: { full_name: string; email: string; specialty?: string; institution?: string }[]) =>
-      adminAttendeesService.bulkCreateAttendees(event!.id, rows),
+    mutationFn: ({ rows, registrationStatus }: { rows: { full_name: string; email: string; specialty?: string; institution?: string }[]; registrationStatus?: string }) =>
+      adminAttendeesService.bulkCreateAttendees(event!.id, rows, registrationStatus),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-attendees'] });
       queryClient.invalidateQueries({ queryKey: ['admin-attendees-counts'] });
@@ -133,5 +133,19 @@ export function useExistingEmails() {
     queryKey: ['admin-existing-emails', eventId],
     queryFn: () => adminAttendeesService.getExistingEmails(eventId),
     enabled: !!eventId,
+  });
+}
+
+export function useSendInvitations() {
+  const queryClient = useQueryClient();
+  const { event } = useEvent();
+
+  return useMutation({
+    mutationFn: (attendeeIds: string[]) =>
+      adminAttendeesService.sendInvitations(attendeeIds, event!.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-attendee-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-attendees'] });
+    },
   });
 }

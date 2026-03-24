@@ -146,7 +146,8 @@
       "institution": "Institución",
       "phone": "Teléfono",
       "registrationDate": "Fecha de Registro",
-      "package": "Paquete"
+      "package": "Paquete",
+      "invitationSentAt": "Invitación enviada"
     },
     "addServiceModal": {
       "title": "Agregar Servicio",
@@ -184,7 +185,18 @@
       "cancel": "Cancelar",
       "success": "Asistente eliminado",
       "error": "Error al eliminar asistente"
-    }
+    },
+    "sendCredentials": "Enviar Credenciales",
+    "resendCredentials": "Reenviar Credenciales",
+    "confirmAndSend": "Confirmar y Enviar",
+    "invitationSent": "Invitación enviada exitosamente",
+    "invitationFailed": "Error al enviar la invitación",
+    "sendingInvitation": "Enviando...",
+    "importStatusLabel": "Estado de registro para asistentes importados",
+    "importStatusConfirmed": "Confirmado — enviar credenciales por email",
+    "importStatusPending": "Pendiente — no enviar credenciales aún",
+    "confirmedHint": "Las credenciales de acceso se enviarán por email inmediatamente",
+    "pendingHint": "El asistente será registrado sin enviar credenciales"
   },
   "agenda": {
     "title": "Agenda",

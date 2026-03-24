@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
-import { Calendar, RefreshCw, Mail, Bus, UtensilsCrossed, Sparkles, Map, Plus, Pencil, Trash2 } from 'lucide-react';
+import { Calendar, RefreshCw, Mail, Send, Bus, UtensilsCrossed, Sparkles, Map, Plus, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { useAttendeeDetail, useUpdateServiceStatus, useDeleteService } from '@/hooks/useAdminAttendees';
+import { useAttendeeDetail, useUpdateServiceStatus, useDeleteService, useSendInvitations } from '@/hooks/useAdminAttendees';
 import { adminAttendeesService } from '@/services/admin-attendees.service';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
@@ -37,19 +37,13 @@ const SERVICE_COLORS: Record<string, string> = {
   tour: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900 dark:text-emerald-300',
 };
 
-function getStatusBadgeClass(status: string | null) {
-  const s = status ?? 'scheduled';
-  if (s === 'completed') return 'bg-accent/15 text-accent border-accent/30';
-  if (s === 'cancelled') return 'bg-destructive/15 text-destructive border-destructive/30';
-  return 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300';
-}
-
 export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
   const { t } = useTranslation('admin');
   const { data, isLoading } = useAttendeeDetail(attendeeId);
   const queryClient = useQueryClient();
   const updateStatusMutation = useUpdateServiceStatus();
   const deleteServiceMutation = useDeleteService();
+  const sendInvitationsMutation = useSendInvitations();
   const [showAddService, setShowAddService] = useState(false);
 
   const handleRegenerate = async () => {
@@ -62,6 +56,46 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
       toast({ title: t('attendees.detail.regenerateSuccess') });
     } catch {
       toast({ title: 'Error', variant: 'destructive' });
+    }
+  };
+
+  const handleSendCredentials = async () => {
+    if (!attendeeId) return;
+    try {
+      const result = await sendInvitationsMutation.mutateAsync([attendeeId]);
+      if (result.sent > 0) {
+        toast({ title: t('attendees.invitationSent') });
+      } else {
+        toast({ title: t('attendees.invitationFailed'), variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: t('attendees.invitationFailed'), variant: 'destructive' });
+    }
+  };
+
+  const handleConfirmAndSend = async () => {
+    if (!attendeeId || !data) return;
+    try {
+      // Update status to confirmed
+      const { supabase } = await import('@/integrations/supabase/client');
+      await supabase
+        .from('attendees')
+        .update({ registration_status: 'confirmed' })
+        .eq('id', attendeeId);
+
+      // Send invitation
+      const result = await sendInvitationsMutation.mutateAsync([attendeeId]);
+      queryClient.invalidateQueries({ queryKey: ['admin-attendee-detail', attendeeId] });
+      queryClient.invalidateQueries({ queryKey: ['admin-attendees'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-attendees-counts'] });
+      
+      if (result.sent > 0) {
+        toast({ title: t('attendees.invitationSent') });
+      } else {
+        toast({ title: t('attendees.invitationFailed'), variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: t('attendees.invitationFailed'), variant: 'destructive' });
     }
   };
 
@@ -83,6 +117,11 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
       toast({ title: t('attendees.detail.serviceDeleteError'), variant: 'destructive' });
     }
   };
+
+  // Determine credential button state
+  const attendee = data?.attendee;
+  const isPending = attendee?.registration_status === 'pending';
+  const hasBeenSent = !!attendee?.invitation_sent_at;
 
   return (
     <>
@@ -139,6 +178,14 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
                       </span>
                     </div>
                   )}
+                  {data.attendee.invitation_sent_at && (
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">{t('attendees.detail.invitationSentAt')}:</span>
+                      <span className="ml-1 text-foreground">
+                        {format(new Date(data.attendee.invitation_sent_at), 'dd/MM/yyyy HH:mm')}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <Badge
                   className={cn(
@@ -169,10 +216,35 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
                     <RefreshCw className="mr-2 h-3 w-3" />
                     {t('attendees.detail.regenerateCode')}
                   </Button>
-                  <Button variant="outline" size="sm" className="flex-1" disabled>
-                    <Mail className="mr-2 h-3 w-3" />
-                    {t('attendees.detail.sendByEmail')}
-                  </Button>
+                  {isPending ? (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="flex-1"
+                      onClick={handleConfirmAndSend}
+                      disabled={sendInvitationsMutation.isPending}
+                    >
+                      <Send className="mr-2 h-3 w-3" />
+                      {sendInvitationsMutation.isPending
+                        ? t('attendees.sendingInvitation')
+                        : t('attendees.confirmAndSend')}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={handleSendCredentials}
+                      disabled={sendInvitationsMutation.isPending}
+                    >
+                      <Mail className="mr-2 h-3 w-3" />
+                      {sendInvitationsMutation.isPending
+                        ? t('attendees.sendingInvitation')
+                        : hasBeenSent
+                          ? t('attendees.resendCredentials')
+                          : t('attendees.sendCredentials')}
+                    </Button>
+                  )}
                 </div>
               </div>
 
