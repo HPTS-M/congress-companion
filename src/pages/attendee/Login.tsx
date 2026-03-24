@@ -66,9 +66,7 @@ export default function AttendeeLogin() {
             background: 'linear-gradient(135deg, hsl(213 72% 36%) 0%, hsl(172 100% 36%) 100%)',
           }}
         >
-          <h1 className="text-2xl font-bold text-white">
-            {t('appName')}
-          </h1>
+          <img src="/logo-250px.png" alt="Logo" className="mx-auto h-[120px] w-auto" />
           {event && (
             <>
               <p className="mt-2 text-base font-semibold text-white/90">
