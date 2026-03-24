@@ -24,14 +24,7 @@ export default function Index() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm text-center">
         {/* Logo area */}
-        <div
-          className="mx-auto mb-8 flex h-20 w-20 items-center justify-center rounded-2xl"
-          style={{
-            background: 'linear-gradient(135deg, hsl(213 72% 36%) 0%, hsl(172 100% 36%) 100%)',
-          }}
-        >
-          <span className="text-3xl font-bold text-white">C</span>
-        </div>
+        <img src="/logo-250px.png" alt="Health Plus Travels Events" className="mx-auto mb-8 h-20 w-auto" />
 
         <h1 className="mb-2 text-2xl font-bold text-foreground">
           {t('appName')}
