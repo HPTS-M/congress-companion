@@ -11,7 +11,9 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
-import { useBulkCreateAttendees, useExistingEmails } from '@/hooks/useAdminAttendees';
+import { useBulkCreateAttendees, useExistingEmails, useSendInvitations } from '@/hooks/useAdminAttendees';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
 interface CsvRow {
@@ -161,13 +163,29 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
     if (file) handleFile(file);
   }, [handleFile]);
 
+  const [importStatus, setImportStatus] = useState<'confirmed' | 'pending'>('confirmed');
+
   const handleImport = async () => {
     const rowsToImport = validatedRows.filter((r) => r.status !== 'error');
     if (rowsToImport.length === 0) return;
 
     try {
       setProgress(10);
-      const result = await bulkMutation.mutateAsync(rowsToImport);
+      const result = await bulkMutation.mutateAsync({ rows: rowsToImport, registrationStatus: importStatus });
+      setProgress(80);
+
+      // Send invitations if status is confirmed and we have IDs
+      if (importStatus === 'confirmed' && result.ids.length > 0) {
+        try {
+          const { adminAttendeesService } = await import('@/services/admin-attendees.service');
+          const { data: sessionData } = await (await import('@/integrations/supabase/client')).supabase.auth.getSession();
+          if (sessionData?.session) {
+            await adminAttendeesService.sendInvitations(result.ids, (await import('@/hooks/useEvent')).useEvent ? '' : '');
+          }
+        } catch (invErr) {
+          console.error('Failed to send invitations:', invErr);
+        }
+      }
       setProgress(100);
 
       const errorRows = validatedRows.filter((r) => r.status === 'error');
