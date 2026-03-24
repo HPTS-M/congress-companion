@@ -1,27 +1,21 @@
 
 
-## Plan: Add logo to Header, Login pages, Hamburger menu, and browser tab
+## Plan: Replace "CONGRÉSSAPP" with "Health Plus Travels Events"
 
-The logo files already exist in `public/` (`logo-250px.png`, `logo-500px.png`). We will reference them in 5 locations.
-
-### 1. Browser tab (favicon) — Already done
-The `index.html` already references `/favicon.ico`, `/favicon-16x16.png`, and `/favicon-32x32.png`. No changes needed.
-
-### 2. AppHeader (`src/components/layout/AppHeader.tsx`)
-Add a small logo image (32px height) to the left of the event name in the center section, using `/logo-250px.png`.
-
-### 3. Attendee Login (`src/pages/attendee/Login.tsx`)
-Replace the text-only `<h1>` inside the gradient banner (line 69) with the logo image (`/logo-250px.png`, ~120px height, centered) followed by the event name text below it.
-
-### 4. Admin Login (`src/pages/admin/Login.tsx`)
-Replace the ShieldCheck icon (lines 63-65) with the logo image (`/logo-250px.png`, ~80px height), keeping the title and description text below.
-
-### 5. Hamburger Menu (`src/components/layout/HamburgerMenu.tsx`)
-Replace the text-only `SheetTitle` (line 49-51) with a row containing the logo image (`/logo-250px.png`, ~28px height) next to the app name text.
+Update all user-facing occurrences of "CONGRÉSSAPP" across the app. Code comments will be left unchanged.
 
 ### Files to modify
-- `src/components/layout/AppHeader.tsx`
-- `src/pages/attendee/Login.tsx`
-- `src/pages/admin/Login.tsx`
-- `src/components/layout/HamburgerMenu.tsx`
+
+1. **`src/locales/es/common.json`** — `"appName": "Health Plus Travels Events"`
+2. **`src/locales/en/common.json`** — `"appName": "Health Plus Travels Events"`
+3. **`index.html`** — Title and og:title → "Health Plus Travels Events"
+4. **`public/manifest.json`** — `name` and `short_name` → "Health Plus Travels Events"
+5. **`public/sw.js`** — Default notification title → "Health Plus Travels Events"
+6. **`src/components/layout/AdminLayout.tsx`** — Sidebar header text → "Health Plus Travels Events"
+7. **`supabase/functions/send-email/index.ts`** — FROM name → "Health Plus Travels Events"
+8. **`supabase/functions/create-provider-user/index.ts`** — FROM name, email subject, and body text references
+
+### Not modified (code comments only)
+- `tailwind.config.ts`, `src/index.css` — design system comments
+- `docs/PRODUCT_OWNER_USER_STORIES.md` — internal documentation
 
