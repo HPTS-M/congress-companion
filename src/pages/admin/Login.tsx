@@ -60,9 +60,7 @@ export default function AdminLogin() {
       <div className="w-full max-w-sm">
         <Card>
           <CardHeader className="text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-              <ShieldCheck className="h-6 w-6 text-primary" />
-            </div>
+            <img src="/logo-250px.png" alt="Logo" className="mx-auto mb-3 h-20 w-auto" />
             <CardTitle className="text-xl">{t('login.title')}</CardTitle>
             <CardDescription>{t('login.subtitle')}</CardDescription>
             {event && (

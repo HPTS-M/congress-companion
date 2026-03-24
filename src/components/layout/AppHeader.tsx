@@ -27,6 +27,7 @@ export function AppHeader({ onMenuOpen }: AppHeaderProps) {
 
       {/* Center — event info */}
       <div className="flex flex-1 items-center justify-center gap-2 overflow-hidden px-2">
+        <img src="/logo-250px.png" alt="Logo" className="h-8 w-auto shrink-0" />
         <div className="min-w-0 text-center">
           <p className="truncate text-sm font-bold text-white md:text-base">{event?.name}</p>
           <p className="truncate text-xs text-white/70">{event?.venue_name}</p>

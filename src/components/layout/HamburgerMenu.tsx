@@ -46,7 +46,8 @@ export function HamburgerMenu({ open, onOpenChange }: HamburgerMenuProps) {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="left" className="w-72 p-0">
         <SheetHeader className="border-b border-border p-4">
-          <SheetTitle className="text-left text-lg font-bold text-foreground">
+          <SheetTitle className="flex items-center gap-2 text-left text-lg font-bold text-foreground">
+            <img src="/logo-250px.png" alt="Logo" className="h-7 w-auto" />
             {t('appName')}
           </SheetTitle>
         </SheetHeader>
