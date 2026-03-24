@@ -46,7 +46,7 @@ function AdminSidebar() {
   return (
     <Sidebar className="border-r-0" style={{ '--sidebar-width': '240px' } as React.CSSProperties}>
       <SidebarHeader className="bg-[hsl(220,30%,15%)] px-4 py-4">
-        <div className="text-lg font-bold text-white tracking-tight">CONGRÉSSAPP</div>
+        <div className="text-lg font-bold text-white tracking-tight">Health Plus Travels Events</div>
         {event && (
           <div className="mt-1 flex items-center gap-2">
             <span className="text-xs text-slate-400 truncate">{event.name}</span>

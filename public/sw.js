@@ -49,7 +49,7 @@ self.addEventListener('push', (event) => {
   if (!event.data) return;
   const data = event.data.json();
   event.waitUntil(
-    self.registration.showNotification(data.title || 'CONGRÉSSAPP', {
+    self.registration.showNotification(data.title || 'Health Plus Travels Events', {
       body: data.body,
       icon: '/favicon.ico',
       data: data.data,

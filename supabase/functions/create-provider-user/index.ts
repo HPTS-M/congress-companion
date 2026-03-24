@@ -14,13 +14,13 @@ async function sendInviteEmail(email: string, inviteLink: string, resendApiKey: 
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "CONGRÉSSAPP <noreply@healtplustravels.app>",
+      from: "Health Plus Travels Events <noreply@healtplustravels.app>",
       to: [email],
-      subject: "Acceso a tu Portal de Proveedor — CONGRÉSSAPP",
+      subject: "Acceso a tu Portal de Proveedor — Health Plus Travels Events",
       html: `
         <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;">
           <h1 style="color: #1A56A0; font-size: 24px; margin-bottom: 16px;">Bienvenido al Portal de Proveedores</h1>
-          <p style="color: #334155; font-size: 16px; line-height: 1.6;">Has sido invitado a acceder al portal de proveedores de CONGRÉSSAPP.</p>
+          <p style="color: #334155; font-size: 16px; line-height: 1.6;">Has sido invitado a acceder al portal de proveedores de Health Plus Travels Events.</p>
           <p style="color: #334155; font-size: 16px; line-height: 1.6;">Haz clic en el botón para configurar tu acceso:</p>
           <a href="${inviteLink}" style="display: inline-block; background: linear-gradient(135deg, #1A56A0, #00B89F); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px; margin: 24px 0;">
             Acceder al Portal
