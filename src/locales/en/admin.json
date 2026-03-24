@@ -184,7 +184,18 @@
       "cancel": "Cancel",
       "success": "Attendee deleted",
       "error": "Error deleting attendee"
-    }
+    },
+    "sendCredentials": "Send Credentials",
+    "resendCredentials": "Resend Credentials",
+    "confirmAndSend": "Confirm & Send",
+    "invitationSent": "Invitation email sent successfully",
+    "invitationFailed": "Failed to send invitation email",
+    "sendingInvitation": "Sending...",
+    "importStatusLabel": "Registration status for imported attendees",
+    "importStatusConfirmed": "Confirmed — send credentials by email",
+    "importStatusPending": "Pending — do not send credentials yet",
+    "confirmedHint": "Access credentials will be sent by email immediately",
+    "pendingHint": "Attendee will be registered without sending credentials"
   },
   "agenda": {
     "title": "Agenda",
