@@ -146,7 +146,8 @@
       "institution": "Institución",
       "phone": "Teléfono",
       "registrationDate": "Fecha de Registro",
-      "package": "Paquete"
+      "package": "Paquete",
+      "invitationSentAt": "Invitación enviada"
     },
     "addServiceModal": {
       "title": "Agregar Servicio",
