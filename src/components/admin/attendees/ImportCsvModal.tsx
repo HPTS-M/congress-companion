@@ -89,12 +89,14 @@ function downloadErrorReport(errorRows: ValidatedRow[]) {
 export function ImportCsvModal({ open, onOpenChange }: Props) {
   const { t } = useTranslation('admin');
   const bulkMutation = useBulkCreateAttendees();
+  const sendInvitationsMutation = useSendInvitations();
   const { data: existingEmails } = useExistingEmails();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [rawRows, setRawRows] = useState<CsvRow[]>([]);
   const [fileName, setFileName] = useState('');
   const [progress, setProgress] = useState(0);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [importStatus, setImportStatus] = useState<'confirmed' | 'pending'>('confirmed');
 
   const existingEmailSet = useMemo(
     () => new Set((existingEmails ?? []).map((e) => e.toLowerCase())),
@@ -163,8 +165,6 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
     if (file) handleFile(file);
   }, [handleFile]);
 
-  const [importStatus, setImportStatus] = useState<'confirmed' | 'pending'>('confirmed');
-
   const handleImport = async () => {
     const rowsToImport = validatedRows.filter((r) => r.status !== 'error');
     if (rowsToImport.length === 0) return;
@@ -177,11 +177,7 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
       // Send invitations if status is confirmed and we have IDs
       if (importStatus === 'confirmed' && result.ids.length > 0) {
         try {
-          const { adminAttendeesService } = await import('@/services/admin-attendees.service');
-          const { data: sessionData } = await (await import('@/integrations/supabase/client')).supabase.auth.getSession();
-          if (sessionData?.session) {
-            await adminAttendeesService.sendInvitations(result.ids, (await import('@/hooks/useEvent')).useEvent ? '' : '');
-          }
+          await sendInvitationsMutation.mutateAsync(result.ids);
         } catch (invErr) {
           console.error('Failed to send invitations:', invErr);
         }
@@ -348,14 +344,33 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
               )}
             </div>
 
+            {/* Import status selector */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">{t('attendees.importStatusLabel')}</Label>
+              <Select value={importStatus} onValueChange={(v) => setImportStatus(v as 'confirmed' | 'pending')}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="confirmed">{t('attendees.importStatusConfirmed')}</SelectItem>
+                  <SelectItem value="pending">{t('attendees.importStatusPending')}</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {importStatus === 'confirmed'
+                  ? t('attendees.confirmedHint')
+                  : t('attendees.pendingHint')}
+              </p>
+            </div>
+
             {progress > 0 && <Progress value={progress} className="h-2" />}
 
             <Button
               className="w-full"
               onClick={handleImport}
-              disabled={bulkMutation.isPending || validCount === 0}
+              disabled={bulkMutation.isPending || sendInvitationsMutation.isPending || validCount === 0}
             >
-              {bulkMutation.isPending
+              {bulkMutation.isPending || sendInvitationsMutation.isPending
                 ? t('attendees.importModal.importing')
                 : errorCount > 0
                   ? t('attendees.importModal.importValidOnly', { count: validCount })
