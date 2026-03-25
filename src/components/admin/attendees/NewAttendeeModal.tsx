@@ -18,7 +18,7 @@ const schema = z.object({
   email: z.string().trim().email('Invalid email').max(255),
   specialty: z.string().trim().max(100).optional().or(z.literal('')),
   institution: z.string().trim().max(200).optional().or(z.literal('')),
-  registration_status: z.string().default('confirmed'),
+  registration_status: z.string().default('pending'),
 });
 
 type FormValues = {
@@ -47,7 +47,7 @@ export function NewAttendeeModal({ open, onOpenChange }: Props) {
       email: '',
       specialty: '',
       institution: '',
-      registration_status: 'confirmed',
+      registration_status: 'pending',
     },
   });
 
