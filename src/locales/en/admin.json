@@ -196,7 +196,7 @@
     "importStatusConfirmed": "Confirmed — send credentials by email",
     "importStatusPending": "Pending — do not send credentials yet",
     "confirmedHint": "Access credentials will be sent by email immediately",
-    "pendingHint": "Attendee will be registered without sending credentials"
+    "pendingHint": "Credentials will be sent when you confirm manually"
   },
   "agenda": {
     "title": "Agenda",
