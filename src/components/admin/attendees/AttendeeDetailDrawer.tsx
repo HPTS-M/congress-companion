@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
-import { Calendar, RefreshCw, Mail, Send, Bus, UtensilsCrossed, Sparkles, Map, Plus, Trash2 } from 'lucide-react';
+import { Calendar, RefreshCw, Mail, Bus, UtensilsCrossed, Sparkles, Map, Plus, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
@@ -63,32 +63,6 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
     if (!attendeeId) return;
     try {
       const result = await sendInvitationsMutation.mutateAsync([attendeeId]);
-      if (result.sent > 0) {
-        toast({ title: t('attendees.invitationSent') });
-      } else {
-        toast({ title: t('attendees.invitationFailed'), variant: 'destructive' });
-      }
-    } catch {
-      toast({ title: t('attendees.invitationFailed'), variant: 'destructive' });
-    }
-  };
-
-  const handleConfirmAndSend = async () => {
-    if (!attendeeId || !data) return;
-    try {
-      // Update status to confirmed
-      const { supabase } = await import('@/integrations/supabase/client');
-      await supabase
-        .from('attendees')
-        .update({ registration_status: 'confirmed' })
-        .eq('id', attendeeId);
-
-      // Send invitation
-      const result = await sendInvitationsMutation.mutateAsync([attendeeId]);
-      queryClient.invalidateQueries({ queryKey: ['admin-attendee-detail', attendeeId] });
-      queryClient.invalidateQueries({ queryKey: ['admin-attendees'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-attendees-counts'] });
-      
       if (result.sent > 0) {
         toast({ title: t('attendees.invitationSent') });
       } else {
