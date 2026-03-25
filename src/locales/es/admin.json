@@ -196,7 +196,7 @@
     "importStatusConfirmed": "Confirmado — enviar credenciales por email",
     "importStatusPending": "Pendiente — no enviar credenciales aún",
     "confirmedHint": "Las credenciales de acceso se enviarán por email inmediatamente",
-    "pendingHint": "El asistente será registrado sin enviar credenciales"
+    "pendingHint": "Las credenciales se enviarán cuando confirmes manualmente"
   },
   "agenda": {
     "title": "Agenda",
