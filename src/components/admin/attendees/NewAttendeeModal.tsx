@@ -10,8 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { useCreateAttendee, useSendInvitations } from '@/hooks/useAdminAttendees';
-import { useEvent } from '@/hooks/useEvent';
+import { useCreateAttendee } from '@/hooks/useAdminAttendees';
 
 const schema = z.object({
   full_name: z.string().trim().min(1, 'Required').max(200),
@@ -37,8 +36,6 @@ interface Props {
 export function NewAttendeeModal({ open, onOpenChange }: Props) {
   const { t } = useTranslation('admin');
   const createMutation = useCreateAttendee();
-  const sendInvitationsMutation = useSendInvitations();
-  const { event } = useEvent();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -54,31 +51,10 @@ export function NewAttendeeModal({ open, onOpenChange }: Props) {
   const onSubmit = async (values: FormValues) => {
     try {
       const attendee = await createMutation.mutateAsync(values);
-      
-      // If status is confirmed, send invitation email
-      if (values.registration_status === 'confirmed' && event?.id) {
-        try {
-          const result = await sendInvitationsMutation.mutateAsync([attendee.id]);
-          toast({
-            title: t('attendees.newAttendeeModal.success'),
-            description: result.sent > 0
-              ? t('attendees.invitationSent')
-              : t('attendees.newAttendeeModal.successCode', { code: attendee.credential_code }),
-          });
-        } catch {
-          // Attendee created but invitation failed
-          toast({
-            title: t('attendees.newAttendeeModal.success'),
-            description: t('attendees.invitationFailed'),
-          });
-        }
-      } else {
-        toast({
-          title: t('attendees.newAttendeeModal.success'),
-          description: t('attendees.newAttendeeModal.successCode', { code: attendee.credential_code }),
-        });
-      }
-      
+      toast({
+        title: t('attendees.newAttendeeModal.success'),
+        description: t('attendees.newAttendeeModal.successCode', { code: attendee.credential_code }),
+      });
       form.reset();
       onOpenChange(false);
     } catch {
@@ -178,8 +154,8 @@ export function NewAttendeeModal({ open, onOpenChange }: Props) {
               )}
             />
 
-            <Button type="submit" className="w-full" disabled={createMutation.isPending || sendInvitationsMutation.isPending}>
-              {createMutation.isPending || sendInvitationsMutation.isPending
+            <Button type="submit" className="w-full" disabled={createMutation.isPending}>
+              {createMutation.isPending
                 ? t('attendees.newAttendeeModal.saving')
                 : t('attendees.newAttendeeModal.save')}
             </Button>

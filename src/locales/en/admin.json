@@ -195,8 +195,8 @@
     "importStatusLabel": "Registration status for imported attendees",
     "importStatusConfirmed": "Confirmed — send credentials by email",
     "importStatusPending": "Pending — do not send credentials yet",
-    "confirmedHint": "Access credentials will be sent by email immediately",
-    "pendingHint": "Credentials will be sent when you confirm manually"
+    "confirmedHint": "Attendee already logged in. No emails will be sent",
+    "pendingHint": "No access yet. Use attendee detail to send credentials when ready"
   },
   "agenda": {
     "title": "Agenda",

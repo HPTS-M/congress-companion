@@ -216,20 +216,7 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
                     <RefreshCw className="mr-2 h-3 w-3" />
                     {t('attendees.detail.regenerateCode')}
                   </Button>
-                  {isPending ? (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="flex-1"
-                      onClick={handleConfirmAndSend}
-                      disabled={sendInvitationsMutation.isPending}
-                    >
-                      <Send className="mr-2 h-3 w-3" />
-                      {sendInvitationsMutation.isPending
-                        ? t('attendees.sendingInvitation')
-                        : t('attendees.confirmAndSend')}
-                    </Button>
-                  ) : (
+                  {isPending && (
                     <Button
                       variant="outline"
                       size="sm"

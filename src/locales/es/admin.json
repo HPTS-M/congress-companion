@@ -195,8 +195,8 @@
     "importStatusLabel": "Estado de registro para asistentes importados",
     "importStatusConfirmed": "Confirmado — enviar credenciales por email",
     "importStatusPending": "Pendiente — no enviar credenciales aún",
-    "confirmedHint": "Las credenciales de acceso se enviarán por email inmediatamente",
-    "pendingHint": "Las credenciales se enviarán cuando confirmes manualmente"
+    "confirmedHint": "El asistente ya ingresó al sistema. No se enviarán correos",
+    "pendingHint": "Sin acceso aún. Usa el detalle del asistente para enviar credenciales cuando estés listo"
   },
   "agenda": {
     "title": "Agenda",
