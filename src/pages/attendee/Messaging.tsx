@@ -14,6 +14,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ChatMessage } from '@/services/messaging.service';
+import type { DirectConversation } from '@/services/messaging.service';
+import DirectConversationList from '@/components/attendee/DirectConversationList';
+import DirectChatView from '@/components/attendee/DirectChatView';
 
 function getInitials(name: string): string {
   return name
@@ -54,12 +57,15 @@ export default function Messaging() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Direct chat state
+  const [selectedDirect, setSelectedDirect] = useState<DirectConversation | null>(null);
+
   // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
 
-  // Supabase Realtime subscription
+  // Supabase Realtime subscription for group chat
   useEffect(() => {
     if (!conversationId) return;
 
@@ -88,7 +94,7 @@ export default function Messaging() {
     };
   }, [conversationId, queryClient]);
 
-  // Send message
+  // Send message (group chat)
   const handleSend = useCallback(async () => {
     if (!input.trim() || !conversationId || sending) return;
     const content = input.trim();
@@ -97,7 +103,7 @@ export default function Messaging() {
     try {
       await messagingService.sendMessage(conversationId, attendeeId, content);
     } catch {
-      setInput(content); // Restore on error
+      setInput(content);
     } finally {
       setSending(false);
     }
@@ -164,7 +170,6 @@ export default function Messaging() {
             <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-1">
               {groupedMessages.map(group => (
                 <div key={group.date}>
-                  {/* Date separator */}
                   <div className="flex items-center justify-center my-3">
                     <span className="text-[11px] text-muted-foreground bg-muted px-3 py-0.5 rounded-full">
                       {group.msgs[0]?.created_at
@@ -172,18 +177,15 @@ export default function Messaging() {
                         : ''}
                     </span>
                   </div>
-
                   {group.msgs.map(msg => {
                     const isOwn = msg.sender_id === attendeeId;
                     const senderName = nameMap[msg.sender_id] || 'Asistente';
                     const initials = getInitials(senderName);
-
                     return (
                       <div
                         key={msg.id}
                         className={`flex gap-2 mb-3 ${isOwn ? 'flex-row-reverse' : ''}`}
                       >
-                        {/* Avatar */}
                         {!isOwn && (
                           <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
                             <span className="text-[11px] font-semibold text-muted-foreground">
@@ -191,16 +193,12 @@ export default function Messaging() {
                             </span>
                           </div>
                         )}
-
                         <div className={`max-w-[75%] ${isOwn ? 'items-end' : 'items-start'} flex flex-col`}>
-                          {/* Sender name (not for own) */}
                           {!isOwn && (
                             <span className="text-[13px] font-semibold text-foreground mb-0.5 px-1">
                               {senderName}
                             </span>
                           )}
-
-                          {/* Message bubble */}
                           <div
                             className={`px-3 py-2 rounded-2xl text-sm ${
                               isOwn
@@ -210,8 +208,6 @@ export default function Messaging() {
                           >
                             {msg.content}
                           </div>
-
-                          {/* Timestamp */}
                           <span className={`text-[11px] text-muted-foreground mt-0.5 px-1 ${isOwn ? 'text-right' : ''}`}>
                             {msg.created_at ? formatMessageTime(msg.created_at) : ''}
                           </span>
@@ -246,13 +242,18 @@ export default function Messaging() {
           </div>
         </TabsContent>
 
-        {/* DIRECT MESSAGES TAB */}
-        <TabsContent value="direct" className="flex-1 flex items-center justify-center px-4 mt-0">
-          <div className="text-center">
-            <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-            <p className="text-foreground font-medium">{t('directComingSoon')}</p>
-            <p className="text-sm text-muted-foreground mt-1">{t('directComingSoonSub')}</p>
-          </div>
+        {/* DIRECT MESSAGES TAB — rebuilt */}
+        <TabsContent value="direct" className="flex-1 flex flex-col min-h-0 mt-0">
+          {selectedDirect ? (
+            <DirectChatView
+              conversation={selectedDirect}
+              onBack={() => setSelectedDirect(null)}
+            />
+          ) : (
+            <DirectConversationList
+              onSelectConversation={setSelectedDirect}
+            />
+          )}
         </TabsContent>
       </Tabs>
     </div>
