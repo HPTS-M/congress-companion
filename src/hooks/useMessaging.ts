@@ -3,23 +3,6 @@ import { messagingService } from '@/services/messaging.service';
 import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from 'react-i18next';
 
-export function useGroupConversation(eventId: string) {
-  return useQuery({
-    queryKey: ['group-conversation', eventId],
-    queryFn: () => messagingService.getGroupConversation(eventId),
-    enabled: !!eventId,
-  });
-}
-
-export function useMessages(conversationId: string | null) {
-  return useQuery({
-    queryKey: ['chat-messages', conversationId],
-    queryFn: () => messagingService.getMessages(conversationId!),
-    enabled: !!conversationId,
-    refetchInterval: false,
-  });
-}
-
 export function useAttendeeNames(eventId: string) {
   return useQuery({
     queryKey: ['attendee-names', eventId],

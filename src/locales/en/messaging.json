@@ -1,14 +1,7 @@
 {
   "title": "Messaging",
-  "tabs": {
-    "groupChat": "Group Chat",
-    "directMessages": "Messages"
-  },
   "placeholder": "Write a message...",
   "send": "Send",
-  "directComingSoon": "Direct messages coming soon",
-  "directComingSoonSub": "You'll be able to send private messages to other attendees.",
-  "empty": "No messages yet. Be the first to write!",
   "today": "Today",
   "yesterday": "Yesterday",
   "newConversation": "New conversation",
