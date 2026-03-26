@@ -24,20 +24,6 @@ export interface DirectConversation {
 }
 
 export const messagingService = {
-  // ── Group Chat (unchanged) ──────────────────────────────────
-  async getGroupConversation(eventId: string): Promise<string | null> {
-    const { data, error } = await supabase
-      .from('chat_conversations')
-      .select('id')
-      .eq('event_id', eventId)
-      .eq('conversation_type', 'group')
-      .limit(1)
-      .single();
-
-    if (error) return null;
-    return data?.id ?? null;
-  },
-
   async getMessages(conversationId: string): Promise<ChatMessage[]> {
     const { data, error } = await supabase
       .from('chat_messages')
