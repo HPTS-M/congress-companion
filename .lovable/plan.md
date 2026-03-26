@@ -1,66 +1,40 @@
 
 
-## Fix: Attendees can't use group chat or start direct conversations
+## Remove Group Chat Tab from Messaging Screen
 
-### Root Cause
+### Summary
+Strip the "Chat General" tab from the attendee Messaging screen, leaving only the direct messaging system. No tabs needed — the screen renders the conversation list or active chat directly.
 
-**Group Chat**: The `chat_participants` table only has 1 user. The RLS INSERT policy on `chat_messages` requires the sender to exist in `chat_participants` for that conversation. New attendees are never added automatically.
+### Changes
 
-**Duplicate attendee**: Daniel Sanchez has two records in `attendees` — one pending (no user_id) and one confirmed. The pending one should be cleaned up.
+#### 1. `src/pages/attendee/Messaging.tsx` — Simplify to direct-only
+- Remove all imports related to group chat: `useGroupConversation`, `useMessages`, `useAttendeeNames`, `Tabs`/`TabsList`/`TabsTrigger`/`TabsContent`, `Send`, `MessageSquare`, `Input`, `Skeleton`, `supabase`, `format`/`isToday`/`isYesterday`, `date-fns` locales, `useQueryClient`, `ChatMessage`
+- Remove helper functions `getInitials`, `formatMessageTime`, `formatDateLabel`
+- Remove all group chat state (`input`, `sending`, `messagesEndRef`, `scrollRef`, `conversationId`, `messages`, `nameMap`, realtime subscription, `handleSend`, `handleKeyDown`, `groupedMessages`)
+- Keep only: `selectedDirect` state, `useAuth`, `useEvent`, `useTranslation`
+- Render directly: header + conditional `DirectChatView` or `DirectConversationList` (no Tabs wrapper)
 
-### Solution: 2 changes
+#### 2. `src/services/messaging.service.ts` — Remove group methods
+- Remove `getGroupConversation` method
+- Keep `getMessages`, `sendMessage`, `getAttendeeNames` (used by direct chat components)
+- Remove the "Group Chat" comment section header
 
-#### 1. Database migration — Auto-add confirmed attendees to group chat
+#### 3. `src/hooks/useMessaging.ts` — Remove group hooks
+- Remove `useGroupConversation` hook
+- Remove `useMessages` hook (direct chat uses `useDirectMessages` instead)
+- Keep `useAttendeeNames` (may be used elsewhere) and all direct chat hooks
 
-Create a trigger that automatically inserts into `chat_participants` when an attendee's `user_id` is set (i.e., when they log in and get confirmed). Also run a one-time backfill for existing confirmed attendees.
+#### 4. `src/locales/es/messaging.json` — Remove tab keys
+- Remove `tabs.groupChat` and `tabs.directMessages`
+- Remove `empty` key (was for group chat empty state)
+- Keep all direct messaging keys
 
-```sql
--- Trigger: when attendee gets a user_id, add them to group chat
-CREATE OR REPLACE FUNCTION auto_join_group_chat()
-RETURNS TRIGGER AS $$
-BEGIN
-  IF NEW.user_id IS NOT NULL AND (OLD.user_id IS NULL OR OLD.user_id != NEW.user_id) THEN
-    INSERT INTO chat_participants (conversation_id, user_id)
-    SELECT cc.id, NEW.user_id
-    FROM chat_conversations cc
-    WHERE cc.event_id = NEW.event_id
-      AND cc.conversation_type = 'group'
-    ON CONFLICT DO NOTHING;
-  END IF;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+#### 5. `src/locales/en/messaging.json` — Same removals
+- Remove `tabs.groupChat` and `tabs.directMessages`
+- Remove `empty` key
 
-CREATE TRIGGER on_attendee_user_linked
-  AFTER UPDATE ON attendees
-  FOR EACH ROW EXECUTE FUNCTION auto_join_group_chat();
-
--- Backfill: add all existing confirmed attendees with user_id
-INSERT INTO chat_participants (conversation_id, user_id)
-SELECT cc.id, a.user_id
-FROM attendees a
-JOIN chat_conversations cc ON cc.event_id = a.event_id AND cc.conversation_type = 'group'
-WHERE a.user_id IS NOT NULL AND a.deleted_at IS NULL
-ON CONFLICT DO NOTHING;
-```
-
-This ensures every attendee who logs in automatically gets access to the group chat.
-
-#### 2. Clean up duplicate Daniel Sanchez
-
-Delete the orphan pending record (no user_id, id `ecd1b91a...`) to prevent future conflicts with direct messaging unique constraints.
-
-```sql
-UPDATE attendees SET deleted_at = NOW() 
-WHERE id = 'ecd1b91a-3fac-4021-b492-1d9d4d9dfe68';
-```
-
-### Files Changed
-1. New migration (trigger + backfill + cleanup)
-
-### Result
-- All existing confirmed attendees immediately get group chat access
-- Future attendees automatically join group chat when they log in
-- Daniel Sanchez can send messages in Chat General and start direct conversations
-- No frontend code changes needed
+#### Not touched
+- Admin Communications module (keeps its own chat moderation)
+- Database tables — no changes
+- `DirectConversationList.tsx` and `DirectChatView.tsx` — no changes
 
