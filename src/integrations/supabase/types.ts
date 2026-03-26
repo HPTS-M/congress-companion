@@ -395,30 +395,51 @@ export type Database = {
           conversation_type: string | null
           created_at: string | null
           created_by: string | null
+          deleted_by_initiator: boolean | null
+          deleted_by_participant: boolean | null
           event_id: string | null
           id: string
+          initiated_by: string | null
+          last_message_at: string | null
+          last_message_preview: string | null
           name: string | null
           organization_id: string
+          participant_id: string | null
+          status: string
           updated_at: string | null
         }
         Insert: {
           conversation_type?: string | null
           created_at?: string | null
           created_by?: string | null
+          deleted_by_initiator?: boolean | null
+          deleted_by_participant?: boolean | null
           event_id?: string | null
           id?: string
+          initiated_by?: string | null
+          last_message_at?: string | null
+          last_message_preview?: string | null
           name?: string | null
           organization_id: string
+          participant_id?: string | null
+          status?: string
           updated_at?: string | null
         }
         Update: {
           conversation_type?: string | null
           created_at?: string | null
           created_by?: string | null
+          deleted_by_initiator?: boolean | null
+          deleted_by_participant?: boolean | null
           event_id?: string | null
           id?: string
+          initiated_by?: string | null
+          last_message_at?: string | null
+          last_message_preview?: string | null
           name?: string | null
           organization_id?: string
+          participant_id?: string | null
+          status?: string
           updated_at?: string | null
         }
         Relationships: [
@@ -841,6 +862,7 @@ export type Database = {
       notifications: {
         Row: {
           action_url: string | null
+          conversation_id: string | null
           created_at: string | null
           event_id: string | null
           id: string
@@ -855,6 +877,7 @@ export type Database = {
         }
         Insert: {
           action_url?: string | null
+          conversation_id?: string | null
           created_at?: string | null
           event_id?: string | null
           id?: string
@@ -869,6 +892,7 @@ export type Database = {
         }
         Update: {
           action_url?: string | null
+          conversation_id?: string | null
           created_at?: string | null
           event_id?: string | null
           id?: string
