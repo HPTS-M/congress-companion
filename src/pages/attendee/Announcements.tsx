@@ -8,11 +8,12 @@ import { Megaphone, Bell } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 
-function formatTimestamp(dateStr: string, locale: typeof es): string {
+function formatAnnouncementTime(dateStr: string, locale: typeof es, yesterdayLabel: string): string {
   const d = new Date(dateStr);
-  if (isToday(d)) return format(d, 'HH:mm', { locale });
-  if (isYesterday(d)) return format(d, "'Ayer' HH:mm", { locale });
-  return format(d, 'dd MMM, HH:mm', { locale });
+  const time = format(d, 'HH:mm', { locale });
+  if (isToday(d)) return time;
+  if (isYesterday(d)) return `${yesterdayLabel} · ${time}`;
+  return `${format(d, 'eee d MMM', { locale })} · ${time}`;
 }
 
 export default function Announcements() {
@@ -69,15 +70,10 @@ export default function Announcements() {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    {/* Top row: title + timestamp */}
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="text-base font-semibold text-foreground leading-tight">
-                        {ann.title}
-                      </h3>
-                      <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
-                        {ann.sent_at ? formatTimestamp(ann.sent_at, dateFnsLocale) : ''}
-                      </span>
-                    </div>
+                    {/* Title */}
+                    <h3 className="text-base font-semibold text-foreground leading-tight">
+                      {ann.title}
+                    </h3>
 
                     {/* Body */}
                     <p
@@ -97,11 +93,16 @@ export default function Announcements() {
                       </button>
                     )}
 
-                    {/* Official badge */}
-                    <div className="mt-2">
+                    {/* Timestamp + Official badge */}
+                    <div className="mt-2 flex items-center gap-2">
                       <Badge className="bg-primary/10 text-primary border-0 text-[11px] dark:bg-primary/20">
                         {t('official')}
                       </Badge>
+                      {ann.sent_at && (
+                        <span className="text-xs text-muted-foreground">
+                          {formatAnnouncementTime(ann.sent_at, dateFnsLocale, t('yesterday'))}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
