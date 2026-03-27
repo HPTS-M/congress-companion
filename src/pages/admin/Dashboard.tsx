@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useEvent } from '@/hooks/useEvent';
 import { useAdminDashboard } from '@/hooks/useAdminDashboard';
-import { format } from 'date-fns';
-import { es as esLocale } from 'date-fns/locale';
+import { format, isToday, isYesterday } from 'date-fns';
+import { es as esLocale, enUS } from 'date-fns/locale';
 
 interface MetricCardProps {
   title: string;
@@ -37,9 +37,11 @@ function MetricCard({ title, value, icon: Icon, loading }: MetricCardProps) {
 }
 
 export default function AdminDashboard() {
-  const { t } = useTranslation('admin');
+  const { t, i18n } = useTranslation('admin');
+  const { t: tAnn } = useTranslation('announcements');
   const navigate = useNavigate();
   const { event, eventSlug } = useEvent();
+  const dateFnsLocale = i18n.language?.startsWith('es') ? esLocale : enUS;
   const { stats, recentAnnouncements } = useAdminDashboard(event?.id);
 
   const metrics = [
@@ -90,7 +92,13 @@ export default function AdminDashboard() {
                   <Megaphone className="h-4 w-4 text-muted-foreground shrink-0" />
                   <span className="text-foreground truncate">{a.title}</span>
                   <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap">
-                    {a.sent_at ? format(new Date(a.sent_at), 'dd MMM HH:mm', { locale: esLocale }) : ''}
+                    {a.sent_at ? (() => {
+                      const d = new Date(a.sent_at);
+                      const time = format(d, 'HH:mm', { locale: dateFnsLocale });
+                      if (isToday(d)) return time;
+                      if (isYesterday(d)) return `${tAnn('yesterday')} · ${time}`;
+                      return `${format(d, 'eee d MMM', { locale: dateFnsLocale })} · ${time}`;
+                    })() : ''}
                   </span>
                 </li>
               ))}
