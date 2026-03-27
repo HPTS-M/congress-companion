@@ -17,6 +17,7 @@
   "logout": "Log out",
   "language": "Language",
   "comingSoon": "Coming soon",
+  "offlineBanner": "Offline — showing cached data",
   "status": {
     "confirmed": "Confirmed",
     "pending": "Pending",
