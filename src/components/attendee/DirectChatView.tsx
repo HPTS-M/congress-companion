@@ -73,7 +73,7 @@ export default function DirectChatView({ conversation, onBack }: Props) {
 
   // Realtime for direct messages
   useEffect(() => {
-    if (!conversation.id || conversation.status !== 'active') return;
+    if (!conversation.id || conversation.status !== 'active' || !navigator.onLine) return;
 
     const channel = supabase
       .channel(`dm-${conversation.id}`)

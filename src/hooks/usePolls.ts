@@ -35,7 +35,7 @@ export function usePolls() {
 
   // Realtime: refetch when polls are updated (e.g. activated/closed)
   useEffect(() => {
-    if (!eventId) return;
+    if (!eventId || !navigator.onLine) return;
 
     const channel = supabase
       .channel(`active-polls-${eventId}`)
@@ -82,7 +82,7 @@ export function usePollRealtime(pollId: string | null, onUpdate: () => void) {
   const stableOnUpdate = useCallback(onUpdate, [onUpdate]);
 
   useEffect(() => {
-    if (!pollId) return;
+    if (!pollId || !navigator.onLine) return;
 
     const channel = supabase
       .channel(`poll-${pollId}`)

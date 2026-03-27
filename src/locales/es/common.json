@@ -17,6 +17,7 @@
   "logout": "Cerrar sesión",
   "language": "Idioma",
   "comingSoon": "Próximamente",
+  "offlineBanner": "Sin conexión — mostrando datos guardados",
   "status": {
     "confirmed": "Confirmado",
     "pending": "Pendiente",
