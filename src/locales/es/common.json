@@ -37,7 +37,13 @@
     "announcements": "Anuncios",
     "ratings": "Calificaciones",
     "profile": "Mi Perfil",
-    "polls": "Encuestas"
+    "polls": "Encuestas",
+    "venueMap": "Mapa del Evento"
+  },
+  "venueMap": {
+    "title": "Mapa del Evento",
+    "hint": "Usa dos dedos para hacer zoom · Arrastra para navegar",
+    "resetZoom": "Restablecer zoom"
   },
   "profile": {
     "title": "Mi Perfil",

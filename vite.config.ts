@@ -66,7 +66,9 @@ export default defineConfig(({ mode }) => ({
             },
           },
           {
-            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/,
+            urlPattern: ({ url }) =>
+              /\.(?:png|jpg|jpeg|svg|gif|webp)$/.test(url.pathname) &&
+              !url.pathname.includes('venue-map'),
             handler: "CacheFirst",
             options: {
               cacheName: "images-cache",
