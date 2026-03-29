@@ -12,7 +12,7 @@ export function AppHeader({ onMenuOpen }: AppHeaderProps) {
   const { event } = useEvent();
 
   const toggleLanguage = () => {
-    i18n.changeLanguage(i18n.language === 'es' ? 'en' : 'es');
+    i18n.changeLanguage(i18n.language.startsWith('es') ? 'en' : 'es');
   };
 
   return (
