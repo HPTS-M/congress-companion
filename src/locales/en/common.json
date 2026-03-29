@@ -78,7 +78,9 @@
   },
   "notifications": {
     "title": "Notifications",
-    "empty": "No notifications"
+    "empty": "No notifications",
+    "badge": "{{count}} new",
+    "markAsSeen": "Mark as seen"
   },
   "polls": {
     "title": "Polls",
