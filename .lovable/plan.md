@@ -1,27 +1,26 @@
 
 
-## Replace PWA icons with congress branding icons from ZIP
+## Fix: Duplicate event code in invitation email link
 
-### Summary
-Extract the icon files from the uploaded `files_3.zip` and replace the current PWA/favicon icons in `public/` so that when users install the app on their phone, they see the congress branding.
+### Problem
+The invitation email generates a link like:
+`https://congress-companion.vercel.app/ACQFH-2026//ACQFH-2026`
 
-### Changes
+This happens because the `APP_URL` Supabase secret likely already contains the event path (e.g. `https://congress-companion.vercel.app/ACQFH-2026/`), and then line 62 of the Edge Function appends `/${eventCode}` again.
 
-#### 1. Extract and copy icons from ZIP to `public/`
-Using a script, extract `files_3.zip` and copy each icon file to the corresponding location in `public/`:
-- `icon-512x512.png` → `public/icon-512x512.png`
-- `icon-192x192.png` → `public/icon-192x192.png` (if present in ZIP)
-- `apple-touch-icon.png` → `public/apple-touch-icon.png` (if present)
-- `favicon-32x32.png` → `public/favicon-32x32.png` (if present)
-- `favicon-16x16.png` → `public/favicon-16x16.png` (if present)
-- `favicon.ico` → `public/favicon.ico` (if present)
+### Solution
 
-If the ZIP only contains `icon-512x512.png`, generate the smaller sizes from it (192x192, 180x180, 32x32, 16x16, and .ico).
+Two changes to make the link robust regardless of how `APP_URL` is configured:
 
-#### 2. No code changes needed
-The `vite.config.ts` manifest already references these exact filenames, so replacing the image files is sufficient.
+#### 1. `supabase/functions/send-invitation-email/index.ts`
+- On line 160, strip any trailing slash from `appUrl` with `.replace(/\/+$/, '')`
+- On line 62 (the email link), keep `${appUrl}/${eventCode}` as-is — this is correct when `APP_URL` is just the domain
 
-### Notes
-- Users who already installed the PWA may need to uninstall and reinstall to see the new icon
-- The `og-image.png` will not be changed (used for social sharing previews)
+#### 2. Verify/fix the `APP_URL` Supabase secret
+- Confirm that `APP_URL` is set to just `https://congress-companion.vercel.app` (no trailing path or slash)
+- If it currently includes `/ACQFH-2026/`, update it to remove the event-specific path — `APP_URL` should be the base domain only since the function already appends the event code
+
+### Files changed
+1. **Edit**: `supabase/functions/send-invitation-email/index.ts` — add trailing-slash strip as a safety measure
+2. **Redeploy**: `send-invitation-email` Edge Function
 
