@@ -11,7 +11,8 @@ interface AppHeaderProps {
 export function AppHeader({ onMenuOpen }: AppHeaderProps) {
   const { t, i18n } = useTranslation();
   const { event } = useEvent();
-
+  const navigate = useNavigate();
+  const eventSlug = useEventSlug();
   const toggleLanguage = () => {
     i18n.changeLanguage(i18n.language.startsWith('es') ? 'en' : 'es');
   };

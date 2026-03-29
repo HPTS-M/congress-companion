@@ -22,8 +22,6 @@ const menuItems = [
   { key: 'messaging', icon: MessageCircle, path: '/messaging' },
   { key: 'announcements', icon: Bell, path: '/announcements' },
   { key: 'ratings', icon: Star, path: '/ratings' },
-  { key: 'profile', icon: User, path: '/profile' },
-  { key: 'venueMap', icon: Map, path: '/venue-map' },
 ] as const;
 
 export function HamburgerMenu({ open, onOpenChange }: HamburgerMenuProps) {
