@@ -2,6 +2,8 @@ import { Menu, Globe, Bell, User } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useEvent, useEventSlug } from '@/hooks/useEvent';
+import { useAuth } from '@/hooks/useAuth';
+import { useUnreadCount } from '@/hooks/useUnreadCount';
 import { Button } from '@/components/ui/button';
 
 interface AppHeaderProps {
@@ -11,10 +13,22 @@ interface AppHeaderProps {
 export function AppHeader({ onMenuOpen }: AppHeaderProps) {
   const { t, i18n } = useTranslation();
   const { event } = useEvent();
+  const { attendee } = useAuth();
   const navigate = useNavigate();
   const eventSlug = useEventSlug();
+  const { unreadCount, pendingInvites, markAsSeen } = useUnreadCount(event?.id ?? '');
+
   const toggleLanguage = () => {
     i18n.changeLanguage(i18n.language.startsWith('es') ? 'en' : 'es');
+  };
+
+  const handleBellClick = () => {
+    markAsSeen();
+    if (pendingInvites > 0) {
+      navigate(`/${eventSlug}/messaging`);
+    } else {
+      navigate(`/${eventSlug}/announcements`);
+    }
   };
 
   return (
@@ -41,9 +55,13 @@ export function AppHeader({ onMenuOpen }: AppHeaderProps) {
         <Button variant="ghost" size="icon" onClick={toggleLanguage} className="text-white hover:bg-white/10">
           <Globe className="h-4 w-4" />
         </Button>
-        <Button variant="ghost" size="icon" className="relative text-white hover:bg-white/10">
+        <Button variant="ghost" size="icon" className="relative text-white hover:bg-white/10" onClick={handleBellClick}>
           <Bell className="h-4 w-4" />
-          <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive" />
+          {unreadCount > 0 && (
+            <span className="absolute right-0.5 top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
         </Button>
         <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" onClick={() => navigate(`/${eventSlug}/profile`)}>
           <User className="h-4 w-4" />
