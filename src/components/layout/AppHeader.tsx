@@ -45,7 +45,7 @@ export function AppHeader({ onMenuOpen }: AppHeaderProps) {
           <Bell className="h-4 w-4" />
           <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive" />
         </Button>
-        <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+        <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" onClick={() => navigate(`/${eventSlug}/profile`)}>
           <User className="h-4 w-4" />
         </Button>
       </div>
