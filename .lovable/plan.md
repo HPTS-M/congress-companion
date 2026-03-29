@@ -1,12 +1,15 @@
 
 
-## Replace header logo with uploaded ACQFH image
+## Fix: Logo still showing old cached version
 
-### Changes
+### Root Cause
+The file `public/logo-acqfh.jpg` existed before with the old Health Plus Travels logo. The new image was written with the same filename, so the browser (and PWA service worker cache) serves the old version.
 
-#### 1. Copy uploaded image to `public/`
-- Copy `user-uploads://1646950818859.jpg` → `public/logo-acqfh.jpg`
+### Solution
+1. Copy the uploaded image again with a **new filename** to bust the cache: `public/logo-acqfh-v2.jpg`
+2. Update `src/components/layout/AppHeader.tsx` to reference `/logo-acqfh-v2.jpg`
 
-#### 2. `src/components/layout/AppHeader.tsx` (line 33)
-- Change `src="/logo-250px.png"` to `src="/logo-acqfh.jpg"`
+### Files changed
+1. New file: `public/logo-acqfh-v2.jpg` (copy from `user-uploads://1646950818859.jpg`)
+2. `src/components/layout/AppHeader.tsx` — change src from `/logo-acqfh.jpg` to `/logo-acqfh-v2.jpg`
 
