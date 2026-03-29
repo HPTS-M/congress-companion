@@ -157,7 +157,7 @@ Deno.serve(async (req) => {
       return jsonResponse(500, { error: 'RESEND_API_KEY not configured' });
     }
 
-    const appUrl = Deno.env.get('APP_URL') || 'https://congress-companion.vercel.app';
+    const appUrl = (Deno.env.get('APP_URL') || 'https://congress-companion.vercel.app').replace(/\/+$/, '');
 
     // 7. Process each attendee
     let sent = 0;
