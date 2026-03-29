@@ -68,6 +68,8 @@ i18n
         provider: enProvider,
       },
     },
+    supportedLngs: ['es', 'en'],
+    load: 'languageOnly',
     fallbackLng: 'es',
     defaultNS: 'common',
     ns: ['common', 'agenda', 'checkin', 'tickets', 'commercial', 'contacts', 'admin', 'documents', 'notes', 'messaging', 'announcements', 'ratings', 'provider'],
@@ -75,8 +77,8 @@ i18n
       escapeValue: false,
     },
     detection: {
-      order: ['navigator', 'htmlTag'],
-      caches: [],
+      order: ['localStorage', 'navigator', 'htmlTag'],
+      caches: ['localStorage'],
     },
   });
 
