@@ -1,37 +1,27 @@
 
 
-## Plan: Make the notification bell functional
+## Replace PWA icons with congress branding icons from ZIP
 
 ### Summary
-Create a hook to track unread announcements and pending chat invites, wire it to the bell icon with a dynamic badge and smart navigation.
+Extract the icon files from the uploaded `files_3.zip` and replace the current PWA/favicon icons in `public/` so that when users install the app on their phone, they see the congress branding.
 
 ### Changes
 
-#### 1. New: `src/hooks/useUnreadCount.ts`
-- Fetches announcements via `announcementsService.getByEvent()` and conversations via `messagingService.getDirectConversations()`
-- Compares `sent_at` (announcements) and `last_message_at` (conversations) against a `localStorage` timestamp (`notifications_last_seen_{attendeeId}`)
-- Counts pending chat invites where `participant_id === attendeeId` (incoming invites only)
-- Returns `{ unreadCount, pendingInvites, unreadAnnouncements, unreadMessages, markAsSeen }`
-- Refetches every 30 seconds
-- Note: announcements use `sent_at` (not `created_at` — the field in the actual service/interface)
+#### 1. Extract and copy icons from ZIP to `public/`
+Using a script, extract `files_3.zip` and copy each icon file to the corresponding location in `public/`:
+- `icon-512x512.png` → `public/icon-512x512.png`
+- `icon-192x192.png` → `public/icon-192x192.png` (if present in ZIP)
+- `apple-touch-icon.png` → `public/apple-touch-icon.png` (if present)
+- `favicon-32x32.png` → `public/favicon-32x32.png` (if present)
+- `favicon-16x16.png` → `public/favicon-16x16.png` (if present)
+- `favicon.ico` → `public/favicon.ico` (if present)
 
-#### 2. Edit: `src/components/layout/AppHeader.tsx`
-- Import `useUnreadCount` and `useAuth`
-- Get `event.id` from `useEvent()` and `attendee` from `useAuth()`
-- Replace the static bell button with:
-  - `onClick` → calls `markAsSeen()`, then navigates to `/messaging` if `pendingInvites > 0`, otherwise to `/announcements`
-  - Badge only renders when `unreadCount > 0`, shows number (max "99+")
-  - Uses Tailwind classes (no inline styles) per project guidelines
+If the ZIP only contains `icon-512x512.png`, generate the smaller sizes from it (192x192, 180x180, 32x32, 16x16, and .ico).
 
-#### 3. Edit: `src/locales/es/common.json` + `src/locales/en/common.json`
-- Add under existing `"notifications"` key: `"badge"` and `"markAsSeen"` translations
+#### 2. No code changes needed
+The `vite.config.ts` manifest already references these exact filenames, so replacing the image files is sufficient.
 
-### Files
-1. **New**: `src/hooks/useUnreadCount.ts`
-2. **Edit**: `src/components/layout/AppHeader.tsx`
-3. **Edit**: `src/locales/es/common.json`
-4. **Edit**: `src/locales/en/common.json`
-
-### No migration needed
-Uses `localStorage` for read tracking — no database changes required.
+### Notes
+- Users who already installed the PWA may need to uninstall and reinstall to see the new icon
+- The `og-image.png` will not be changed (used for social sharing previews)
 
