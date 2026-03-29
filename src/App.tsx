@@ -55,6 +55,7 @@ const Contacts = lazy(() => import('@/pages/attendee/Contacts'));
 const AttendeeProfile = lazy(() => import('@/pages/attendee/AttendeeProfile'));
 const Ratings = lazy(() => import('@/pages/attendee/Ratings'));
 const AttendeePolls = lazy(() => import('@/pages/attendee/Polls'));
+const MyProfile = lazy(() => import('@/pages/attendee/MyProfile'));
 
 // Layout
 const AttendeeLayout = lazy(() => import('@/pages/attendee/AttendeeLayoutWrapper'));
