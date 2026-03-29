@@ -1,6 +1,7 @@
 import { Menu, Globe, Bell, User } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useEvent } from '@/hooks/useEvent';
+import { useNavigate } from 'react-router-dom';
+import { useEvent, useEventSlug } from '@/hooks/useEvent';
 import { Button } from '@/components/ui/button';
 
 interface AppHeaderProps {
@@ -10,7 +11,8 @@ interface AppHeaderProps {
 export function AppHeader({ onMenuOpen }: AppHeaderProps) {
   const { t, i18n } = useTranslation();
   const { event } = useEvent();
-
+  const navigate = useNavigate();
+  const eventSlug = useEventSlug();
   const toggleLanguage = () => {
     i18n.changeLanguage(i18n.language.startsWith('es') ? 'en' : 'es');
   };
@@ -43,7 +45,7 @@ export function AppHeader({ onMenuOpen }: AppHeaderProps) {
           <Bell className="h-4 w-4" />
           <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive" />
         </Button>
-        <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+        <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" onClick={() => navigate(`/${eventSlug}/profile`)}>
           <User className="h-4 w-4" />
         </Button>
       </div>
