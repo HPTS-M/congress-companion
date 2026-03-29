@@ -37,7 +37,13 @@
     "announcements": "Announcements",
     "ratings": "Ratings",
     "profile": "My Profile",
-    "polls": "Polls"
+    "polls": "Polls",
+    "venueMap": "Venue Map"
+  },
+  "venueMap": {
+    "title": "Venue Map",
+    "hint": "Pinch to zoom · Drag to navigate",
+    "resetZoom": "Reset zoom"
   },
   "profile": {
     "title": "My Profile",
