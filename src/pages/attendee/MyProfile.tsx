@@ -2,6 +2,8 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useEventSlug } from '@/hooks/useEvent';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
 import { QRCodeSVG } from 'qrcode.react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,10 +22,22 @@ export default function MyProfile() {
 
   if (!attendee) return null;
 
+  const { data: fullProfile } = useQuery({
+    queryKey: ['my-profile', attendee.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('attendees')
+        .select('specialty, institution')
+        .eq('id', attendee.id)
+        .single();
+      return data;
+    },
+  });
+
   const infoItems = [
     { icon: Mail, label: t('profile.email'), value: attendee.email },
-    { icon: Stethoscope, label: t('profile.specialty'), value: attendee.specialty },
-    { icon: Building2, label: t('profile.institution'), value: attendee.institution },
+    { icon: Stethoscope, label: t('profile.specialty'), value: fullProfile?.specialty },
+    { icon: Building2, label: t('profile.institution'), value: fullProfile?.institution },
     { icon: CreditCard, label: t('profile.credentialCode'), value: attendee.credential_code },
   ].filter(item => item.value);
 

@@ -161,6 +161,7 @@ const App = () => (
                   <Route path="announcements" element={<Announcements />} />
                   <Route path="ratings" element={<Ratings />} />
                   <Route path="polls" element={<AttendeePolls />} />
+                  <Route path="profile" element={<MyProfile />} />
                 </Route>
               </Route>
 
