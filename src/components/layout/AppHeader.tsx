@@ -1,6 +1,7 @@
 import { Menu, Globe, Bell, User } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useEvent } from '@/hooks/useEvent';
+import { useNavigate } from 'react-router-dom';
+import { useEvent, useEventSlug } from '@/hooks/useEvent';
 import { Button } from '@/components/ui/button';
 
 interface AppHeaderProps {

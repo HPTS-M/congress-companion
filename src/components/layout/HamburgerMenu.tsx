@@ -1,4 +1,4 @@
-import { FileText, Edit, MessageCircle, Bell, Star, User, LogOut, Users, Map } from 'lucide-react';
+import { FileText, Edit, MessageCircle, Bell, Star, LogOut, Users, Map } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
