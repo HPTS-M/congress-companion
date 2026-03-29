@@ -15,24 +15,25 @@ export default function MyProfile() {
   const { attendee, logout } = useAuth();
   const eventSlug = useEventSlug();
 
+  const { data: fullProfile } = useQuery({
+    queryKey: ['my-profile', attendee?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('attendees')
+        .select('specialty, institution')
+        .eq('id', attendee!.id)
+        .single();
+      return data;
+    },
+    enabled: !!attendee,
+  });
+
   const handleLogout = async () => {
     await logout();
     navigate(`/${eventSlug}`);
   };
 
   if (!attendee) return null;
-
-  const { data: fullProfile } = useQuery({
-    queryKey: ['my-profile', attendee.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('attendees')
-        .select('specialty, institution')
-        .eq('id', attendee.id)
-        .single();
-      return data;
-    },
-  });
 
   const infoItems = [
     { icon: Mail, label: t('profile.email'), value: attendee.email },
