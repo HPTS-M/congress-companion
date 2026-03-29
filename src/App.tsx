@@ -55,6 +55,7 @@ const Contacts = lazy(() => import('@/pages/attendee/Contacts'));
 const AttendeeProfile = lazy(() => import('@/pages/attendee/AttendeeProfile'));
 const Ratings = lazy(() => import('@/pages/attendee/Ratings'));
 const AttendeePolls = lazy(() => import('@/pages/attendee/Polls'));
+const MyProfile = lazy(() => import('@/pages/attendee/MyProfile'));
 
 // Layout
 const AttendeeLayout = lazy(() => import('@/pages/attendee/AttendeeLayoutWrapper'));
@@ -160,6 +161,7 @@ const App = () => (
                   <Route path="announcements" element={<Announcements />} />
                   <Route path="ratings" element={<Ratings />} />
                   <Route path="polls" element={<AttendeePolls />} />
+                  <Route path="profile" element={<MyProfile />} />
                 </Route>
               </Route>
 

@@ -39,6 +39,13 @@
     "profile": "Mi Perfil",
     "polls": "Encuestas"
   },
+  "profile": {
+    "title": "Mi Perfil",
+    "email": "Correo electrónico",
+    "specialty": "Especialidad",
+    "institution": "Institución",
+    "credentialCode": "Código de credencial"
+  },
   "auth": {
     "enterEventCode": "Ingresa el código de tu evento",
     "eventCodePlaceholder": "Ej: MEDCONG2026",
