@@ -32,28 +32,11 @@ export default function Home() {
 
       {/* QR Card */}
       <div className="mx-4 -mt-4 flex flex-col items-center rounded-lg bg-card px-6 py-8 shadow-md">
-        {event?.settings && typeof event.settings === 'object' && 'logo_url' in event.settings && (
-          <img
-            src={event.settings.logo_url as string}
-            alt={event.name}
-            className="mb-4 h-20 w-auto object-contain"
-          />
-        )}
-
-        <QRCodeSVG
-          value={attendee?.credential_code ?? ''}
-          size={200}
-          fgColor="hsl(213, 72%, 36%)"
-          bgColor="transparent"
-          level="M"
+        <img
+          src="/logo-congreso.png"
+          alt="Logo Congreso"
+          className="h-48 w-auto object-contain"
         />
-
-        <p className="mt-4 font-mono text-lg font-bold text-primary">
-          {attendee?.credential_code}
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {t('home.showToStaff')}
-        </p>
       </div>
 
       {/* Event Info */}
