@@ -1,11 +1,12 @@
-import { initSentry } from '@/lib/sentry';
-initSentry();
-
 import { createRoot } from 'react-dom/client';
 import * as Sentry from '@sentry/react';
+import { initSentry } from '@/lib/sentry';
 import App from './App.tsx';
 import './index.css';
 import './lib/i18n';
+
+// Initialize Sentry after React is loaded to avoid duplicate React instances
+initSentry();
 
 // Guard: unregister service workers in Lovable preview/iframe contexts
 const isInIframe = (() => {
