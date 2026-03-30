@@ -1,38 +1,25 @@
 
 
-## Plan: Install and Configure Sentry for Observability
+## Plan: Replace QR code with congress logo on Home screen
 
 ### Summary
-Add Sentry error tracking and performance monitoring to the app with custom Supabase breadcrumbs.
+Remove the QR code from the Home screen and replace it with the uploaded congress logo. The QR and credential code are already accessible in the attendee's Profile page, so they are redundant here.
 
 ### Changes
 
-#### 1. Install dependency
-- Add `@sentry/react` to `package.json`
+#### 1. Copy uploaded logo to project
+- Copy `user-uploads://image-27.png` to `public/logo-congreso.png`
 
-#### 2. New: `src/lib/sentry.ts`
-- Export `initSentry()` that reads `VITE_SENTRY_DSN` from `import.meta.env`
-- Configure `browserTracingIntegration`, `tracesSampleRate: 1.0`, trace propagation targets for localhost, Supabase, and Vercel domains
-- Export `Sentry` namespace for use elsewhere
+#### 2. Edit: `src/pages/attendee/Home.tsx`
+- Remove `QRCodeSVG` import and `qrcode.react` dependency usage
+- Replace the QR code block (lines 43-56) with a large congress logo image (`/logo-congreso.png`), centered, ~200px height
+- Remove the credential code text and "show to staff" caption
+- Keep the event logo from `event.settings.logo_url` if it exists (or replace it with the static congress logo — both show the same branding)
+- The card becomes a welcome/branding card instead of a credential card
 
-#### 3. New: `src/lib/supabase-logger.ts`
-- Export `logSupabaseQuery(table, operation, durationMs, error?)` that adds Sentry breadcrumbs and captures exceptions on error
+#### 3. Update i18n keys (optional cleanup)
+- The `home.showToStaff` key becomes unused — can be left for now or removed from `es/common.json` and `en/common.json`
 
-#### 4. Edit: `src/main.tsx`
-- Import and call `initSentry()` as the very first line (before any other imports/rendering)
-- Wrap `<App />` with `<Sentry.ErrorBoundary fallback={<p>Something went wrong</p>}>`
-
-#### 5. Edit: `src/vite-env.d.ts`
-- Add `VITE_SENTRY_DSN` to the `ImportMetaEnv` interface for type safety
-
-### Files
-1. **New**: `src/lib/sentry.ts`
-2. **New**: `src/lib/supabase-logger.ts`
-3. **Edit**: `src/main.tsx`
-4. **Edit**: `src/vite-env.d.ts`
-
-### Notes
-- DSN comes from `VITE_SENTRY_DSN` env var (already in Vercel) — nothing hardcoded
-- No changes to `vite.config.ts` or PWA/Workbox config
-- `supabase-logger.ts` is a standalone helper — not wired into existing services in this step (can be integrated later)
+### Result
+The Home screen center card will show the congress logo prominently instead of a QR code, creating a cleaner welcome experience. Attendees access their QR credential via the profile icon in the header.
 
