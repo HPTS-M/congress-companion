@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { QRCodeSVG } from 'qrcode.react';
+
 import { Calendar, MapPin, Users } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useEvent } from '@/hooks/useEvent';
