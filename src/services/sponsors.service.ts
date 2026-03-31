@@ -1,6 +1,16 @@
 import { supabase } from '@/integrations/supabase/client';
 
 const LEVEL_ORDER = ['gold', 'silver', 'bronze', 'exhibitor'];
+const BUCKET = 'event-sponsors';
+
+async function resolveStorageUrl(path: string | null): Promise<string | null> {
+  if (!path) return null;
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .createSignedUrl(path, 3600);
+  if (error) return null;
+  return data.signedUrl;
+}
 
 export interface Sponsor {
   id: string;
@@ -33,12 +43,21 @@ export const sponsorsService = {
 
     if (error) throw new Error(error.message);
 
-    // Sort by level priority then name
-    return (data as Sponsor[]).sort((a, b) => {
+    const sorted = (data as Sponsor[]).sort((a, b) => {
       const levelDiff = LEVEL_ORDER.indexOf(a.level) - LEVEL_ORDER.indexOf(b.level);
       if (levelDiff !== 0) return levelDiff;
       return a.name.localeCompare(b.name);
     });
+
+    const resolved = await Promise.all(
+      sorted.map(async (s) => ({
+        ...s,
+        logo_url: await resolveStorageUrl(s.logo_url),
+        materials_url: await resolveStorageUrl(s.materials_url),
+      }))
+    );
+
+    return resolved;
   },
 
   getById: async (sponsorId: string): Promise<Sponsor> => {
@@ -49,6 +68,12 @@ export const sponsorsService = {
       .single();
 
     if (error) throw new Error(error.message);
-    return data as Sponsor;
+    const sponsor = data as Sponsor;
+
+    return {
+      ...sponsor,
+      logo_url: await resolveStorageUrl(sponsor.logo_url),
+      materials_url: await resolveStorageUrl(sponsor.materials_url),
+    };
   },
 };
