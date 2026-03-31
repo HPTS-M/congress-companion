@@ -1,59 +1,39 @@
 
 
-## Plan: Generate detailed sponsor documentation with app screenshots
+## Plan: Fix sponsor logos not displaying
 
-### Summary
-Create a PDF document describing the sponsor configuration functionality, including screenshots captured from the live application to illustrate each section.
+### Problem
+The `logo_url` column stores a **Supabase Storage path** (e.g. `{event_id}/logo-1234567.png`), not a URL. The attendee-facing components (`Commercial.tsx`, `SponsorDetail.tsx`) use it directly as `<img src={sponsor.logo_url}>`, producing broken images. The admin side already has `getSignedUrl()` but the attendee service doesn't resolve paths to signed URLs.
 
-### Steps
+### Solution
+Resolve `logo_url` paths to signed URLs in `sponsors.service.ts` before returning data. This way all consumers automatically get displayable URLs.
 
-#### 1. Capture screenshots from the app
-Using browser tools, navigate to and screenshot:
-- Admin Sponsors list page (table view with stats cards)
-- Sponsor creation/edit modal (SponsorModal form)
-- Sponsor detail drawer (SponsorDetailDrawer)
-- Import sponsors modal (ImportSponsorsModal)
-- Attendee Commercial page (sponsor directory)
-- Attendee Sponsor Detail page
+### Changes
 
-#### 2. Generate PDF document
-Using reportlab, create a professional PDF at `/mnt/documents/` covering:
+#### 1. Edit: `src/services/sponsors.service.ts`
+- Add a helper function `resolveLogoUrl(path)` that calls `supabase.storage.from('event-sponsors').createSignedUrl(path, 3600)` and returns the signed URL
+- In `getByEvent()`: after fetching and sorting, map over results and resolve each `logo_url` (and `materials_url`) to signed URLs
+- In `getById()`: resolve `logo_url` and `materials_url` before returning
 
-- **Overview**: What the sponsor module does
-- **Admin Panel — Sponsor Management**
-  - Stats dashboard (screenshot)
-  - Table with search/filter (screenshot)
-  - Create/Edit form fields and validation (screenshot)
-  - File specifications: logo (image/*, max 2MB), materials (PDF, max 10MB)
-  - Storage paths: `event-sponsors/{event_id}/...`
-- **Bulk Import via Excel**
-  - Required columns: name, level, category
-  - Optional columns: description, stand_location, contact_email, whatsapp, website_url, etc.
-  - Supported format: .xlsx
-  - Screenshot of import modal
-- **Export to Excel**
-  - What data is exported
-- **Attendee View — Commercial Directory**
-  - Category filters, level grouping, search
-  - Screenshot of Commercial page
-- **Attendee View — Sponsor Detail**
-  - Logo, description, stand, contact links, social media, lead button
-  - Screenshot of detail page
-- **Lead Generation (SponsorLeadButton)**
-  - How attendees share contact info with sponsors
-- **Database Schema**
-  - `sponsors` table columns and types
-- **File Specifications Summary Table**
-  - Asset type, accepted formats, max size, storage path
+#### 2. No component changes needed
+Both `Commercial.tsx` and `SponsorDetail.tsx` already render `sponsor.logo_url` in `<img src>` — once the service returns actual URLs, they'll just work.
 
-#### 3. QA the PDF
-Convert to images, inspect every page for layout issues, fix if needed.
+### Technical detail
+```ts
+// In sponsors.service.ts
+async function resolveStorageUrl(path: string): Promise<string> {
+  const { data, error } = await supabase.storage
+    .from('event-sponsors')
+    .createSignedUrl(path, 3600);
+  if (error) return '';
+  return data.signedUrl;
+}
 
-### Output
-- `/mnt/documents/Sponsors_Configuration_Guide.pdf`
+// Applied in getByEvent and getById after fetching data:
+// sponsor.logo_url = await resolveStorageUrl(sponsor.logo_url)
+// sponsor.materials_url = await resolveStorageUrl(sponsor.materials_url)
+```
 
-### Technical details
-- Screenshots via browser tools (navigate to admin and attendee sponsor pages)
-- PDF generation via reportlab with embedded screenshots
-- Congress branding colors used in the document header
+### Files
+1. **Edit**: `src/services/sponsors.service.ts` — resolve storage paths to signed URLs
 
