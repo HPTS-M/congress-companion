@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Users, ScanLine, FolderOpen, Megaphone, Calendar, Send } from 'lucide-react';
+import { Users, ScanLine, FolderOpen, Megaphone, Calendar, Send, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -112,6 +112,13 @@ export default function AdminDashboard() {
 
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-3">
+        <Button
+          variant="outline"
+          onClick={() => navigate(`/${eventSlug}/admin/config`)}
+        >
+          <Settings className="mr-2 h-4 w-4" />
+          {t('nav.config')}
+        </Button>
         <Button
           variant="outline"
           onClick={() => navigate(`/${eventSlug}/admin/communications`)}
