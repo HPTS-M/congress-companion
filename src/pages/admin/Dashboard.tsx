@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Users, ScanLine, FolderOpen, Megaphone, Calendar, Send } from 'lucide-react';
+import { Users, ScanLine, FolderOpen, Megaphone, Calendar, Send, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
