@@ -5,14 +5,14 @@ import { useEventSlug, useEventSettings } from '@/hooks/useEvent';
 import { cn } from '@/lib/utils';
 import { useMemo } from 'react';
 
-const allTabs = [
+const allTabs: Array<{ key: string; icon: typeof Home; path: string; requiresQr?: boolean }> = [
   { key: 'home', icon: Home, path: '/home' },
   { key: 'agenda', icon: Calendar, path: '/agenda' },
   { key: 'checkin', icon: QrCode, path: '/checkin', requiresQr: true },
   { key: 'tickets', icon: Ticket, path: '/tickets' },
   { key: 'commercial', icon: Building2, path: '/commercial' },
   { key: 'polls', icon: BarChart3, path: '/polls' },
-] as const;
+];
 
 export function BottomNav() {
   const { t } = useTranslation();
