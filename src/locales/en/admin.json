@@ -13,6 +13,7 @@
   },
   "nav": {
     "dashboard": "Dashboard",
+    "config": "Settings",
     "users": "Attendees",
     "agenda": "Agenda",
     "documents": "Documents",

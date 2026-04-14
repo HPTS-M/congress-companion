@@ -27,6 +27,7 @@ const AdminCheckinStaff = lazy(() => import('@/pages/admin/CheckinStaff'));
 const AdminStaff = lazy(() => import('@/pages/admin/Staff'));
 const AdminReports = lazy(() => import('@/pages/admin/Reports'));
 const AdminPolls = lazy(() => import('@/pages/admin/Polls'));
+const AdminEventConfig = lazy(() => import('@/pages/admin/EventConfig'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 
 // Staff portal
@@ -122,6 +123,7 @@ const App = () => (
                 {/* Protected admin routes */}
                 <Route path="admin" element={<AdminLayout />}>
                   <Route path="dashboard" element={<AdminDashboard />} />
+                  <Route path="config" element={<AdminEventConfig />} />
                   <Route path="users" element={<AdminAttendees />} />
                   <Route path="agenda" element={<AdminAgenda />} />
                   <Route path="documents" element={<AdminDocuments />} />

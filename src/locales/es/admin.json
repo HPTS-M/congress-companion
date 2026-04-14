@@ -13,6 +13,7 @@
   },
   "nav": {
     "dashboard": "Dashboard",
+    "config": "Configuración",
     "users": "Asistentes",
     "agenda": "Agenda",
     "documents": "Documentos",

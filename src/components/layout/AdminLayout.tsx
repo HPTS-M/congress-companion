@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import {
   LayoutDashboard, Users, Calendar, FolderOpen, Building2,
   Ticket, Truck, Megaphone, ScanLine, BarChart3, LogOut, ArrowLeft, UserCheck,
-  ListChecks,
+  ListChecks, Settings,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/hooks/useAuth';
@@ -19,6 +19,7 @@ import { AdminRoute } from '@/components/guards/AdminRoute';
 
 const navItems = [
   { key: 'dashboard', icon: LayoutDashboard, path: 'dashboard' },
+  { key: 'config', icon: Settings, path: 'config' },
   { key: 'users', icon: Users, path: 'users' },
   { key: 'agenda', icon: Calendar, path: 'agenda' },
   { key: 'documents', icon: FolderOpen, path: 'documents' },
