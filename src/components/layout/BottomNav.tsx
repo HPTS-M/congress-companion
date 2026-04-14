@@ -1,21 +1,28 @@
 import { Home, Calendar, QrCode, Ticket, Building2, BarChart3 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { NavLink } from '@/components/NavLink';
-import { useEventSlug } from '@/hooks/useEvent';
+import { useEventSlug, useEventSettings } from '@/hooks/useEvent';
 import { cn } from '@/lib/utils';
+import { useMemo } from 'react';
 
-const tabs = [
+const allTabs: Array<{ key: string; icon: typeof Home; path: string; requiresQr?: boolean }> = [
   { key: 'home', icon: Home, path: '/home' },
   { key: 'agenda', icon: Calendar, path: '/agenda' },
-  { key: 'checkin', icon: QrCode, path: '/checkin' },
+  { key: 'checkin', icon: QrCode, path: '/checkin', requiresQr: true },
   { key: 'tickets', icon: Ticket, path: '/tickets' },
   { key: 'commercial', icon: Building2, path: '/commercial' },
   { key: 'polls', icon: BarChart3, path: '/polls' },
-] as const;
+];
 
 export function BottomNav() {
   const { t } = useTranslation();
   const eventSlug = useEventSlug();
+  const { qrEnabled } = useEventSettings();
+
+  const tabs = useMemo(
+    () => allTabs.filter((tab) => !tab.requiresQr || qrEnabled),
+    [qrEnabled],
+  );
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-16 items-center justify-around border-t border-border bg-background">

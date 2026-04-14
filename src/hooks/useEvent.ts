@@ -47,3 +47,11 @@ export function useEventSlug(): string {
   const { eventSlug } = useParams<{ eventSlug: string }>();
   return eventSlug ?? '';
 }
+
+export function useEventSettings() {
+  const { event } = useEvent();
+  const settings = (event?.settings ?? {}) as Record<string, unknown>;
+  return {
+    qrEnabled: settings.qr_enabled !== false,
+  };
+}

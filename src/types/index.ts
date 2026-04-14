@@ -1,3 +1,7 @@
+export interface EventSettings {
+  qr_enabled?: boolean;
+}
+
 export interface CongressEvent {
   id: string;
   name: string;
@@ -8,7 +12,7 @@ export interface CongressEvent {
   venue_address: string | null;
   description: string | null;
   status: string | null;
-  settings: Record<string, unknown> | null;
+  settings: EventSettings | null;
   organization_id: string;
   max_attendees: number | null;
 }

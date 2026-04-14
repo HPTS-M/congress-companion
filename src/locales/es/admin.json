@@ -882,5 +882,12 @@
       "minOptions": "Mínimo 2 opciones",
       "sessionNotFound": "Sesión no encontrada"
     }
+  },
+  "settings": {
+    "title": "Configuración del Evento",
+    "qrEnabled": "Códigos QR",
+    "qrEnabledDescription": "Habilitar escaneo y visualización de códigos QR en la app",
+    "saved": "Configuración guardada",
+    "error": "Error al guardar configuración"
   }
 }

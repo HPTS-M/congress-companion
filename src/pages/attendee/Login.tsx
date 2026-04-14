@@ -6,13 +6,14 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
-import { useEvent } from '@/hooks/useEvent';
+import { useEvent, useEventSettings } from '@/hooks/useEvent';
 
 export default function AttendeeLogin() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { loginWithCode, session } = useAuth();
   const { event, eventSlug } = useEvent();
+  const { qrEnabled } = useEventSettings();
 
   const [accessCode, setAccessCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -125,26 +126,30 @@ export default function AttendeeLogin() {
                 )}
               </Button>
 
-              <div className="relative my-4">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-border" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">
-                    {t('auth.or')}
-                  </span>
-                </div>
-              </div>
+              {qrEnabled && (
+                <>
+                  <div className="relative my-4">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t border-border" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-card px-2 text-muted-foreground">
+                        {t('auth.or')}
+                      </span>
+                    </div>
+                  </div>
 
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                disabled={isSubmitting}
-              >
-                <QrCode className="mr-2 h-4 w-4" />
-                {t('auth.scanQr')}
-              </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    disabled={isSubmitting}
+                  >
+                    <QrCode className="mr-2 h-4 w-4" />
+                    {t('auth.scanQr')}
+                  </Button>
+                </>
+              )}
             </form>
           </CardContent>
         </Card>
