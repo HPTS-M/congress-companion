@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { QRCodeSVG } from 'qrcode.react';
 import { cn } from '@/lib/utils';
+import { useEventSettings } from '@/hooks/useEvent';
 import type { TicketServiceItem } from '@/services/tickets.service';
 
 type FilterTab = 'all' | 'pending' | 'used';
@@ -131,6 +132,7 @@ export default function Tickets() {
 
 function TicketItem({ item }: { item: TicketServiceItem }) {
   const { t } = useTranslation('tickets');
+  const { qrEnabled } = useEventSettings();
   const catalog = item.service_catalog;
   const ticket = item.service_tickets?.[0];
   const serviceType = catalog?.service_type ?? 'special';
@@ -202,7 +204,7 @@ function TicketItem({ item }: { item: TicketServiceItem }) {
                 {t('scheduledDate')}: {item.scheduled_date}
               </p>
             )}
-            {ticket && (
+            {ticket && qrEnabled && (
               <div className="flex flex-col items-center gap-2 pt-2">
                 <QRCodeSVG value={ticket.qr_data} size={160} />
                 <p className="text-xs font-mono text-muted-foreground">{ticket.ticket_code}</p>

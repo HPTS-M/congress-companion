@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { useEventSlug } from '@/hooks/useEvent';
+import { useEventSlug, useEventSettings } from '@/hooks/useEvent';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { QRCodeSVG } from 'qrcode.react';
@@ -14,6 +14,7 @@ export default function MyProfile() {
   const navigate = useNavigate();
   const { attendee, logout } = useAuth();
   const eventSlug = useEventSlug();
+  const { qrEnabled } = useEventSettings();
 
   const { data: fullProfile } = useQuery({
     queryKey: ['my-profile', attendee?.id],
@@ -55,12 +56,14 @@ export default function MyProfile() {
       </div>
 
       {/* QR Code */}
-      <Card>
-        <CardContent className="flex flex-col items-center gap-2 p-6">
-          <QRCodeSVG value={attendee.credential_code || attendee.id} size={160} />
-          <p className="text-xs text-muted-foreground">{t('home.showToStaff')}</p>
-        </CardContent>
-      </Card>
+      {qrEnabled && (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-2 p-6">
+            <QRCodeSVG value={attendee.credential_code || attendee.id} size={160} />
+            <p className="text-xs text-muted-foreground">{t('home.showToStaff')}</p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Info */}
       <Card>
