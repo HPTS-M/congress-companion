@@ -1,65 +1,60 @@
 
-Objetivo: hacer visible y clara la configuración de QR, porque hoy el código indica que existe en el Dashboard admin, pero en tu captura no aparece en pantalla y además no hay una sección explícita de “Configuración del evento”, lo que genera confusión.
+Objetivo: resolver por qué “Configuración del Evento” no aparece en el panel admin y dejar la opción de QR claramente visible.
 
-Qué encontré
-- El componente sí existe: `src/components/admin/EventSettingsCard.tsx`.
-- Sí está insertado en `src/pages/admin/Dashboard.tsx`, debajo de “Actividad Reciente”.
-- No existe una ruta o menú dedicado de configuración en el panel admin.
-- En tu captura del Dashboard no se ve esa tarjeta, así que hay dos necesidades:
-  1. corregir por qué no está apareciendo en la vista actual;
-  2. moverla o duplicarla a un lugar mucho más evidente.
+Lo que confirmé en el código
+- Sí existe la página: `src/pages/admin/EventConfig.tsx`
+- Sí existe la ruta: `/:eventSlug/admin/config` en `src/App.tsx`
+- Sí existe el ítem de menú: `config` en `src/components/layout/AdminLayout.tsx`
+- Sí existen los textos i18n: `nav.config` y `settings.*` en `src/locales/es/admin.json` y `en/admin.json`
 
-Plan propuesto
+Lo que muestra tu captura
+- El panel visible sigue mostrando el menú antiguo.
+- No aparece “Configuración”, así que lo que estás viendo no coincide con el código actual que ya la incluye.
 
-1. Verificar por qué la tarjeta no se está mostrando en el Dashboard
-- Revisar la versión montada en preview/publicación frente al código actual.
-- Confirmar si hay un problema de renderizado, caché, importación o despliegue.
-- Validar que `EventSettingsCard` realmente se esté montando en la ruta `/:eventSlug/admin/dashboard`.
+Plan de acción
 
-2. Crear una sección visible de configuración del evento
-- Agregar una nueva página admin, por ejemplo `src/pages/admin/EventConfig.tsx`.
-- Mostrar ahí la tarjeta de configuración QR con un título claro y descripción funcional.
-- Mantener opcionalmente la tarjeta en Dashboard o dejar en Dashboard solo un acceso rápido.
+1. Verificar desajuste entre código y app visible
+- Revisar si el preview/publicado está sirviendo una versión anterior del admin.
+- Confirmar que el `AdminLayout` activo sea el mismo archivo que ya contiene `config`.
+- Validar que la ruta `/:eventSlug/admin/config` cargue en la versión que estás viendo.
 
-3. Agregar la opción al menú lateral admin
-- Incluir un nuevo ítem de navegación tipo “Configuración” o “Configuración del evento”.
-- Ubicarlo cerca de Dashboard para que sea fácil de encontrar.
-- Añadir sus textos en i18n `es/admin.json` y `en/admin.json`.
+2. Hacer la configuración imposible de perder
+- Mantener la página dedicada `EventConfig`.
+- Agregar además un acceso visible desde el Dashboard:
+  - botón “Configuración del evento”, o
+  - tarjeta de acceso rápido arriba de “Actividad reciente”.
+- Así, aunque el menú lateral falle o tarde en reflejarse, el ajuste seguirá estando accesible.
 
-4. Conectar la nueva ruta en el enrutador
-- Registrar la ruta admin nueva en `src/App.tsx`.
-- Mantener el mismo `AdminLayout` y control de acceso actual.
+3. Endurecer la navegación admin
+- Confirmar que el sidebar marque correctamente el ítem “Configuración”.
+- Revisar que no haya lógica de layout, caché o lazy loading impidiendo que se renderice el nuevo ítem.
+- Verificar que la navegación apunte a `/${eventSlug}/admin/config`.
 
-5. Mejorar el texto para que no haya ambigüedad
-- Cambiar el copy para explicar exactamente qué hace:
-  - si está activo, la app muestra/permite funciones con QR;
-  - si está inactivo, se ocultan o bloquean.
-- Añadir una pequeña nota de impacto sobre Login, Check-in, Mi perfil y Tickets.
+4. Reforzar el copy de la sección
+- Dejar claro que el switch de QR controla:
+  - botón “Scan QR” en login,
+  - pestaña Check-in,
+  - QR en Mi Perfil,
+  - QR en Tickets.
+- Mantener el texto ya agregado en `admin.json`, ajustándolo si hace falta para más claridad.
 
-6. Validación funcional
-- Probar el flujo completo:
-  - activar QR y comprobar que aparecen las funciones;
-  - desactivar QR y comprobar que desaparecen o se bloquean en la app de asistente.
-- Revisar específicamente:
-  - navegación inferior;
-  - acceso a Check-in;
-  - botón “Scan QR” en login;
-  - QR en perfil;
-  - QR en tickets.
+5. Validación final
+- Probar en preview y publicado:
+  - menú lateral con “Configuración” visible,
+  - acceso directo a `/admin/config`,
+  - toggle guardando correctamente en `events.settings.qr_enabled`,
+  - app de asistentes mostrando/ocultando funciones QR al cambiar el switch.
+- Revisar desktop y móvil.
 
-Archivos previstos
-- `src/pages/admin/EventConfig.tsx` (nuevo)
+Archivos a intervenir
 - `src/components/layout/AdminLayout.tsx`
+- `src/pages/admin/Dashboard.tsx`
+- `src/pages/admin/EventConfig.tsx`
 - `src/App.tsx`
 - `src/locales/es/admin.json`
 - `src/locales/en/admin.json`
-- Posiblemente `src/pages/admin/Dashboard.tsx` para dejar acceso rápido o quitar duplicación
 
 Resultado esperado
-- La configuración ya no dependerá de que el usuario la encuentre dentro del Dashboard.
-- Existirá una sección explícita y visible en el panel admin.
-- El toggle de QR será fácil de localizar y su efecto quedará claro.
-
-Detalle técnico
-- No hace falta migración de base de datos: ya se usa `events.settings.qr_enabled`.
-- La lógica de ocultar funcionalidades QR en la app final ya existe; el trabajo principal es hacer visible, estable y verificable la configuración en el admin.
+- Verás una sección clara de “Configuración” dentro del panel admin.
+- El control de QR será visible tanto desde menú como desde Dashboard.
+- Ya no dependerá de encontrar una tarjeta escondida o de una versión inconsistente del panel.
