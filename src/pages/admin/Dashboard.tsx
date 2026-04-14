@@ -114,6 +114,13 @@ export default function AdminDashboard() {
       <div className="flex flex-wrap gap-3">
         <Button
           variant="outline"
+          onClick={() => navigate(`/${eventSlug}/admin/config`)}
+        >
+          <Settings className="mr-2 h-4 w-4" />
+          {t('nav.config')}
+        </Button>
+        <Button
+          variant="outline"
           onClick={() => navigate(`/${eventSlug}/admin/communications`)}
         >
           <Send className="mr-2 h-4 w-4" />
