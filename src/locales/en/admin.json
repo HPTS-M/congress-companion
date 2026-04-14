@@ -886,8 +886,10 @@
   },
   "settings": {
     "title": "Event Settings",
+    "pageTitle": "Event Settings",
+    "pageDescription": "Manage global event options. Changes apply immediately in the attendee app.",
     "qrEnabled": "QR Codes",
-    "qrEnabledDescription": "Enable QR code scanning and display throughout the app",
+    "qrEnabledDescription": "When enabled, QR scanning, personal QR in profile and tickets, and the Check-in tab are available. Disabling hides all QR-related features.",
     "saved": "Settings saved",
     "error": "Failed to save settings"
   }

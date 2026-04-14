@@ -8,7 +8,7 @@ import { useEvent } from '@/hooks/useEvent';
 import { useAdminDashboard } from '@/hooks/useAdminDashboard';
 import { format, isToday, isYesterday } from 'date-fns';
 import { es as esLocale, enUS } from 'date-fns/locale';
-import { EventSettingsCard } from '@/components/admin/EventSettingsCard';
+
 
 interface MetricCardProps {
   title: string;
@@ -109,9 +109,6 @@ export default function AdminDashboard() {
           )}
         </CardContent>
       </Card>
-
-      {/* Event Settings */}
-      <EventSettingsCard />
 
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-3">
