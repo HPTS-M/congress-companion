@@ -20,10 +20,10 @@ export function EventSettingsCard() {
   const updateSetting = useMutation({
     mutationFn: async ({ key, value }: { key: string; value: unknown }) => {
       if (!event) throw new Error('No event');
-      const newSettings = { ...settings, [key]: value };
+      const newSettings = { ...settings, [key]: value } as Record<string, unknown>;
       const { error } = await supabase
         .from('events')
-        .update({ settings: newSettings })
+        .update({ settings: newSettings as unknown as import('@/integrations/supabase/types').Json })
         .eq('id', event.id);
       if (error) throw error;
     },
