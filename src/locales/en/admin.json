@@ -882,5 +882,12 @@
       "minOptions": "Minimum 2 options",
       "sessionNotFound": "Session not found"
     }
+  },
+  "settings": {
+    "title": "Event Settings",
+    "qrEnabled": "QR Codes",
+    "qrEnabledDescription": "Enable QR code scanning and display throughout the app",
+    "saved": "Settings saved",
+    "error": "Failed to save settings"
   }
 }
