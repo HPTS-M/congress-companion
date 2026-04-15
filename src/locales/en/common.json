@@ -51,7 +51,11 @@
     "specialty": "Specialty",
     "institution": "Institution",
     "credentialCode": "Credential Code",
-    "notAssigned": "Not assigned"
+    "notAssigned": "Not assigned",
+    "specialtyPlaceholder": "Enter your specialty",
+    "institutionPlaceholder": "Enter your institution",
+    "save": "Save",
+    "saved": "Profile updated"
   },
   "auth": {
     "enterEventCode": "Enter your event code",

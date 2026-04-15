@@ -1,13 +1,16 @@
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useEventSlug, useEventSettings } from '@/hooks/useEvent';
 import { supabase } from '@/integrations/supabase/client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { QRCodeSVG } from 'qrcode.react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { LogOut, Mail, Building2, Stethoscope, CreditCard } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function MyProfile() {
   const { t } = useTranslation();
@@ -15,6 +18,7 @@ export default function MyProfile() {
   const { attendee, logout } = useAuth();
   const eventSlug = useEventSlug();
   const { qrEnabled } = useEventSettings();
+  const queryClient = useQueryClient();
 
   const { data: fullProfile } = useQuery({
     queryKey: ['my-profile', attendee?.id],
@@ -29,26 +33,43 @@ export default function MyProfile() {
     enabled: !!attendee,
   });
 
+  const [specialty, setSpecialty] = useState('');
+  const [institution, setInstitution] = useState('');
+
+  useEffect(() => {
+    if (fullProfile) {
+      setSpecialty(fullProfile.specialty ?? '');
+      setInstitution(fullProfile.institution ?? '');
+    }
+  }, [fullProfile]);
+
+  const hasChanges =
+    specialty !== (fullProfile?.specialty ?? '') ||
+    institution !== (fullProfile?.institution ?? '');
+
+  const updateProfile = useMutation({
+    mutationFn: async (values: { specialty: string; institution: string }) => {
+      const { error } = await supabase
+        .from('attendees')
+        .update({
+          specialty: values.specialty || null,
+          institution: values.institution || null,
+        })
+        .eq('id', attendee!.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-profile', attendee?.id] });
+      toast.success(t('profile.saved'));
+    },
+  });
+
   const handleLogout = async () => {
     await logout();
     navigate(`/${eventSlug}`);
   };
 
   if (!attendee) return null;
-
-  // Email and credential_code are always shown (with fallback placeholder)
-  const alwaysVisibleItems = [
-    { icon: Mail, label: t('profile.email'), value: attendee.email || t('profile.notAssigned', 'No asignado') },
-    { icon: CreditCard, label: t('profile.credentialCode'), value: attendee.credential_code || t('profile.notAssigned', 'No asignado') },
-  ];
-
-  // Optional items only shown when they have a value
-  const optionalItems = [
-    { icon: Stethoscope, label: t('profile.specialty'), value: fullProfile?.specialty },
-    { icon: Building2, label: t('profile.institution'), value: fullProfile?.institution },
-  ].filter(item => item.value);
-
-  const infoItems = [...alwaysVisibleItems, ...optionalItems];
 
   return (
     <div className="mx-auto max-w-md space-y-6 p-4">
@@ -75,17 +96,68 @@ export default function MyProfile() {
       {/* Info */}
       <Card>
         <CardContent className="divide-y divide-border p-0">
-          {infoItems.map(({ icon: Icon, label, value }) => (
-            <div key={label} className="flex items-center gap-3 px-4 py-3">
-              <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">{label}</p>
-                <p className="truncate text-sm font-medium text-foreground">{value}</p>
-              </div>
+          {/* Email — read only */}
+          <div className="flex items-center gap-3 px-4 py-3">
+            <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs text-muted-foreground">{t('profile.email')}</p>
+              <p className="truncate text-sm font-medium text-foreground">
+                {attendee.email || t('profile.notAssigned')}
+              </p>
             </div>
-          ))}
+          </div>
+
+          {/* Credential code — read only */}
+          <div className="flex items-center gap-3 px-4 py-3">
+            <CreditCard className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs text-muted-foreground">{t('profile.credentialCode')}</p>
+              <p className="truncate text-sm font-medium text-foreground">
+                {attendee.credential_code || t('profile.notAssigned')}
+              </p>
+            </div>
+          </div>
+
+          {/* Specialty — editable */}
+          <div className="flex items-center gap-3 px-4 py-3">
+            <Stethoscope className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs text-muted-foreground">{t('profile.specialty')}</p>
+              <Input
+                value={specialty}
+                onChange={(e) => setSpecialty(e.target.value)}
+                placeholder={t('profile.specialtyPlaceholder')}
+                className="mt-1 h-8 text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Institution — editable */}
+          <div className="flex items-center gap-3 px-4 py-3">
+            <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs text-muted-foreground">{t('profile.institution')}</p>
+              <Input
+                value={institution}
+                onChange={(e) => setInstitution(e.target.value)}
+                placeholder={t('profile.institutionPlaceholder')}
+                className="mt-1 h-8 text-sm"
+              />
+            </div>
+          </div>
         </CardContent>
       </Card>
+
+      {/* Save button — only when changed */}
+      {hasChanges && (
+        <Button
+          className="w-full"
+          onClick={() => updateProfile.mutate({ specialty, institution })}
+          disabled={updateProfile.isPending}
+        >
+          {t('profile.save')}
+        </Button>
+      )}
 
       <Button variant="destructive" className="w-full" onClick={handleLogout}>
         <LogOut className="mr-2 h-4 w-4" />
