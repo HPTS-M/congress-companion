@@ -1,0 +1,1 @@
+ALTER TABLE public.attendees ADD COLUMN IF NOT EXISTS last_session_id text;
