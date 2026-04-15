@@ -27,7 +27,7 @@ export function BottomNav() {
   );
 
   return (
-    <nav className="fixed top-14 md:top-16 left-0 right-0 z-40 flex h-16 items-center justify-around border-b border-border bg-background">
+    <nav className="fixed top-14 left-0 right-0 z-40 flex h-16 items-center justify-around border-b border-border bg-background md:hidden">
       {tabs.map(({ key, icon: Icon, path }) => (
         <NavLink
           key={key}
