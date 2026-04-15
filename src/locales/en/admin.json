@@ -907,6 +907,18 @@
     "qrEnabled": "QR Codes",
     "qrEnabledDescription": "When enabled, QR scanning, personal QR in profile and tickets, and the Check-in tab are available. Disabling hides all QR-related features.",
     "saved": "Settings saved",
-    "error": "Failed to save settings"
+    "error": "Failed to save settings",
+    "branding": {
+      "title": "Branding & Design",
+      "banner": "Event banner",
+      "bannerDescription": "Main image displayed on the attendee home screen.",
+      "headerLogo": "Header logo",
+      "headerLogoDescription": "Logo shown in the application's top bar.",
+      "selectImage": "Select image"
+    },
+    "visibility": {
+      "title": "Module Visibility",
+      "description": "Enable or disable attendee app modules. Disabled modules will not appear in navigation."
+    }
   }
 }

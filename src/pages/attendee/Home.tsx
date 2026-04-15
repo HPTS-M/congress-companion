@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 
 import { Calendar, MapPin, Users } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { useEvent } from '@/hooks/useEvent';
+import { useEvent, useEventSettings } from '@/hooks/useEvent';
 import { format } from 'date-fns';
 import { es, enUS } from 'date-fns/locale';
 
@@ -10,10 +10,13 @@ export default function Home() {
   const { t, i18n } = useTranslation();
   const { attendee } = useAuth();
   const { event } = useEvent();
+  const { bannerUrl } = useEventSettings();
 
   const dateLocale = i18n.language === 'es' ? es : enUS;
   const startDate = event?.start_date ? format(new Date(event.start_date), 'dd MMM yyyy', { locale: dateLocale }) : '';
   const endDate = event?.end_date ? format(new Date(event.end_date), 'dd MMM yyyy', { locale: dateLocale }) : '';
+
+  const bannerSrc = bannerUrl || '/logo-congreso.png';
 
   return (
     <div className="flex flex-col">
@@ -33,7 +36,7 @@ export default function Home() {
       {/* QR Card */}
       <div className="mx-4 -mt-4 flex flex-col items-center rounded-lg bg-card px-6 py-8 shadow-md">
         <img
-          src="/logo-congreso.png"
+          src={bannerSrc}
           alt="Logo Congreso"
           className="h-48 w-auto object-contain"
         />

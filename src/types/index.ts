@@ -1,5 +1,17 @@
 export interface EventSettings {
   qr_enabled?: boolean;
+  contacts_enabled?: boolean;
+  documents_enabled?: boolean;
+  notes_enabled?: boolean;
+  messaging_enabled?: boolean;
+  announcements_enabled?: boolean;
+  ratings_enabled?: boolean;
+  venue_map_enabled?: boolean;
+  polls_enabled?: boolean;
+  tickets_enabled?: boolean;
+  commercial_enabled?: boolean;
+  banner_url?: string;
+  header_logo_url?: string;
 }
 
 export interface CongressEvent {

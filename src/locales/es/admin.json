@@ -907,6 +907,18 @@
     "qrEnabled": "Códigos QR",
     "qrEnabledDescription": "Cuando está activo, se habilitan las funciones de escaneo QR, visualización del QR personal en el perfil y en tickets, y la pestaña de Check-in. Al desactivarlo se ocultan todas esas funciones.",
     "saved": "Configuración guardada",
-    "error": "Error al guardar configuración"
+    "error": "Error al guardar configuración",
+    "branding": {
+      "title": "Branding y Diseño",
+      "banner": "Banner del evento",
+      "bannerDescription": "Imagen principal mostrada en la pantalla de inicio del asistente.",
+      "headerLogo": "Logo del header",
+      "headerLogoDescription": "Logo mostrado en la barra superior de la aplicación.",
+      "selectImage": "Seleccionar imagen"
+    },
+    "visibility": {
+      "title": "Visibilidad de Módulos",
+      "description": "Activa o desactiva módulos de la app del asistente. Los módulos desactivados no aparecerán en la navegación."
+    }
   }
 }

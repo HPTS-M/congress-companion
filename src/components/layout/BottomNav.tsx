@@ -5,23 +5,25 @@ import { useEventSlug, useEventSettings } from '@/hooks/useEvent';
 import { cn } from '@/lib/utils';
 import { useMemo } from 'react';
 
-const allTabs: Array<{ key: string; icon: typeof Home; path: string; requiresQr?: boolean }> = [
+type SettingsKey = 'qrEnabled' | 'ticketsEnabled' | 'commercialEnabled' | 'pollsEnabled';
+
+const allTabs: Array<{ key: string; icon: typeof Home; path: string; settingsKey?: SettingsKey }> = [
   { key: 'home', icon: Home, path: '/home' },
   { key: 'agenda', icon: Calendar, path: '/agenda' },
-  { key: 'checkin', icon: QrCode, path: '/checkin', requiresQr: true },
-  { key: 'tickets', icon: Ticket, path: '/tickets' },
-  { key: 'commercial', icon: Building2, path: '/commercial' },
-  { key: 'polls', icon: BarChart3, path: '/polls' },
+  { key: 'checkin', icon: QrCode, path: '/checkin', settingsKey: 'qrEnabled' },
+  { key: 'tickets', icon: Ticket, path: '/tickets', settingsKey: 'ticketsEnabled' },
+  { key: 'commercial', icon: Building2, path: '/commercial', settingsKey: 'commercialEnabled' },
+  { key: 'polls', icon: BarChart3, path: '/polls', settingsKey: 'pollsEnabled' },
 ];
 
 export function BottomNav() {
   const { t } = useTranslation();
   const eventSlug = useEventSlug();
-  const { qrEnabled } = useEventSettings();
+  const settings = useEventSettings();
 
   const tabs = useMemo(
-    () => allTabs.filter((tab) => !tab.requiresQr || qrEnabled),
-    [qrEnabled],
+    () => allTabs.filter((tab) => !tab.settingsKey || settings[tab.settingsKey]),
+    [settings],
   );
 
   return (

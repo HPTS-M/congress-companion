@@ -1,6 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { Settings } from 'lucide-react';
 import { EventSettingsCard } from '@/components/admin/EventSettingsCard';
+import { EventBrandingCard } from '@/components/admin/EventBrandingCard';
+import { EventVisibilityCard } from '@/components/admin/EventVisibilityCard';
 
 export default function EventConfig() {
   const { t } = useTranslation('admin');
@@ -17,7 +19,9 @@ export default function EventConfig() {
         </p>
       </div>
 
+      <EventBrandingCard />
       <EventSettingsCard />
+      <EventVisibilityCard />
     </div>
   );
 }

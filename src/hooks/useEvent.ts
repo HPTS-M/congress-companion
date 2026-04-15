@@ -53,5 +53,17 @@ export function useEventSettings() {
   const settings = (event?.settings ?? {}) as Record<string, unknown>;
   return {
     qrEnabled: settings.qr_enabled !== false,
+    contactsEnabled: settings.contacts_enabled !== false,
+    documentsEnabled: settings.documents_enabled !== false,
+    notesEnabled: settings.notes_enabled !== false,
+    messagingEnabled: settings.messaging_enabled !== false,
+    announcementsEnabled: settings.announcements_enabled !== false,
+    ratingsEnabled: settings.ratings_enabled !== false,
+    venueMapEnabled: settings.venue_map_enabled !== false,
+    pollsEnabled: settings.polls_enabled !== false,
+    ticketsEnabled: settings.tickets_enabled !== false,
+    commercialEnabled: settings.commercial_enabled !== false,
+    bannerUrl: (settings.banner_url as string) || '',
+    headerLogoUrl: (settings.header_logo_url as string) || '',
   };
 }
