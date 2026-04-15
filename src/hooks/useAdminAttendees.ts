@@ -94,16 +94,6 @@ export function useDeleteAttendee() {
     },
   });
 }
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (attendeeId: string) => adminAttendeesService.deleteAttendee(attendeeId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-attendees'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-attendees-counts'] });
-    },
-  });
-}
 
 export function useAttendeeDetail(attendeeId: string | null) {
   return useQuery({
