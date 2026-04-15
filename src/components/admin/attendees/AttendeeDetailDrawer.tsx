@@ -44,6 +44,7 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
   const updateStatusMutation = useUpdateServiceStatus();
   const deleteServiceMutation = useDeleteService();
   const sendInvitationsMutation = useSendInvitations();
+  const updateAttendeeStatusMutation = useUpdateAttendeeStatus();
   const [showAddService, setShowAddService] = useState(false);
 
   const handleRegenerate = async () => {
@@ -92,9 +93,18 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
     }
   };
 
+  const handleAttendeeStatusChange = async (newStatus: string) => {
+    if (!attendeeId) return;
+    try {
+      await updateAttendeeStatusMutation.mutateAsync({ id: attendeeId, status: newStatus });
+      toast({ title: t('attendees.detail.statusUpdated') });
+    } catch {
+      toast({ title: t('attendees.detail.statusUpdateError'), variant: 'destructive' });
+    }
+  };
+
   // Determine credential button state
   const attendee = data?.attendee;
-  const isPending = attendee?.registration_status === 'pending';
   const hasBeenSent = !!attendee?.invitation_sent_at;
 
   return (
