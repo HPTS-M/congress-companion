@@ -9,7 +9,7 @@ import './lib/i18n';
 initSentry();
 
 // Build marker for cache debugging
-console.log('[CONGRÉSSAPP] Build:', __BUILD_TIME__);
+console.log('[CONGRÉSSAPP] Build:', (globalThis as any).__BUILD_TIME__ ?? 'dev');
 
 // Detect preview vs production
 const isInIframe = (() => {
