@@ -15,8 +15,9 @@ import { useBulkCreateAttendees, useExistingEmails, useSendInvitations } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { readExcelFile, writeExcelFile } from '@/lib/excel';
 
-interface CsvRow {
+interface AttendeeRow {
   full_name: string;
   email: string;
   specialty?: string;
@@ -25,7 +26,7 @@ interface CsvRow {
 
 type RowStatus = 'valid' | 'warning' | 'error';
 
-interface ValidatedRow extends CsvRow {
+interface ValidatedRow extends AttendeeRow {
   status: RowStatus;
   issue?: string;
 }
@@ -44,46 +45,53 @@ interface Props {
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function parseCsv(text: string): CsvRow[] {
-  const lines = text.trim().split('\n');
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(',').map((h) => h.trim().toLowerCase().replace(/"/g, ''));
-  return lines.slice(1).map((line) => {
-    const values = line.split(',').map((v) => v.trim().replace(/"/g, ''));
-    const row: Record<string, string> = {};
-    headers.forEach((h, i) => { row[h] = values[i] ?? ''; });
-    return {
-      full_name: row.full_name || row.nombre || '',
-      email: row.email || row.correo || '',
-      specialty: row.specialty || row.especialidad || undefined,
-      institution: row.institution || row.institucion || undefined,
-    };
+function parseExcelRows(raw: Record<string, unknown>[]): AttendeeRow[] {
+  return raw.map(r => ({
+    full_name: String(r['full_name'] ?? r['nombre'] ?? r['Nombre'] ?? r['full_name'] ?? '').trim(),
+    email: String(r['email'] ?? r['correo'] ?? r['Email'] ?? r['Correo'] ?? '').trim(),
+    specialty: String(r['specialty'] ?? r['especialidad'] ?? r['Specialty'] ?? r['Especialidad'] ?? '').trim() || undefined,
+    institution: String(r['institution'] ?? r['institucion'] ?? r['Institution'] ?? r['Institucion'] ?? r['institución'] ?? r['Institución'] ?? '').trim() || undefined,
+  }));
+}
+
+async function downloadTemplate() {
+  await writeExcelFile({
+    filename: 'plantilla-asistentes.xlsx',
+    sheetName: 'Asistentes',
+    columns: [
+      { header: 'full_name', key: 'full_name', width: 30 },
+      { header: 'email', key: 'email', width: 30 },
+      { header: 'specialty', key: 'specialty', width: 20 },
+      { header: 'institution', key: 'institution', width: 25 },
+    ],
+    rows: [
+      { full_name: 'Dr. Juan Pérez', email: 'juan@ejemplo.com', specialty: 'Cardiología', institution: 'Hospital General' },
+      { full_name: 'Dra. María López', email: 'maria@ejemplo.com', specialty: 'Neurología', institution: 'Clínica Central' },
+    ],
   });
 }
 
-function downloadTemplate() {
-  const csv = 'full_name,email,specialty,institution\n"Dr. Juan Pérez","juan@ejemplo.com","Cardiología","Hospital General"\n"Dra. María López","maria@ejemplo.com","Neurología","Clínica Central"\n';
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'attendees_template.csv';
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-function downloadErrorReport(errorRows: ValidatedRow[]) {
-  const header = 'full_name,email,specialty,institution,status,issue\n';
-  const lines = errorRows.map((r) =>
-    `"${r.full_name}","${r.email}","${r.specialty || ''}","${r.institution || ''}","${r.status}","${r.issue || ''}"`
-  ).join('\n');
-  const blob = new Blob([header + lines], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'import_errors.csv';
-  a.click();
-  URL.revokeObjectURL(url);
+async function downloadErrorReport(errorRows: ValidatedRow[]) {
+  await writeExcelFile({
+    filename: 'errores-importacion.xlsx',
+    sheetName: 'Errores',
+    columns: [
+      { header: 'full_name', key: 'full_name', width: 30 },
+      { header: 'email', key: 'email', width: 30 },
+      { header: 'specialty', key: 'specialty', width: 20 },
+      { header: 'institution', key: 'institution', width: 25 },
+      { header: 'status', key: 'status', width: 12 },
+      { header: 'issue', key: 'issue', width: 35 },
+    ],
+    rows: errorRows.map(r => ({
+      full_name: r.full_name,
+      email: r.email,
+      specialty: r.specialty ?? '',
+      institution: r.institution ?? '',
+      status: r.status,
+      issue: r.issue ?? '',
+    })),
+  });
 }
 
 export function ImportCsvModal({ open, onOpenChange }: Props) {
@@ -92,7 +100,7 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
   const sendInvitationsMutation = useSendInvitations();
   const { data: existingEmails } = useExistingEmails();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [rawRows, setRawRows] = useState<CsvRow[]>([]);
+  const [rawRows, setRawRows] = useState<AttendeeRow[]>([]);
   const [fileName, setFileName] = useState('');
   const [progress, setProgress] = useState(0);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
@@ -108,25 +116,20 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
     const emailsSeen = new Map<string, number>();
 
     return rawRows.map((row) => {
-      // Required fields
       if (!row.full_name?.trim() || !row.email?.trim()) {
         return { ...row, status: 'error' as const, issue: t('attendees.importModal.missingRequired') };
       }
-      // Email format
       if (!EMAIL_REGEX.test(row.email)) {
         return { ...row, status: 'error' as const, issue: t('attendees.importModal.invalidEmail') };
       }
 
       const emailKey = row.email.toLowerCase();
-
-      // Duplicate in CSV
       const prevIdx = emailsSeen.get(emailKey);
       emailsSeen.set(emailKey, (prevIdx ?? 0) + 1);
       if (prevIdx !== undefined && prevIdx >= 1) {
         return { ...row, status: 'warning' as const, issue: t('attendees.importModal.duplicateEmail') };
       }
 
-      // Duplicate in DB
       if (existingEmailSet.has(emailKey)) {
         return { ...row, status: 'warning' as const, issue: t('attendees.importModal.duplicateEmailDb') };
       }
@@ -139,24 +142,27 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
   const warningCount = validatedRows.filter((r) => r.status === 'warning').length;
   const errorCount = validatedRows.filter((r) => r.status === 'error').length;
 
-  const handleFile = useCallback((file: File) => {
-    if (!file.name.endsWith('.csv')) {
+  const handleFile = useCallback(async (file: File) => {
+    const validExts = ['.xlsx', '.xls', '.csv'];
+    const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+    if (!validExts.includes(ext)) {
       toast({ title: t('attendees.importModal.invalidFormat'), variant: 'destructive' });
       return;
     }
     setFileName(file.name);
     setImportResult(null);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
-      const parsed = parseCsv(text);
+
+    try {
+      const raw = await readExcelFile<Record<string, unknown>>(file);
+      const parsed = parseExcelRows(raw);
       if (parsed.length === 0) {
         toast({ title: t('attendees.importModal.emptyFile'), variant: 'destructive' });
         return;
       }
       setRawRows(parsed);
-    };
-    reader.readAsText(file);
+    } catch {
+      toast({ title: t('attendees.importModal.invalidFormat'), variant: 'destructive' });
+    }
   }, [t]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -174,7 +180,6 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
       const result = await bulkMutation.mutateAsync({ rows: rowsToImport, registrationStatus: importStatus });
       setProgress(80);
 
-      // Send invitations if status is confirmed and we have IDs
       if (importStatus === 'confirmed' && result.ids.length > 0) {
         try {
           await sendInvitationsMutation.mutateAsync(result.ids);
@@ -219,7 +224,6 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
         </Button>
 
         {importResult ? (
-          /* Summary card after import */
           <div className="space-y-4">
             <Card>
               <CardContent className="p-4 space-y-2">
@@ -264,12 +268,12 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
           >
             <Upload className="h-8 w-8 text-muted-foreground" />
             <p className="text-sm text-muted-foreground text-center">
-              {t('attendees.importModal.dragDrop')}
+              {t('attendees.importModal.dragDropExcel')}
             </p>
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv"
+              accept=".xlsx,.xls,.csv"
               className="hidden"
               onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
             />
@@ -281,7 +285,6 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
               <span>{t('attendees.importModal.selectedFile')}: <strong>{fileName}</strong></span>
             </div>
 
-            {/* Validation summary */}
             <div className="flex gap-3 text-xs">
               <span className="flex items-center gap-1 text-accent">
                 <CheckCircle2 className="h-3 w-3" /> {validCount - warningCount} {t('attendees.importModal.validRow')}
@@ -344,7 +347,6 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
               )}
             </div>
 
-            {/* Import status selector */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">{t('attendees.importStatusLabel')}</Label>
               <Select value={importStatus} onValueChange={(v) => setImportStatus(v as 'confirmed' | 'pending')}>
