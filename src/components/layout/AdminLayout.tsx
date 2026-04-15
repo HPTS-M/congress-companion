@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/sidebar';
 import { AdminRoute } from '@/components/guards/AdminRoute';
 
+/* Navigation items for admin sidebar */
 const navItems = [
   { key: 'dashboard', icon: LayoutDashboard, path: 'dashboard' },
   { key: 'config', icon: Settings, path: 'config' },
