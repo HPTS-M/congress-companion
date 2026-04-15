@@ -77,6 +77,7 @@
   "home": {
     "title": "Home",
     "showToStaff": "Show this code to event staff",
+    "quickAccess": "Quick Access",
     "eventInfo": "Event Info",
     "dateRange": "{{start}} — {{end}}",
     "attendeeCount": "{{count}} attendees",
