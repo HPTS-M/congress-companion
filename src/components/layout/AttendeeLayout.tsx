@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { AppHeader } from './AppHeader';
+import { AttendeeBanner } from './AttendeeBanner';
 import { BottomNav } from './BottomNav';
 import { HamburgerMenu } from './HamburgerMenu';
 import { AttendeeSidebar } from './AttendeeSidebar';
@@ -18,9 +19,10 @@ export function AttendeeLayout() {
         <div className="flex flex-1 flex-col">
           <AppHeader onMenuOpen={() => setMenuOpen(true)} />
           <HamburgerMenu open={menuOpen} onOpenChange={setMenuOpen} />
+          <AttendeeBanner />
 
-          {/* Main content — between header (56px) and bottom nav (64px on mobile) */}
-          <main className="flex-1 overflow-y-auto pt-[7.5rem] pb-0 md:pt-[7.5rem] md:pb-0">
+          {/* Main content — header (56/64px) + banner (~52px) + nav (64px) */}
+          <main className="flex-1 overflow-y-auto pt-[10.75rem] pb-0 md:pt-[11rem] md:pb-0">
             <Outlet />
           </main>
 
