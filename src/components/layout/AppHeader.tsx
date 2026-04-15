@@ -1,4 +1,4 @@
-import { Menu, Globe, Bell, User } from 'lucide-react';
+import { Menu, Globe, Bell } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useEvent, useEventSlug, useEventSettings } from '@/hooks/useEvent';
