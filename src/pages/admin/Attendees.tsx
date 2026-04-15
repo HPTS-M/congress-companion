@@ -11,6 +11,7 @@ import { toast } from '@/hooks/use-toast';
 import { useAdminAttendees } from '@/hooks/useAdminAttendees';
 import { adminAttendeesService } from '@/services/admin-attendees.service';
 import { useEvent } from '@/hooks/useEvent';
+import { writeExcelFile } from '@/lib/excel';
 import { AttendeesTable } from '@/components/admin/attendees/AttendeesTable';
 import { NewAttendeeModal } from '@/components/admin/attendees/NewAttendeeModal';
 import { ImportCsvModal } from '@/components/admin/attendees/ImportCsvModal';
@@ -40,22 +41,26 @@ export default function AdminAttendees() {
     return () => clearTimeout(timer);
   }, []);
 
-  const handleExportCsv = async () => {
+  const handleExportExcel = async () => {
     if (!event?.id) return;
     setIsExporting(true);
     try {
       const rows = await adminAttendeesService.getExportData(event.id);
-      const header = 'full_name,email,credential_code,specialty,institution,registration_status,services_count,checkins_count\n';
-      const csv = rows.map((r) =>
-        `"${r.full_name}","${r.email}","${r.credential_code}","${r.specialty}","${r.institution}","${r.registration_status}",${r.services_count},${r.checkins_count}`
-      ).join('\n');
-      const blob = new Blob([header + csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `attendees_${event.event_code || 'export'}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+      await writeExcelFile({
+        filename: `attendees_${event.event_code || 'export'}.xlsx`,
+        sheetName: 'Asistentes',
+        columns: [
+          { header: 'Nombre completo', key: 'full_name', width: 30 },
+          { header: 'Email', key: 'email', width: 30 },
+          { header: 'Código credencial', key: 'credential_code', width: 20 },
+          { header: 'Especialidad', key: 'specialty', width: 25 },
+          { header: 'Institución', key: 'institution', width: 25 },
+          { header: 'Estado', key: 'registration_status', width: 15 },
+          { header: 'Servicios', key: 'services_count', width: 12 },
+          { header: 'Check-ins', key: 'checkins_count', width: 12 },
+        ],
+        rows,
+      });
       toast({ title: t('attendees.exportSuccess') });
     } catch {
       toast({ title: t('attendees.exportError'), variant: 'destructive' });
@@ -91,7 +96,7 @@ export default function AdminAttendees() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-foreground">{t('attendees.title')}</h1>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={handleExportCsv} disabled={isExporting}>
+          <Button variant="outline" onClick={handleExportExcel} disabled={isExporting}>
             <Download className="mr-2 h-4 w-4" />
             {isExporting ? t('attendees.exporting') : t('attendees.exportCsv')}
           </Button>

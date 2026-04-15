@@ -45,8 +45,8 @@
   },
   "attendees": {
     "title": "Attendees",
-    "importCsv": "Import CSV",
-    "exportCsv": "Export CSV",
+    "importCsv": "Import Excel",
+    "exportCsv": "Export Excel",
     "exporting": "Exporting...",
     "exportSuccess": "CSV exported successfully",
     "exportError": "Error exporting CSV",
