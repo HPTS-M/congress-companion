@@ -59,7 +59,7 @@ export default function AdminAttendees() {
           { header: 'Servicios', key: 'services_count', width: 12 },
           { header: 'Check-ins', key: 'checkins_count', width: 12 },
         ],
-        rows,
+        rows: rows as unknown as Record<string, unknown>[],
       });
       toast({ title: t('attendees.exportSuccess') });
     } catch {
