@@ -8,7 +8,10 @@ import './lib/i18n';
 // Initialize Sentry after React is loaded to avoid duplicate React instances
 initSentry();
 
-// Guard: unregister service workers in Lovable preview/iframe contexts
+// Build marker for cache debugging
+console.log('[CONGRÉSSAPP] Build:', __BUILD_TIME__);
+
+// Detect preview vs production
 const isInIframe = (() => {
   try {
     return window.self !== window.top;
@@ -19,13 +22,27 @@ const isInIframe = (() => {
 
 const isPreviewHost =
   window.location.hostname.includes('id-preview--') ||
-  window.location.hostname.includes('lovableproject.com') ||
-  window.location.hostname.includes('lovable.app');
+  window.location.hostname.includes('lovableproject.com');
 
-if (isPreviewHost || isInIframe) {
+const isPreview = isPreviewHost || isInIframe;
+
+if (isPreview) {
+  // Preview/iframe: unregister all service workers AND purge Cache Storage
   navigator.serviceWorker?.getRegistrations().then((registrations) => {
     registrations.forEach((r) => r.unregister());
   });
+  if ('caches' in window) {
+    caches.keys().then((names) => {
+      names.forEach((name) => caches.delete(name));
+    });
+  }
+} else {
+  // Production: register PWA service worker manually
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js');
+    });
+  }
 }
 
 createRoot(document.getElementById('root')!).render(
