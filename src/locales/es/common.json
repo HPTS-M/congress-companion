@@ -51,7 +51,11 @@
     "specialty": "Especialidad",
     "institution": "Institución",
     "credentialCode": "Código de credencial",
-    "notAssigned": "No asignado"
+    "notAssigned": "No asignado",
+    "specialtyPlaceholder": "Ingresa tu especialidad",
+    "institutionPlaceholder": "Ingresa tu institución",
+    "save": "Guardar",
+    "saved": "Perfil actualizado"
   },
   "auth": {
     "enterEventCode": "Ingresa el código de tu evento",

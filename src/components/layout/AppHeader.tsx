@@ -1,4 +1,4 @@
-import { Menu, Globe, Bell, User } from 'lucide-react';
+import { Menu, Globe, Bell } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useEvent, useEventSlug, useEventSettings } from '@/hooks/useEvent';
@@ -68,8 +68,13 @@ export function AppHeader({ onMenuOpen }: AppHeaderProps) {
             </span>
           )}
         </Button>
-        <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" onClick={() => navigate(`/${eventSlug}/profile`)}>
-          <User className="h-4 w-4" />
+        <Button variant="ghost" size="icon" className="relative text-white hover:bg-white/10 md:w-auto md:px-2" onClick={() => navigate(`/${eventSlug}/profile`)}>
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs font-bold text-white">
+            {attendee?.full_name?.charAt(0)?.toUpperCase() || '?'}
+          </span>
+          <span className="hidden md:block ml-1 max-w-[100px] truncate text-xs text-white">
+            {attendee?.full_name}
+          </span>
         </Button>
       </div>
     </header>
