@@ -88,10 +88,14 @@
       "institutionPlaceholder": "General Hospital",
       "status": "Registration status",
       "save": "Save Attendee",
+      "saveEdit": "Save Changes",
       "saving": "Saving...",
       "success": "Attendee created successfully",
       "successCode": "Credential code: {{code}}",
-      "error": "Error creating attendee"
+      "error": "Error creating attendee",
+      "titleEdit": "Edit Attendee",
+      "updateSuccess": "Attendee updated successfully",
+      "updateError": "Error updating attendee"
     },
     "importModal": {
       "title": "Import Attendees",
@@ -198,7 +202,18 @@
     "importStatusConfirmed": "Confirmed — send credentials by email",
     "importStatusPending": "Pending — do not send credentials yet",
     "confirmedHint": "Attendee already logged in. No emails will be sent",
-    "pendingHint": "No access yet. Use attendee detail to send credentials when ready"
+    "pendingHint": "No access yet. Use attendee detail to send credentials when ready",
+    "cancelledHint": "Access disabled. Attendee will not be able to log in",
+    "refresh": "Refresh",
+    "refreshed": "List refreshed",
+    "selectedCount": "{{count}} selected",
+    "bulkSendCredentials": "Send Credentials",
+    "bulkSendSuccess": "{{count}} credentials sent",
+    "bulkSendFailed": "{{count}} failed to send",
+    "bulkDelete": "Delete",
+    "bulkDeleteConfirm": "Delete {{count}} selected attendees? This action cannot be undone.",
+    "bulkDeleteSuccess": "{{count}} attendees deleted",
+    "clearSelection": "Clear selection"
   },
   "agenda": {
     "title": "Agenda",

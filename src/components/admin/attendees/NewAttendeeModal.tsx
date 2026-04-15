@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -10,7 +11,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { useCreateAttendee } from '@/hooks/useAdminAttendees';
+import { useCreateAttendee, useUpdateAttendee, useExistingEmails } from '@/hooks/useAdminAttendees';
+import type { AttendeeWithServices } from '@/services/admin-attendees.service';
 
 const schema = z.object({
   full_name: z.string().trim().min(1, 'Required').max(200),
@@ -31,11 +33,15 @@ type FormValues = {
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  attendee?: AttendeeWithServices | null;
 }
 
-export function NewAttendeeModal({ open, onOpenChange }: Props) {
+export function NewAttendeeModal({ open, onOpenChange, attendee }: Props) {
   const { t } = useTranslation('admin');
   const createMutation = useCreateAttendee();
+  const updateMutation = useUpdateAttendee();
+  const { data: existingEmails } = useExistingEmails();
+  const isEditMode = !!attendee;
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -48,28 +54,77 @@ export function NewAttendeeModal({ open, onOpenChange }: Props) {
     },
   });
 
-  const onSubmit = async (values: FormValues) => {
-    try {
-      const attendee = await createMutation.mutateAsync(values);
-      toast({
-        title: t('attendees.newAttendeeModal.success'),
-        description: t('attendees.newAttendeeModal.successCode', { code: attendee.credential_code }),
+  useEffect(() => {
+    if (open && attendee) {
+      form.reset({
+        full_name: attendee.full_name,
+        email: attendee.email,
+        specialty: attendee.specialty || '',
+        institution: attendee.institution || '',
+        registration_status: attendee.registration_status || 'pending',
       });
+    } else if (open && !attendee) {
+      form.reset({
+        full_name: '',
+        email: '',
+        specialty: '',
+        institution: '',
+        registration_status: 'pending',
+      });
+    }
+  }, [open, attendee, form]);
+
+  const onSubmit = async (values: FormValues) => {
+    // Validate email against DB
+    const emailLower = values.email.toLowerCase();
+    const emails = existingEmails ?? [];
+    const isDuplicate = emails.includes(emailLower);
+    const isSelfEmail = isEditMode && attendee?.email.toLowerCase() === emailLower;
+
+    if (isDuplicate && !isSelfEmail) {
+      form.setError('email', { message: t('attendees.importModal.duplicateEmailDb') });
+      return;
+    }
+
+    try {
+      if (isEditMode && attendee) {
+        await updateMutation.mutateAsync({
+          id: attendee.id,
+          data: {
+            full_name: values.full_name,
+            email: values.email,
+            specialty: values.specialty || null,
+            institution: values.institution || null,
+            registration_status: values.registration_status,
+          },
+        });
+        toast({ title: t('attendees.newAttendeeModal.updateSuccess') });
+      } else {
+        const created = await createMutation.mutateAsync(values);
+        toast({
+          title: t('attendees.newAttendeeModal.success'),
+          description: t('attendees.newAttendeeModal.successCode', { code: created.credential_code }),
+        });
+      }
       form.reset();
       onOpenChange(false);
     } catch {
       toast({
-        title: t('attendees.newAttendeeModal.error'),
+        title: isEditMode ? t('attendees.newAttendeeModal.updateError') : t('attendees.newAttendeeModal.error'),
         variant: 'destructive',
       });
     }
   };
 
+  const isPending = createMutation.isPending || updateMutation.isPending;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{t('attendees.newAttendeeModal.title')}</DialogTitle>
+          <DialogTitle>
+            {isEditMode ? t('attendees.newAttendeeModal.titleEdit') : t('attendees.newAttendeeModal.title')}
+          </DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
@@ -134,7 +189,7 @@ export function NewAttendeeModal({ open, onOpenChange }: Props) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t('attendees.newAttendeeModal.status')}</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue />
@@ -143,21 +198,26 @@ export function NewAttendeeModal({ open, onOpenChange }: Props) {
                     <SelectContent>
                       <SelectItem value="confirmed">{t('attendees.statusConfirmed')}</SelectItem>
                       <SelectItem value="pending">{t('attendees.statusPending')}</SelectItem>
+                      <SelectItem value="cancelled">{t('attendees.statusCancelled')}</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    {field.value === 'confirmed' 
+                    {field.value === 'confirmed'
                       ? t('attendees.confirmedHint')
-                      : t('attendees.pendingHint')}
+                      : field.value === 'cancelled'
+                        ? t('attendees.cancelledHint')
+                        : t('attendees.pendingHint')}
                   </p>
                 </FormItem>
               )}
             />
 
-            <Button type="submit" className="w-full" disabled={createMutation.isPending}>
-              {createMutation.isPending
+            <Button type="submit" className="w-full" disabled={isPending}>
+              {isPending
                 ? t('attendees.newAttendeeModal.saving')
-                : t('attendees.newAttendeeModal.save')}
+                : isEditMode
+                  ? t('attendees.newAttendeeModal.saveEdit')
+                  : t('attendees.newAttendeeModal.save')}
             </Button>
           </form>
         </Form>

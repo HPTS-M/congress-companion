@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { Eye, Pencil, Trash2, Copy } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -14,7 +15,10 @@ interface Props {
   attendees: AttendeeWithServices[];
   isLoading: boolean;
   onView: (id: string) => void;
+  onEdit: (attendee: AttendeeWithServices) => void;
   onDelete: (id: string, name: string) => void;
+  selectedIds: Set<string>;
+  onSelectionChange: (ids: Set<string>) => void;
 }
 
 function getInitials(name: string) {
@@ -43,13 +47,31 @@ function StatusBadge({ status }: { status: string | null }) {
   );
 }
 
-export function AttendeesTable({ attendees, isLoading, onView, onDelete }: Props) {
+export function AttendeesTable({ attendees, isLoading, onView, onEdit, onDelete, selectedIds, onSelectionChange }: Props) {
   const { t } = useTranslation('admin');
 
   const copyCode = (code: string) => {
     navigator.clipboard.writeText(code);
     toast({ title: t('attendees.codeCopied'), duration: 1500 });
   };
+
+  const toggleSelect = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    onSelectionChange(next);
+  };
+
+  const toggleAll = () => {
+    if (selectedIds.size === attendees.length) {
+      onSelectionChange(new Set());
+    } else {
+      onSelectionChange(new Set(attendees.map((a) => a.id)));
+    }
+  };
+
+  const allSelected = attendees.length > 0 && selectedIds.size === attendees.length;
+  const someSelected = selectedIds.size > 0 && selectedIds.size < attendees.length;
 
   if (isLoading) {
     return (
@@ -76,6 +98,15 @@ export function AttendeesTable({ attendees, isLoading, onView, onDelete }: Props
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-10">
+                <Checkbox
+                  checked={allSelected}
+                  ref={(el) => {
+                    if (el) (el as any).indeterminate = someSelected;
+                  }}
+                  onCheckedChange={toggleAll}
+                />
+              </TableHead>
               <TableHead>{t('attendees.columnName')}</TableHead>
               <TableHead>{t('attendees.columnCode')}</TableHead>
               <TableHead>{t('attendees.columnEmail')}</TableHead>
@@ -87,6 +118,12 @@ export function AttendeesTable({ attendees, isLoading, onView, onDelete }: Props
           <TableBody>
             {attendees.map((a) => (
               <TableRow key={a.id} className="cursor-pointer" onClick={() => onView(a.id)}>
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  <Checkbox
+                    checked={selectedIds.has(a.id)}
+                    onCheckedChange={() => toggleSelect(a.id)}
+                  />
+                </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
@@ -122,7 +159,7 @@ export function AttendeesTable({ attendees, isLoading, onView, onDelete }: Props
                     <Button variant="ghost" size="icon" onClick={() => onView(a.id)} title={t('attendees.view')}>
                       <Eye className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => onView(a.id)} title={t('attendees.edit')}>
+                    <Button variant="ghost" size="icon" onClick={() => onEdit(a)} title={t('attendees.edit')}>
                       <Pencil className="h-4 w-4" />
                     </Button>
                     <Button
@@ -150,6 +187,12 @@ export function AttendeesTable({ attendees, isLoading, onView, onDelete }: Props
             className="flex items-center gap-3 rounded-lg border bg-card p-3 cursor-pointer"
             onClick={() => onView(a.id)}
           >
+            <div onClick={(e) => e.stopPropagation()}>
+              <Checkbox
+                checked={selectedIds.has(a.id)}
+                onCheckedChange={() => toggleSelect(a.id)}
+              />
+            </div>
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
               {getInitials(a.full_name)}
             </div>
@@ -161,14 +204,24 @@ export function AttendeesTable({ attendees, isLoading, onView, onDelete }: Props
                 <span className="font-mono text-[10px] text-muted-foreground">{a.credential_code}</span>
               </div>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="shrink-0 text-destructive"
-              onClick={(e) => { e.stopPropagation(); onDelete(a.id, a.full_name); }}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            <div className="flex flex-col gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => onEdit(a)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-destructive"
+                onClick={() => onDelete(a.id, a.full_name)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           </div>
         ))}
       </div>

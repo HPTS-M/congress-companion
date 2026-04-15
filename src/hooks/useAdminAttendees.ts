@@ -55,6 +55,34 @@ export function useBulkCreateAttendees() {
   });
 }
 
+export function useUpdateAttendee() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Parameters<typeof adminAttendeesService.updateAttendee>[1] }) =>
+      adminAttendeesService.updateAttendee(id, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-attendees'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-attendees-counts'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-attendee-detail', variables.id] });
+    },
+  });
+}
+
+export function useUpdateAttendeeStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      adminAttendeesService.updateAttendeeStatus(id, status),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-attendees'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-attendees-counts'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-attendee-detail', variables.id] });
+    },
+  });
+}
+
 export function useDeleteAttendee() {
   const queryClient = useQueryClient();
 

@@ -88,10 +88,14 @@
       "institutionPlaceholder": "Hospital General",
       "status": "Estado de registro",
       "save": "Guardar Asistente",
+      "saveEdit": "Guardar Cambios",
       "saving": "Guardando...",
       "success": "Asistente creado exitosamente",
       "successCode": "Código de credencial: {{code}}",
-      "error": "Error al crear asistente"
+      "error": "Error al crear asistente",
+      "titleEdit": "Editar Asistente",
+      "updateSuccess": "Asistente actualizado exitosamente",
+      "updateError": "Error al actualizar asistente"
     },
     "importModal": {
       "title": "Importar Asistentes",
@@ -198,7 +202,18 @@
     "importStatusConfirmed": "Confirmado — enviar credenciales por email",
     "importStatusPending": "Pendiente — no enviar credenciales aún",
     "confirmedHint": "El asistente ya ingresó al sistema. No se enviarán correos",
-    "pendingHint": "Sin acceso aún. Usa el detalle del asistente para enviar credenciales cuando estés listo"
+    "pendingHint": "Sin acceso aún. Usa el detalle del asistente para enviar credenciales cuando estés listo",
+    "cancelledHint": "Acceso desactivado. El asistente no podrá iniciar sesión",
+    "refresh": "Actualizar",
+    "refreshed": "Lista actualizada",
+    "selectedCount": "{{count}} seleccionados",
+    "bulkSendCredentials": "Enviar Credenciales",
+    "bulkSendSuccess": "{{count}} credenciales enviadas",
+    "bulkSendFailed": "{{count}} fallos al enviar",
+    "bulkDelete": "Eliminar",
+    "bulkDeleteConfirm": "¿Eliminar {{count}} asistentes seleccionados? Esta acción no se puede deshacer.",
+    "bulkDeleteSuccess": "{{count}} asistentes eliminados",
+    "clearSelection": "Limpiar selección"
   },
   "agenda": {
     "title": "Agenda",
