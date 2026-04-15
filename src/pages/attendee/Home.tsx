@@ -20,7 +20,7 @@ export default function Home() {
   const bannerSrc = bannerUrl || '/logo-congreso.png';
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col pt-0">
       {/* Top Banner */}
       <div className="relative bg-primary px-4 py-5">
         <p className="text-lg font-bold text-primary-foreground">{attendee?.full_name}</p>

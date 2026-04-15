@@ -61,7 +61,7 @@ export function AttendeeSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="hidden md:flex border-r border-border">
-      <SidebarContent className="pt-16">
+      <SidebarContent className="pt-16 py-[6px] mt-[30px]">
         <SidebarGroup>
           <SidebarGroupLabel>{!collapsed ? 'Principal' : ''}</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -111,7 +111,7 @@ export function AttendeeSidebar() {
       <SidebarFooter className="border-t border-border p-2">
         <Button
           variant="ghost"
-          className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10"
+          className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10 mt-[5px]"
           onClick={handleLogout}
         >
           <LogOut className="h-5 w-5 shrink-0" />
