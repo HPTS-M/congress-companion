@@ -93,6 +93,23 @@
       "successCode": "Código de credencial: {{code}}",
       "error": "Error al crear asistente"
     },
+    "editAttendeeModal": {
+      "title": "Editar Asistente",
+      "fullName": "Nombre completo",
+      "fullNamePlaceholder": "Dr. Juan Pérez",
+      "email": "Correo electrónico",
+      "emailPlaceholder": "juan@ejemplo.com",
+      "specialty": "Especialidad",
+      "specialtyPlaceholder": "Cardiología",
+      "institution": "Institución",
+      "institutionPlaceholder": "Hospital General",
+      "status": "Estado de registro",
+      "save": "Actualizar Asistente",
+      "saving": "Actualizando...",
+      "success": "Asistente actualizado exitosamente",
+      "successCode": "Código de credencial: {{code}}",
+      "error": "Error al actualizar asistente"
+    },
     "importModal": {
       "title": "Importar Asistentes",
       "downloadTemplate": "Descargar plantilla Excel",

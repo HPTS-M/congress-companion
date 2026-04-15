@@ -1,23 +1,23 @@
-import { useState, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
-import { Users, UserPlus, Upload, Download, Search, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
+import { AttendeeDetailDrawer } from '@/components/admin/attendees/AttendeeDetailDrawer';
+import { AttendeesTable } from '@/components/admin/attendees/AttendeesTable';
+import { DataQualityPanel } from '@/components/admin/attendees/DataQualityPanel';
+import { DeleteAttendeeDialog } from '@/components/admin/attendees/DeleteAttendeeDialog';
+import { ImportCsvModal } from '@/components/admin/attendees/ImportCsvModal';
+import { NewAttendeeModal } from '@/components/admin/attendees/NewAttendeeModal';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/hooks/use-toast';
 import { useAdminAttendees } from '@/hooks/useAdminAttendees';
-import { adminAttendeesService } from '@/services/admin-attendees.service';
 import { useEvent } from '@/hooks/useEvent';
 import { writeExcelFile } from '@/lib/excel';
-import { AttendeesTable } from '@/components/admin/attendees/AttendeesTable';
-import { NewAttendeeModal } from '@/components/admin/attendees/NewAttendeeModal';
-import { ImportCsvModal } from '@/components/admin/attendees/ImportCsvModal';
-import { AttendeeDetailDrawer } from '@/components/admin/attendees/AttendeeDetailDrawer';
-import { DeleteAttendeeDialog } from '@/components/admin/attendees/DeleteAttendeeDialog';
-import { DataQualityPanel } from '@/components/admin/attendees/DataQualityPanel';
+import { adminAttendeesService } from '@/services/admin-attendees.service';
+import { Download, Search, Upload, UserPlus, Users, X } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export default function AdminAttendees() {
   const { t } = useTranslation('admin');
@@ -26,6 +26,7 @@ export default function AdminAttendees() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showNewModal, setShowNewModal] = useState(false);
+  const [editingAttendeeId, setEditingAttendeeId] = useState<string | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
   const [selectedAttendeeId, setSelectedAttendeeId] = useState<string | null>(null);
   const [deleteAttendee, setDeleteAttendee] = useState<{ id: string; name: string } | null>(null);
@@ -174,11 +175,21 @@ export default function AdminAttendees() {
         attendees={displayedAttendees}
         isLoading={isLoading}
         onView={(id) => setSelectedAttendeeId(id)}
+        onEdit={(id) => setEditingAttendeeId(id)}
         onDelete={(id, name) => setDeleteAttendee({ id, name })}
       />
 
       {/* Modals */}
-      <NewAttendeeModal open={showNewModal} onOpenChange={setShowNewModal} />
+      <NewAttendeeModal
+        open={showNewModal || editingAttendeeId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowNewModal(false);
+            setEditingAttendeeId(null);
+          }
+        }}
+        attendeeId={editingAttendeeId}
+      />
       <ImportCsvModal open={showImportModal} onOpenChange={setShowImportModal} />
       <AttendeeDetailDrawer
         attendeeId={selectedAttendeeId}

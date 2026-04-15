@@ -1,16 +1,22 @@
-import { useTranslation } from 'react-i18next';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { Button } from '@/components/ui/button';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/hooks/use-toast';
-import { useCreateAttendee } from '@/hooks/useAdminAttendees';
+import {
+  useAttendeeDetail,
+  useCreateAttendee,
+  useUpdateAttendee
+} from '@/hooks/useAdminAttendees';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { useTranslation } from 'react-i18next';
+import { z } from 'zod';
 
 const schema = z.object({
   full_name: z.string().trim().min(1, 'Required').max(200),
@@ -31,11 +37,20 @@ type FormValues = {
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  attendeeId?: string | null;
 }
 
-export function NewAttendeeModal({ open, onOpenChange }: Props) {
+export function NewAttendeeModal({ open, onOpenChange, attendeeId = null }: Props) {
   const { t } = useTranslation('admin');
+  const isEditing = attendeeId !== null;
+
+  // Load existing data when editing
+  const { data: existingData, isLoading: isLoadingData } = useAttendeeDetail(
+    isEditing ? attendeeId : null
+  );
+  
   const createMutation = useCreateAttendee();
+  const updateMutation = useUpdateAttendee();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -48,28 +63,93 @@ export function NewAttendeeModal({ open, onOpenChange }: Props) {
     },
   });
 
+  // Reset form with loaded data when editing
+  useEffect(() => {
+    if (isEditing && existingData?.attendee) {
+      form.reset({
+        full_name: existingData.attendee.full_name,
+        email: existingData.attendee.email,
+        specialty: existingData.attendee.specialty || '',
+        institution: existingData.attendee.institution || '',
+        registration_status: existingData.attendee.registration_status || 'pending',
+      });
+    }
+  }, [existingData, isEditing, form]);
+
   const onSubmit = async (values: FormValues) => {
     try {
-      const attendee = await createMutation.mutateAsync(values);
-      toast({
-        title: t('attendees.newAttendeeModal.success'),
-        description: t('attendees.newAttendeeModal.successCode', { code: attendee.credential_code }),
-      });
+      if (isEditing) {
+        // Update existing attendee
+        await updateMutation.mutateAsync({
+          attendeeId: attendeeId!,
+          data: values,
+        });
+        toast({
+          title: t('attendees.editAttendeeModal.success'),
+          description: t('attendees.editAttendeeModal.successCode', { code: existingData.attendee.credential_code }),
+        });
+      } else {
+        // Create new attendee
+        const attendee = await createMutation.mutateAsync(values);
+        toast({
+          title: t('attendees.newAttendeeModal.success'),
+          description: t('attendees.newAttendeeModal.successCode', { code: attendee.credential_code }),
+        });
+      }
       form.reset();
       onOpenChange(false);
     } catch {
       toast({
-        title: t('attendees.newAttendeeModal.error'),
+        title: t(isEditing ? 'attendees.editAttendeeModal.error' : 'attendees.newAttendeeModal.error'),
         variant: 'destructive',
       });
     }
   };
 
+  const isLoading = isLoadingData || createMutation.isPending || updateMutation.isPending;
+
+  // Show loading skeleton while fetching attendee data for edit
+  if (isLoadingData && isEditing) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('attendees.editAttendeeModal.title')}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+            <Skeleton className="h-10 w-full" />
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{t('attendees.newAttendeeModal.title')}</DialogTitle>
+          <DialogTitle>
+            {isEditing
+              ? t('attendees.editAttendeeModal.title')
+              : t('attendees.newAttendeeModal.title')}
+          </DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
@@ -146,18 +226,17 @@ export function NewAttendeeModal({ open, onOpenChange }: Props) {
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    {field.value === 'confirmed' 
+                    {field.value === 'confirmed'
                       ? t('attendees.confirmedHint')
                       : t('attendees.pendingHint')}
                   </p>
                 </FormItem>
               )}
             />
-
-            <Button type="submit" className="w-full" disabled={createMutation.isPending}>
-              {createMutation.isPending
-                ? t('attendees.newAttendeeModal.saving')
-                : t('attendees.newAttendeeModal.save')}
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading
+                ? t(isEditing ? 'attendees.editAttendeeModal.saving' : 'attendees.newAttendeeModal.saving')
+                : t(isEditing ? 'attendees.editAttendeeModal.save' : 'attendees.newAttendeeModal.save')}
             </Button>
           </form>
         </Form>

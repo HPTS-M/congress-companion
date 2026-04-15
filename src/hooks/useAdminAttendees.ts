@@ -1,6 +1,6 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { adminAttendeesService, type CreateAttendeeData, type AddServiceData } from '@/services/admin-attendees.service';
 import { useEvent } from '@/hooks/useEvent';
+import { adminAttendeesService, type AddServiceData, type CreateAttendeeData, type UpdateAttendeeData } from '@/services/admin-attendees.service';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 export function useAdminAttendees(search?: string, statusFilter?: string) {
   const { event } = useEvent();
@@ -50,6 +50,20 @@ export function useBulkCreateAttendees() {
       adminAttendeesService.bulkCreateAttendees(event!.id, rows, registrationStatus),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-attendees'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-attendees-counts'] });
+    },
+  });
+}
+
+export function useUpdateAttendee() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ attendeeId, data }: { attendeeId: string; data: UpdateAttendeeData }) =>
+      adminAttendeesService.updateAttendee(attendeeId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-attendees'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-attendee-detail', variables.attendeeId] });
       queryClient.invalidateQueries({ queryKey: ['admin-attendees-counts'] });
     },
   });

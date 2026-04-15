@@ -1,19 +1,25 @@
-import { useTranslation } from 'react-i18next';
-import { Eye, Pencil, Trash2, Copy } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@/components/ui/table';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import type { AttendeeWithServices } from '@/services/admin-attendees.service';
+import { Copy, Eye, Pencil, Trash2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   attendees: AttendeeWithServices[];
   isLoading: boolean;
   onView: (id: string) => void;
+  onEdit: (id: string) => void;
   onDelete: (id: string, name: string) => void;
 }
 
@@ -43,7 +49,7 @@ function StatusBadge({ status }: { status: string | null }) {
   );
 }
 
-export function AttendeesTable({ attendees, isLoading, onView, onDelete }: Props) {
+export function AttendeesTable({ attendees, isLoading, onView, onEdit, onDelete }: Props) {
   const { t } = useTranslation('admin');
 
   const copyCode = (code: string) => {
@@ -122,7 +128,7 @@ export function AttendeesTable({ attendees, isLoading, onView, onDelete }: Props
                     <Button variant="ghost" size="icon" onClick={() => onView(a.id)} title={t('attendees.view')}>
                       <Eye className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => onView(a.id)} title={t('attendees.edit')}>
+                    <Button variant="ghost" size="icon" onClick={() => onEdit(a.id)} title={t('attendees.edit')}>
                       <Pencil className="h-4 w-4" />
                     </Button>
                     <Button

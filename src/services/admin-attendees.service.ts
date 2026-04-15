@@ -40,6 +40,14 @@ export interface DataQualityResult {
   noSpecialty: string[];
 }
 
+export interface UpdateAttendeeData {
+  full_name: string;
+  email: string;
+  specialty?: string;
+  institution?: string;
+  registration_status?: string;
+}
+
 export interface AddServiceData {
   name: string;
   service_type: string;
@@ -177,6 +185,28 @@ export const adminAttendeesService = {
       .eq('id', attendeeId);
 
     if (error) throw new Error(error.message);
+  },
+
+  updateAttendee: async (
+    attendeeId: string,
+    data: UpdateAttendeeData,
+  ): Promise<AttendeeRow> => {
+    const { data: attendee, error } = await supabase
+      .from('attendees')
+      .update({
+        full_name: data.full_name,
+        email: data.email,
+        specialty: data.specialty || null,
+        institution: data.institution || null,
+        registration_status: data.registration_status || undefined,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', attendeeId)
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
+    return attendee;
   },
 
   getAttendeeDetail: async (attendeeId: string) => {
