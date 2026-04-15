@@ -1,7 +1,7 @@
 import { Menu, Globe, Bell, User } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { useEvent, useEventSlug } from '@/hooks/useEvent';
+import { useEvent, useEventSlug, useEventSettings } from '@/hooks/useEvent';
 import { useAuth } from '@/hooks/useAuth';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ export function AppHeader({ onMenuOpen }: AppHeaderProps) {
   const navigate = useNavigate();
   const eventSlug = useEventSlug();
   const { unreadCount, pendingInvites, markAsSeen } = useUnreadCount(event?.id ?? '');
+  const { headerLogoUrl } = useEventSettings();
 
   const toggleLanguage = () => {
     i18n.changeLanguage(i18n.language.startsWith('es') ? 'en' : 'es');
@@ -30,6 +31,8 @@ export function AppHeader({ onMenuOpen }: AppHeaderProps) {
       navigate(`/${eventSlug}/announcements`);
     }
   };
+
+  const logoSrc = headerLogoUrl || '/logo-acqfh-v2.jpg';
 
   return (
     <header
@@ -45,7 +48,7 @@ export function AppHeader({ onMenuOpen }: AppHeaderProps) {
 
       {/* Center — event info */}
       <div className="flex flex-1 items-center justify-center gap-2 overflow-hidden px-2">
-        <img src="/logo-acqfh-v2.jpg" alt="Logo" className="h-8 w-auto shrink-0" />
+        <img src={logoSrc} alt="Logo" className="h-8 w-auto shrink-0" />
         <div className="min-w-0 text-center">
           <p className="truncate text-sm font-bold text-white md:text-base">{event?.name}</p>
           <p className="truncate text-xs text-white/70">{event?.venue_name}</p>

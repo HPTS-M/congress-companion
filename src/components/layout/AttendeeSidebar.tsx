@@ -3,7 +3,7 @@ import {
   Users, FileText, Edit, MessageCircle, Bell, Star, Map, LogOut,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/hooks/useAuth';
 import { useEventSlug, useEventSettings } from '@/hooks/useEvent';
@@ -21,23 +21,25 @@ import {
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 
-const mainItems = [
+type SettingsKey = 'qrEnabled' | 'contactsEnabled' | 'documentsEnabled' | 'notesEnabled' | 'messagingEnabled' | 'announcementsEnabled' | 'ratingsEnabled' | 'venueMapEnabled' | 'pollsEnabled' | 'ticketsEnabled' | 'commercialEnabled';
+
+const mainItems: Array<{ key: string; icon: typeof Home; path: string; settingsKey?: SettingsKey }> = [
   { key: 'home', icon: Home, path: '/home' },
   { key: 'agenda', icon: Calendar, path: '/agenda' },
-  { key: 'checkin', icon: QrCode, path: '/checkin', requiresQr: true },
-  { key: 'tickets', icon: Ticket, path: '/tickets' },
-  { key: 'commercial', icon: Building2, path: '/commercial' },
-  { key: 'polls', icon: BarChart3, path: '/polls' },
+  { key: 'checkin', icon: QrCode, path: '/checkin', settingsKey: 'qrEnabled' },
+  { key: 'tickets', icon: Ticket, path: '/tickets', settingsKey: 'ticketsEnabled' },
+  { key: 'commercial', icon: Building2, path: '/commercial', settingsKey: 'commercialEnabled' },
+  { key: 'polls', icon: BarChart3, path: '/polls', settingsKey: 'pollsEnabled' },
 ];
 
-const secondaryItems = [
-  { key: 'contacts', icon: Users, path: '/contacts' },
-  { key: 'documents', icon: FileText, path: '/documents' },
-  { key: 'notes', icon: Edit, path: '/notes' },
-  { key: 'messaging', icon: MessageCircle, path: '/messaging' },
-  { key: 'announcements', icon: Bell, path: '/announcements' },
-  { key: 'ratings', icon: Star, path: '/ratings' },
-  { key: 'venueMap', icon: Map, path: '/venue-map' },
+const secondaryItems: Array<{ key: string; icon: typeof Home; path: string; settingsKey?: SettingsKey }> = [
+  { key: 'contacts', icon: Users, path: '/contacts', settingsKey: 'contactsEnabled' },
+  { key: 'documents', icon: FileText, path: '/documents', settingsKey: 'documentsEnabled' },
+  { key: 'notes', icon: Edit, path: '/notes', settingsKey: 'notesEnabled' },
+  { key: 'messaging', icon: MessageCircle, path: '/messaging', settingsKey: 'messagingEnabled' },
+  { key: 'announcements', icon: Bell, path: '/announcements', settingsKey: 'announcementsEnabled' },
+  { key: 'ratings', icon: Star, path: '/ratings', settingsKey: 'ratingsEnabled' },
+  { key: 'venueMap', icon: Map, path: '/venue-map', settingsKey: 'venueMapEnabled' },
 ];
 
 export function AttendeeSidebar() {
@@ -45,11 +47,12 @@ export function AttendeeSidebar() {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const eventSlug = useEventSlug();
-  const { qrEnabled } = useEventSettings();
+  const settings = useEventSettings();
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
 
-  const filteredMain = mainItems.filter((item) => !item.requiresQr || qrEnabled);
+  const filteredMain = mainItems.filter((item) => !item.settingsKey || settings[item.settingsKey]);
+  const filteredSecondary = secondaryItems.filter((item) => !item.settingsKey || settings[item.settingsKey]);
 
   const handleLogout = async () => {
     await logout();
@@ -60,7 +63,7 @@ export function AttendeeSidebar() {
     <Sidebar collapsible="icon" className="hidden md:flex border-r border-border">
       <SidebarContent className="pt-16">
         <SidebarGroup>
-          <SidebarGroupLabel>{!collapsed && t('nav.home')?.split(' ')[0] ? 'Principal' : ''}</SidebarGroupLabel>
+          <SidebarGroupLabel>{!collapsed ? 'Principal' : ''}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {filteredMain.map(({ key, icon: Icon, path }) => (
@@ -86,7 +89,7 @@ export function AttendeeSidebar() {
           <SidebarGroupLabel>{!collapsed ? 'Más' : ''}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {secondaryItems.map(({ key, icon: Icon, path }) => (
+              {filteredSecondary.map(({ key, icon: Icon, path }) => (
                 <SidebarMenuItem key={key}>
                   <SidebarMenuButton asChild>
                     <NavLink

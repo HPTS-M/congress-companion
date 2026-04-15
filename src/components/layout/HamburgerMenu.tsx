@@ -2,7 +2,7 @@ import { FileText, Edit, MessageCircle, Bell, Star, LogOut, Users, Map } from 'l
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { useEventSlug } from '@/hooks/useEvent';
+import { useEventSlug, useEventSettings } from '@/hooks/useEvent';
 import {
   Sheet,
   SheetContent,
@@ -15,21 +15,26 @@ interface HamburgerMenuProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const menuItems = [
-  { key: 'contacts', icon: Users, path: '/contacts' },
-  { key: 'documents', icon: FileText, path: '/documents' },
-  { key: 'notes', icon: Edit, path: '/notes' },
-  { key: 'messaging', icon: MessageCircle, path: '/messaging' },
-  { key: 'announcements', icon: Bell, path: '/announcements' },
-  { key: 'ratings', icon: Star, path: '/ratings' },
-  { key: 'venueMap', icon: Map, path: '/venue-map' },
-] as const;
+type SettingsKey = 'contactsEnabled' | 'documentsEnabled' | 'notesEnabled' | 'messagingEnabled' | 'announcementsEnabled' | 'ratingsEnabled' | 'venueMapEnabled';
+
+const menuItems: Array<{ key: string; icon: typeof Users; path: string; settingsKey: SettingsKey }> = [
+  { key: 'contacts', icon: Users, path: '/contacts', settingsKey: 'contactsEnabled' },
+  { key: 'documents', icon: FileText, path: '/documents', settingsKey: 'documentsEnabled' },
+  { key: 'notes', icon: Edit, path: '/notes', settingsKey: 'notesEnabled' },
+  { key: 'messaging', icon: MessageCircle, path: '/messaging', settingsKey: 'messagingEnabled' },
+  { key: 'announcements', icon: Bell, path: '/announcements', settingsKey: 'announcementsEnabled' },
+  { key: 'ratings', icon: Star, path: '/ratings', settingsKey: 'ratingsEnabled' },
+  { key: 'venueMap', icon: Map, path: '/venue-map', settingsKey: 'venueMapEnabled' },
+];
 
 export function HamburgerMenu({ open, onOpenChange }: HamburgerMenuProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { logout } = useAuth();
   const eventSlug = useEventSlug();
+  const settings = useEventSettings();
+
+  const visibleItems = menuItems.filter((item) => settings[item.settingsKey]);
 
   const handleNavigate = (path: string) => {
     navigate(`/${eventSlug}${path}`);
@@ -53,7 +58,7 @@ export function HamburgerMenu({ open, onOpenChange }: HamburgerMenuProps) {
         </SheetHeader>
 
         <div className="flex flex-col py-2">
-          {menuItems.map(({ key, icon: Icon, path }) => (
+          {visibleItems.map(({ key, icon: Icon, path }) => (
             <button
               key={key}
               onClick={() => handleNavigate(path)}
