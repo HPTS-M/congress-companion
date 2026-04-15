@@ -171,17 +171,22 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
                     </div>
                   )}
                 </div>
-                <Badge
-                  className={cn(
-                    'text-xs',
-                    data.attendee.registration_status === 'confirmed' && 'bg-accent/15 text-accent border-accent/30',
-                    data.attendee.registration_status === 'pending' && 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300',
-                    data.attendee.registration_status === 'cancelled' && 'bg-destructive/15 text-destructive border-destructive/30',
-                  )}
-                  variant="outline"
-                >
-                  {data.attendee.registration_status}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">{t('attendees.newAttendeeModal.status')}:</span>
+                  <Select
+                    value={data.attendee.registration_status || 'pending'}
+                    onValueChange={handleAttendeeStatusChange}
+                  >
+                    <SelectTrigger className="h-7 w-[140px] text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="confirmed">{t('attendees.statusConfirmed')}</SelectItem>
+                      <SelectItem value="pending">{t('attendees.statusPending')}</SelectItem>
+                      <SelectItem value="cancelled">{t('attendees.statusCancelled')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <Separator />
@@ -200,22 +205,20 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
                     <RefreshCw className="mr-2 h-3 w-3" />
                     {t('attendees.detail.regenerateCode')}
                   </Button>
-                  {isPending && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      onClick={handleSendCredentials}
-                      disabled={sendInvitationsMutation.isPending}
-                    >
-                      <Mail className="mr-2 h-3 w-3" />
-                      {sendInvitationsMutation.isPending
-                        ? t('attendees.sendingInvitation')
-                        : hasBeenSent
-                          ? t('attendees.resendCredentials')
-                          : t('attendees.sendCredentials')}
-                    </Button>
-                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={handleSendCredentials}
+                    disabled={sendInvitationsMutation.isPending}
+                  >
+                    <Mail className="mr-2 h-3 w-3" />
+                    {sendInvitationsMutation.isPending
+                      ? t('attendees.sendingInvitation')
+                      : hasBeenSent
+                        ? t('attendees.resendCredentials')
+                        : t('attendees.sendCredentials')}
+                  </Button>
                 </div>
               </div>
 
