@@ -52,17 +52,8 @@ export default function Home() {
         )}
       </div>
 
-      {/* QR Card */}
-      <div className="mx-4 -mt-4 flex flex-col items-center rounded-lg bg-card px-6 py-8 shadow-md">
-        <img
-          src={bannerSrc}
-          alt="Logo Congreso"
-          className="h-48 w-auto object-contain"
-        />
-      </div>
-
       {/* Quick Access Icons */}
-      <div className="mx-4 mt-6">
+      <div className="mx-4 mt-4">
         <h2 className="mb-3 text-base font-semibold text-foreground">{t('home.quickAccess')}</h2>
         <div className="grid grid-cols-5 gap-2">
           {visibleItems.map(({ key, icon: Icon, path }) => (
@@ -80,6 +71,15 @@ export default function Home() {
             </Link>
           ))}
         </div>
+      </div>
+
+      {/* QR Card */}
+      <div className="mx-4 mt-4 flex flex-col items-center rounded-lg bg-card px-6 py-8 shadow-md">
+        <img
+          src={bannerSrc}
+          alt="Logo Congreso"
+          className="h-48 w-auto object-contain"
+        />
       </div>
 
       {/* Event Info */}
