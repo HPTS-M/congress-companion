@@ -9,7 +9,8 @@ import './lib/i18n';
 initSentry();
 
 // Build marker for cache debugging
-console.log('[CONGRÉSSAPP] Build:', (globalThis as any).__BUILD_TIME__ ?? 'dev');
+// @ts-ignore — injected by Vite define
+console.log('[CONGRÉSSAPP] Build:', __BUILD_TIME__);
 
 // Detect preview vs production
 const isInIframe = (() => {
