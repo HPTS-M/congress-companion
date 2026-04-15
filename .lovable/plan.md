@@ -1,44 +1,40 @@
 
 
-## Plan: Perfil editable + nombre en header
+## Plan: Reubicar iconos de acceso rápido a zona superior
 
-### 1. MyProfile — Campos editables de especialidad e institución
+### Problema
+Los iconos de navegación (Inicio, Agenda, Tickets, Comercial, Encuestas) están fijos en la barra inferior. El usuario quiere que estén en la zona superior de la pantalla principal (Home).
 
-**Archivo:** `src/pages/attendee/MyProfile.tsx`
+### Solución
+Crear una barra de acceso rápido horizontal debajo del banner en `Home.tsx` con los mismos 5 iconos/enlaces. La barra inferior (`BottomNav`) se mantiene en móvil pero se puede ocultar en desktop con `md:hidden` ya que el sidebar desktop cubre esa función.
 
-- **Correo y Código de credencial**: Se mantienen como campos de solo lectura, precargados desde `attendee.email` y `attendee.credential_code`.
-- **Especialidad e Institución**: Cambiar de solo lectura a campos `<Input>` editables, precargados con los valores actuales (o vacíos si no tienen datos).
-- **Botón Guardar**: Aparece solo cuando el usuario modifica especialidad o institución. Al hacer clic, ejecuta `UPDATE` en la tabla `attendees` con los nuevos valores.
-- Se usa `useMutation` de TanStack Query para el guardado, con toast de confirmación.
-
-### 2. AppHeader — Nombre y avatar del asistente en esquina superior derecha
-
-**Archivo:** `src/components/layout/AppHeader.tsx`
-
-- Reemplazar el icono genérico `<User>` por el avatar con inicial del asistente (círculo con la primera letra del nombre) + nombre truncado visible en desktop (`hidden md:block`).
-- Al hacer clic, sigue navegando a `/{eventSlug}/profile`.
-
-### 3. i18n — Nuevas claves
-
-**Archivos:** `src/locales/es/common.json`, `src/locales/en/common.json`
-
-Agregar dentro de `profile`:
-- `specialtyPlaceholder`: "Ingresa tu especialidad" / "Enter your specialty"
-- `institutionPlaceholder`: "Ingresa tu institución" / "Enter your institution"  
-- `save`: "Guardar" / "Save"
-- `saved`: "Perfil actualizado" / "Profile updated"
-
-### Archivos a modificar
+### Implementación
 
 | Archivo | Cambio |
 |---|---|
-| `src/pages/attendee/MyProfile.tsx` | Inputs editables para especialidad/institución + botón guardar |
-| `src/components/layout/AppHeader.tsx` | Inicial + nombre del asistente en esquina derecha (desktop) |
-| `src/locales/es/common.json` | Nuevas claves de perfil |
-| `src/locales/en/common.json` | Nuevas claves de perfil |
+| `src/pages/attendee/Home.tsx` | Agregar sección de iconos de acceso rápido (grid horizontal) debajo del QR Card, con los 5 enlaces: Home, Agenda, Tickets, Comercial, Encuestas. Cada uno con icono + label, enlace a la ruta correspondiente. Filtrados por `useEventSettings()` igual que BottomNav. |
+| `src/locales/es/common.json` | Agregar clave `home.quickAccess` si no existe |
+| `src/locales/en/common.json` | Agregar clave `home.quickAccess` si no existe |
 
-### Orden de implementación
-1. i18n (claves nuevas)
-2. MyProfile (campos editables + guardar)
-3. AppHeader (avatar + nombre)
+### Diseño de la sección
+
+```text
+┌─────────────────────────────────┐
+│         Banner / Logo           │
+├─────────────────────────────────┤
+│  🏠    📅    🎫    🏢    📊    │
+│ Inicio Agenda Tickets Comerc Encue│
+├─────────────────────────────────┤
+│       Información del evento    │
+└─────────────────────────────────┘
+```
+
+- Grid de 5 columnas con iconos circulares sobre fondo `bg-primary/10`
+- Cada icono es un `Link` a la ruta correspondiente
+- Respeta los toggles de visibilidad (`ticketsEnabled`, `commercialEnabled`, `pollsEnabled`)
+- Estilo: icono 24px dentro de círculo 48px, label 11px debajo
+
+### Orden
+1. Agregar claves i18n
+2. Agregar sección de acceso rápido en Home.tsx
 
