@@ -45,8 +45,8 @@
   },
   "attendees": {
     "title": "Asistentes",
-    "importCsv": "Importar CSV",
-    "exportCsv": "Exportar CSV",
+    "importCsv": "Importar Excel",
+    "exportCsv": "Exportar Excel",
     "exporting": "Exportando...",
     "exportSuccess": "CSV exportado exitosamente",
     "exportError": "Error al exportar CSV",
