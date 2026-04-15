@@ -27,7 +27,7 @@ export function BottomNav() {
   );
 
   return (
-    <nav className="fixed top-14 md:top-16 left-0 md:left-[var(--sidebar-width)] right-0 z-40 flex h-16 items-center justify-around border-b border-border bg-background">
+    <nav className="fixed top-[6.75rem] md:top-[7rem] left-0 md:left-[var(--sidebar-width)] right-0 z-40 flex h-16 items-center justify-around border-b border-border bg-background">
       {tabs.map(({ key, icon: Icon, path }) => (
         <NavLink
           key={key}

@@ -21,18 +21,6 @@ export default function Home() {
 
   return (
     <div className="flex flex-col pt-0">
-      {/* Top Banner */}
-      <div className="relative bg-primary px-4 py-5">
-        <p className="text-lg font-bold text-primary-foreground">{attendee?.full_name}</p>
-        <p className="text-sm text-primary-foreground/80">
-          {attendee?.selected_package_id ? attendee.selected_package_id : t('home.packageFallback')}
-        </p>
-        {attendee?.registration_status === 'confirmed' && (
-          <span className="absolute right-4 top-5 rounded-full bg-accent px-3 py-0.5 text-xs font-medium text-accent-foreground">
-            {t('status.confirmed')}
-          </span>
-        )}
-      </div>
 
       {/* QR Card */}
       <div className="mx-4 mt-4 flex flex-col items-center rounded-lg bg-card px-6 py-8 shadow-md">
