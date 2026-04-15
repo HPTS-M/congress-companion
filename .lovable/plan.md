@@ -1,40 +1,32 @@
 
 
-## Plan: Reubicar iconos de acceso rápido a zona superior
+## Plan: Mover iconos de acceso rápido debajo del banner del asistente
 
-### Problema
-Los iconos de navegación (Inicio, Agenda, Tickets, Comercial, Encuestas) están fijos en la barra inferior. El usuario quiere que estén en la zona superior de la pantalla principal (Home).
+### Cambio
 
-### Solución
-Crear una barra de acceso rápido horizontal debajo del banner en `Home.tsx` con los mismos 5 iconos/enlaces. La barra inferior (`BottomNav`) se mantiene en móvil pero se puede ocultar en desktop con `md:hidden` ya que el sidebar desktop cubre esa función.
+Mover la sección "Quick Access Icons" (líneas 64-83) para que aparezca **inmediatamente después del banner con el nombre del asistente** (línea 53), y **antes** del QR Card (línea 56).
 
-### Implementación
-
-| Archivo | Cambio |
-|---|---|
-| `src/pages/attendee/Home.tsx` | Agregar sección de iconos de acceso rápido (grid horizontal) debajo del QR Card, con los 5 enlaces: Home, Agenda, Tickets, Comercial, Encuestas. Cada uno con icono + label, enlace a la ruta correspondiente. Filtrados por `useEventSettings()` igual que BottomNav. |
-| `src/locales/es/common.json` | Agregar clave `home.quickAccess` si no existe |
-| `src/locales/en/common.json` | Agregar clave `home.quickAccess` si no existe |
-
-### Diseño de la sección
+### Layout resultante
 
 ```text
 ┌─────────────────────────────────┐
-│         Banner / Logo           │
+│  Daniel Sanchez        Confirmado│
+│  Asistente                       │
 ├─────────────────────────────────┤
 │  🏠    📅    🎫    🏢    📊    │
 │ Inicio Agenda Tickets Comerc Encue│
+├─────────────────────────────────┤
+│         Banner / Logo           │
 ├─────────────────────────────────┤
 │       Información del evento    │
 └─────────────────────────────────┘
 ```
 
-- Grid de 5 columnas con iconos circulares sobre fondo `bg-primary/10`
-- Cada icono es un `Link` a la ruta correspondiente
-- Respeta los toggles de visibilidad (`ticketsEnabled`, `commercialEnabled`, `pollsEnabled`)
-- Estilo: icono 24px dentro de círculo 48px, label 11px debajo
+### Archivo a modificar
 
-### Orden
-1. Agregar claves i18n
-2. Agregar sección de acceso rápido en Home.tsx
+| Archivo | Cambio |
+|---|---|
+| `src/pages/attendee/Home.tsx` | Cortar el bloque "Quick Access Icons" (líneas 64-83) y pegarlo entre el cierre del Top Banner (línea 53) y el QR Card (línea 56). Ajustar margins: `mx-4 mt-4` en vez de `mx-4 mt-6`. |
+
+Un solo archivo, reordenamiento de bloques existentes.
 
