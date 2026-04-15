@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
     // 4. Find attendee candidates for this event (need hash for bcrypt compare)
     const { data: attendees, error: attendeesError } = await supabaseAdmin
       .from('attendees')
-      .select('id, full_name, email, credential_code, registration_status, user_id, event_id, access_code_hash')
+      .select('id, full_name, email, credential_code, registration_status, user_id, event_id, access_code_hash, last_session_id')
       .eq('event_id', event.id)
       .is('deleted_at', null)
       .not('access_code_hash', 'is', null);
@@ -148,6 +148,11 @@ Deno.serve(async (req) => {
 
     if (matchedAttendee.registration_status === 'cancelled') {
       return jsonError(403, 'Registration cancelled');
+    }
+
+    // 5b. Check for active session — block if already logged in elsewhere
+    if (matchedAttendee.last_session_id) {
+      return jsonError(409, 'Session already active');
     }
 
     // Auto-confirm pending attendees on first successful login
@@ -213,7 +218,35 @@ Deno.serve(async (req) => {
       return jsonError(500, 'Server error');
     }
 
+    // 7b. Set session marker on attendee (will be confirmed with actual session ID by frontend)
+    const sessionMarker = crypto.randomUUID();
+    await supabaseAdmin
+      .from('attendees')
+      .update({ last_session_id: sessionMarker })
+      .eq('id', matchedAttendee.id);
+
     const emailOtp = linkData.properties?.email_otp;
+
+    const responsePayload = {
+      success: true,
+      email: matchedAttendee.email,
+      session_marker: sessionMarker,
+      attendee: {
+        id: matchedAttendee.id,
+        full_name: matchedAttendee.full_name,
+        credential_code: matchedAttendee.credential_code,
+        registration_status: matchedAttendee.registration_status,
+        event_id: matchedAttendee.event_id,
+      },
+      event: {
+        id: event.id,
+        name: event.name,
+        event_code: event.event_code,
+        start_date: event.start_date,
+        end_date: event.end_date,
+        venue_name: event.venue_name,
+      },
+    };
 
     if (!emailOtp) {
       const actionLink = linkData.properties?.action_link;
@@ -226,25 +259,9 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({
-          success: true,
+          ...responsePayload,
           token_hash: tokenHash,
           type: 'magiclink',
-          email: matchedAttendee.email,
-          attendee: {
-            id: matchedAttendee.id,
-            full_name: matchedAttendee.full_name,
-            credential_code: matchedAttendee.credential_code,
-            registration_status: matchedAttendee.registration_status,
-            event_id: matchedAttendee.event_id,
-          },
-          event: {
-            id: event.id,
-            name: event.name,
-            event_code: event.event_code,
-            start_date: event.start_date,
-            end_date: event.end_date,
-            venue_name: event.venue_name,
-          },
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -252,24 +269,8 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({
-        success: true,
+        ...responsePayload,
         email_otp: emailOtp,
-        email: matchedAttendee.email,
-        attendee: {
-          id: matchedAttendee.id,
-          full_name: matchedAttendee.full_name,
-          credential_code: matchedAttendee.credential_code,
-          registration_status: matchedAttendee.registration_status,
-          event_id: matchedAttendee.event_id,
-        },
-        event: {
-          id: event.id,
-          name: event.name,
-          event_code: event.event_code,
-          start_date: event.start_date,
-          end_date: event.end_date,
-          venue_name: event.venue_name,
-        },
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

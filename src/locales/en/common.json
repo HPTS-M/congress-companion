@@ -50,7 +50,8 @@
     "email": "Email",
     "specialty": "Specialty",
     "institution": "Institution",
-    "credentialCode": "Credential Code"
+    "credentialCode": "Credential Code",
+    "notAssigned": "Not assigned"
   },
   "auth": {
     "enterEventCode": "Enter your event code",
@@ -63,6 +64,7 @@
     "invalidCode": "Invalid access code",
     "eventNotFound": "Event not found",
     "registrationCancelled": "Your registration has been cancelled",
+    "sessionAlreadyActive": "You already have an active session on another device. Please log out first.",
     "welcomeBack": "Welcome back!",
     "loggingIn": "Logging in...",
     "or": "or",

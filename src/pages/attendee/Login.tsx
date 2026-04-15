@@ -49,6 +49,7 @@ export default function AttendeeLogin() {
         'Invalid code': t('auth.invalidCode'),
         'Event not found': t('auth.eventNotFound'),
         'Registration cancelled': t('auth.registrationCancelled'),
+        'Session already active': t('auth.sessionAlreadyActive'),
         'Too many attempts. Try again later.': t('auth.tooManyAttempts', 'Demasiados intentos. Intenta más tarde.'),
       };
       setLoginError(messages[errorMsg] || t('error'));

@@ -36,12 +36,19 @@ export default function MyProfile() {
 
   if (!attendee) return null;
 
-  const infoItems = [
-    { icon: Mail, label: t('profile.email'), value: attendee.email },
+  // Email and credential_code are always shown (with fallback placeholder)
+  const alwaysVisibleItems = [
+    { icon: Mail, label: t('profile.email'), value: attendee.email || t('profile.notAssigned', 'No asignado') },
+    { icon: CreditCard, label: t('profile.credentialCode'), value: attendee.credential_code || t('profile.notAssigned', 'No asignado') },
+  ];
+
+  // Optional items only shown when they have a value
+  const optionalItems = [
     { icon: Stethoscope, label: t('profile.specialty'), value: fullProfile?.specialty },
     { icon: Building2, label: t('profile.institution'), value: fullProfile?.institution },
-    { icon: CreditCard, label: t('profile.credentialCode'), value: attendee.credential_code },
   ].filter(item => item.value);
+
+  const infoItems = [...alwaysVisibleItems, ...optionalItems];
 
   return (
     <div className="mx-auto max-w-md space-y-6 p-4">

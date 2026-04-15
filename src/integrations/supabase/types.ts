@@ -280,6 +280,7 @@ export type Database = {
           id: string
           institution: string | null
           invitation_sent_at: string | null
+          last_session_id: string | null
           notes: string | null
           phone: string | null
           registration_date: string | null
@@ -303,6 +304,7 @@ export type Database = {
           id?: string
           institution?: string | null
           invitation_sent_at?: string | null
+          last_session_id?: string | null
           notes?: string | null
           phone?: string | null
           registration_date?: string | null
@@ -326,6 +328,7 @@ export type Database = {
           id?: string
           institution?: string | null
           invitation_sent_at?: string | null
+          last_session_id?: string | null
           notes?: string | null
           phone?: string | null
           registration_date?: string | null

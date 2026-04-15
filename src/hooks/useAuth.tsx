@@ -116,6 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loginWithCode = useCallback(async (accessCode: string, eventCode: string) => {
     const result = await authService.verifyAccessCode(accessCode, eventCode);
     await authService.establishSession(result.email, result.email_otp);
+    // Session marker is already set by the edge function
   }, []);
 
   const loginAdmin = useCallback(async (email: string, password: string) => {
@@ -124,6 +125,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    // Clear session marker before signing out
+    if (state.attendee?.id) {
+      await supabase
+        .from('attendees')
+        .update({ last_session_id: null } as any)
+        .eq('id', state.attendee.id);
+    }
     await authService.logout();
     setState({
       session: null,
@@ -135,7 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAttendee: false,
       isAdmin: false,
     });
-  }, []);
+  }, [state.attendee?.id]);
 
   return (
     <AuthContext.Provider value={{ ...state, loginWithCode, loginAdmin, logout }}>
