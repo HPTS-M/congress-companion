@@ -95,8 +95,9 @@
     },
     "importModal": {
       "title": "Importar Asistentes",
-      "downloadTemplate": "Descargar plantilla CSV",
+      "downloadTemplate": "Descargar plantilla Excel",
       "dragDrop": "Arrastra un archivo CSV aquí o haz clic para seleccionar",
+      "dragDropExcel": "Arrastra un archivo Excel (.xlsx) aquí o haz clic para seleccionar",
       "selectedFile": "Archivo seleccionado",
       "previewTitle": "Vista previa",
       "importButton": "Importar {{count}} asistentes",

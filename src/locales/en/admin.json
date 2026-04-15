@@ -95,8 +95,9 @@
     },
     "importModal": {
       "title": "Import Attendees",
-      "downloadTemplate": "Download CSV template",
+      "downloadTemplate": "Download Excel template",
       "dragDrop": "Drag a CSV file here or click to select",
+      "dragDropExcel": "Drag an Excel file (.xlsx) here or click to select",
       "selectedFile": "Selected file",
       "previewTitle": "Preview",
       "importButton": "Import {{count}} attendees",
