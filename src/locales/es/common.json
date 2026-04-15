@@ -63,6 +63,7 @@
     "invalidCode": "Código de acceso inválido",
     "eventNotFound": "Evento no encontrado",
     "registrationCancelled": "Tu registro ha sido cancelado",
+    "sessionAlreadyActive": "Ya tienes una sesión activa en otro dispositivo. Cierra sesión primero.",
     "welcomeBack": "¡Bienvenido de vuelta!",
     "loggingIn": "Iniciando sesión...",
     "or": "o",
