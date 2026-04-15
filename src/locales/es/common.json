@@ -50,7 +50,8 @@
     "email": "Correo electrónico",
     "specialty": "Especialidad",
     "institution": "Institución",
-    "credentialCode": "Código de credencial"
+    "credentialCode": "Código de credencial",
+    "notAssigned": "No asignado"
   },
   "auth": {
     "enterEventCode": "Ingresa el código de tu evento",
