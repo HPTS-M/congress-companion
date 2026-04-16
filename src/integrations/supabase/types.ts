@@ -647,6 +647,7 @@ export type Database = {
       event_activities: {
         Row: {
           activity_type: string | null
+          archived_at: string | null
           capacity: number | null
           checkin_code: string | null
           created_at: string | null
@@ -657,14 +658,17 @@ export type Database = {
           location: string | null
           requires_checkin: boolean | null
           scheduled_date: string
+          sort_order: number
           speaker_bio: string | null
           speaker_name: string | null
+          speaker_photo_url: string | null
           start_time: string
           title: string
           updated_at: string | null
         }
         Insert: {
           activity_type?: string | null
+          archived_at?: string | null
           capacity?: number | null
           checkin_code?: string | null
           created_at?: string | null
@@ -675,14 +679,17 @@ export type Database = {
           location?: string | null
           requires_checkin?: boolean | null
           scheduled_date: string
+          sort_order?: number
           speaker_bio?: string | null
           speaker_name?: string | null
+          speaker_photo_url?: string | null
           start_time: string
           title: string
           updated_at?: string | null
         }
         Update: {
           activity_type?: string | null
+          archived_at?: string | null
           capacity?: number | null
           checkin_code?: string | null
           created_at?: string | null
@@ -693,8 +700,10 @@ export type Database = {
           location?: string | null
           requires_checkin?: boolean | null
           scheduled_date?: string
+          sort_order?: number
           speaker_bio?: string | null
           speaker_name?: string | null
+          speaker_photo_url?: string | null
           start_time?: string
           title?: string
           updated_at?: string | null
