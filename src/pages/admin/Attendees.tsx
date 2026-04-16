@@ -18,6 +18,7 @@ import { ImportCsvModal } from '@/components/admin/attendees/ImportCsvModal';
 import { AttendeeDetailDrawer } from '@/components/admin/attendees/AttendeeDetailDrawer';
 import { DeleteAttendeeDialog } from '@/components/admin/attendees/DeleteAttendeeDialog';
 import { DataQualityPanel } from '@/components/admin/attendees/DataQualityPanel';
+import { cn } from '@/lib/utils';
 
 export default function AdminAttendees() {
   const { t } = useTranslation('admin');
