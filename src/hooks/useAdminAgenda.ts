@@ -37,6 +37,15 @@ export function useAdminActivities(eventId: string | undefined) {
   return { ...query, grouped, sortedDates, rooms };
 }
 
+export function useAdminArchivedActivities(eventId: string | undefined) {
+  return useQuery({
+    queryKey: ['admin-archived-activities', eventId],
+    queryFn: () => adminAgendaService.getArchivedActivities(eventId!),
+    enabled: !!eventId,
+    staleTime: 2 * 60 * 1000,
+  });
+}
+
 export function useAdminInterestCounts(eventId: string | undefined) {
   return useQuery({
     queryKey: ['admin-interest-counts', eventId],
@@ -55,12 +64,21 @@ export function useAdminCheckinCounts(eventId: string | undefined) {
   });
 }
 
+async function invalidateAgenda(qc: ReturnType<typeof useQueryClient>, eventId: string | undefined) {
+  await Promise.all([
+    qc.invalidateQueries({ queryKey: ['admin-activities', eventId] }),
+    qc.invalidateQueries({ queryKey: ['admin-archived-activities', eventId] }),
+    qc.invalidateQueries({ queryKey: ['admin-interest-counts', eventId] }),
+    qc.invalidateQueries({ queryKey: ['admin-checkin-counts', eventId] }),
+  ]);
+}
+
 export function useCreateSession(eventId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (form: SessionFormData) => adminAgendaService.createSession(eventId!, form),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin-activities', eventId] });
+    onSuccess: async () => {
+      await invalidateAgenda(qc, eventId);
     },
   });
 }
@@ -70,8 +88,8 @@ export function useUpdateSession(eventId: string | undefined) {
   return useMutation({
     mutationFn: ({ sessionId, form }: { sessionId: string; form: Partial<SessionFormData> }) =>
       adminAgendaService.updateSession(sessionId, form),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin-activities', eventId] });
+    onSuccess: async () => {
+      await invalidateAgenda(qc, eventId);
     },
   });
 }
@@ -80,8 +98,39 @@ export function useDeleteSession(eventId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (sessionId: string) => adminAgendaService.deleteSession(sessionId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin-activities', eventId] });
+    onSuccess: async () => {
+      await invalidateAgenda(qc, eventId);
+    },
+  });
+}
+
+export function useArchiveSession(eventId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (sessionId: string) => adminAgendaService.archiveSession(sessionId),
+    onSuccess: async () => {
+      await invalidateAgenda(qc, eventId);
+    },
+  });
+}
+
+export function useRestoreSession(eventId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (sessionId: string) => adminAgendaService.restoreSession(sessionId),
+    onSuccess: async () => {
+      await invalidateAgenda(qc, eventId);
+    },
+  });
+}
+
+export function useReorderSessions(eventId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (updates: { id: string; sort_order: number; start_time?: string; location?: string }[]) =>
+      adminAgendaService.reorderSessions(updates),
+    onSuccess: async () => {
+      await invalidateAgenda(qc, eventId);
     },
   });
 }
@@ -90,8 +139,8 @@ export function useDuplicateSession(eventId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (session: EventActivity) => adminAgendaService.duplicateSession(session),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin-activities', eventId] });
+    onSuccess: async () => {
+      await invalidateAgenda(qc, eventId);
     },
   });
 }
@@ -101,8 +150,8 @@ export function useDuplicateDay(eventId: string | undefined) {
   return useMutation({
     mutationFn: ({ fromDate, toDate }: { fromDate: string; toDate: string }) =>
       adminAgendaService.duplicateDay(eventId!, fromDate, toDate),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin-activities', eventId] });
+    onSuccess: async () => {
+      await invalidateAgenda(qc, eventId);
     },
   });
 }
