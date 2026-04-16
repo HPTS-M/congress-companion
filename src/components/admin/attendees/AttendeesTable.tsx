@@ -232,6 +232,7 @@ export function AttendeesTable({ attendees, isLoading, isRefetching, onView, onE
           </div>
         ))}
       </div>
-    </>
+      </div>
+    </div>
   );
 }
