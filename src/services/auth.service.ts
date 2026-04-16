@@ -8,7 +8,7 @@ export const authService = {
    * Verify attendee access code via edge function.
    * Returns session tokens + attendee data on success.
    */
-  verifyAccessCode: async (accessCode: string, eventCode: string) => {
+  verifyAccessCode: async (accessCode: string, eventCode: string, forceLogin = false) => {
     const response = await fetch(
       `${SUPABASE_URL}/functions/v1/verify-access-code`,
       {
@@ -20,6 +20,7 @@ export const authService = {
         body: JSON.stringify({
           access_code: accessCode,
           event_code: eventCode,
+          force_login: forceLogin,
         }),
       }
     );

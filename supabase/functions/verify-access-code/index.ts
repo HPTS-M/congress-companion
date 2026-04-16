@@ -22,6 +22,7 @@ const requestSchema = z.object({
     .min(3, 'Invalid event')
     .max(50, 'Invalid event')
     .regex(/^[A-Za-z0-9-]+$/, 'Invalid event'),
+  force_login: z.boolean().optional().default(false),
 });
 
 // --- Rate limiting helpers ---
@@ -63,7 +64,7 @@ Deno.serve(async (req) => {
       return jsonError(400, 'Invalid code');
     }
 
-    const { access_code, event_code } = parsed.data;
+    const { access_code, event_code, force_login } = parsed.data;
 
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -150,8 +151,12 @@ Deno.serve(async (req) => {
       return jsonError(403, 'Registration cancelled');
     }
 
-    // 5b. Clear any stale session marker (last login wins)
+    // 5b. Block if session already active unless force_login is set
     if (matchedAttendee.last_session_id) {
+      if (!force_login) {
+        return jsonError(409, 'Session already active');
+      }
+      // force_login=true → clear previous session and continue
       await supabaseAdmin
         .from('attendees')
         .update({ last_session_id: null })
