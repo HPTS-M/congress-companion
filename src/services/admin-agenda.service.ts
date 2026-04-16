@@ -13,6 +13,7 @@ export interface SessionFormData {
   description: string;
   requires_checkin: boolean;
   capacity: number | null;
+  speaker_photo_url?: string | null;
 }
 
 export const adminAgendaService = {
@@ -21,8 +22,22 @@ export const adminAgendaService = {
       .from('event_activities')
       .select('*')
       .eq('event_id', eventId)
+      .is('archived_at', null)
       .order('scheduled_date')
+      .order('sort_order')
       .order('start_time');
+
+    if (error) throw new Error(error.message);
+    return (data ?? []) as EventActivity[];
+  },
+
+  getArchivedActivities: async (eventId: string): Promise<EventActivity[]> => {
+    const { data, error } = await supabase
+      .from('event_activities')
+      .select('*')
+      .eq('event_id', eventId)
+      .not('archived_at', 'is', null)
+      .order('archived_at', { ascending: false });
 
     if (error) throw new Error(error.message);
     return (data ?? []) as EventActivity[];
@@ -44,6 +59,7 @@ export const adminAgendaService = {
         description: form.description || null,
         requires_checkin: form.requires_checkin,
         capacity: form.capacity,
+        speaker_photo_url: form.speaker_photo_url || null,
       })
       .select()
       .single();
@@ -65,6 +81,7 @@ export const adminAgendaService = {
     if (form.description !== undefined) update.description = form.description || null;
     if (form.requires_checkin !== undefined) update.requires_checkin = form.requires_checkin;
     if (form.capacity !== undefined) update.capacity = form.capacity;
+    if (form.speaker_photo_url !== undefined) update.speaker_photo_url = form.speaker_photo_url || null;
 
     const { data, error } = await supabase
       .from('event_activities')
@@ -86,6 +103,38 @@ export const adminAgendaService = {
     if (error) throw new Error(error.message);
   },
 
+  archiveSession: async (sessionId: string): Promise<void> => {
+    const { error } = await supabase
+      .from('event_activities')
+      .update({ archived_at: new Date().toISOString() })
+      .eq('id', sessionId);
+    if (error) throw new Error(error.message);
+  },
+
+  restoreSession: async (sessionId: string): Promise<void> => {
+    const { error } = await supabase
+      .from('event_activities')
+      .update({ archived_at: null })
+      .eq('id', sessionId);
+    if (error) throw new Error(error.message);
+  },
+
+  reorderSessions: async (
+    updates: { id: string; sort_order: number; start_time?: string; location?: string }[],
+  ): Promise<void> => {
+    // Apply updates in parallel
+    const results = await Promise.all(
+      updates.map((u) => {
+        const patch: Record<string, unknown> = { sort_order: u.sort_order };
+        if (u.start_time !== undefined) patch.start_time = u.start_time;
+        if (u.location !== undefined) patch.location = u.location;
+        return supabase.from('event_activities').update(patch).eq('id', u.id);
+      }),
+    );
+    const err = results.find((r) => r.error)?.error;
+    if (err) throw new Error(err.message);
+  },
+
   duplicateSession: async (session: EventActivity): Promise<EventActivity> => {
     const { data, error } = await supabase
       .from('event_activities')
@@ -102,6 +151,7 @@ export const adminAgendaService = {
         description: session.description,
         requires_checkin: session.requires_checkin,
         capacity: session.capacity,
+        speaker_photo_url: session.speaker_photo_url ?? null,
       })
       .select()
       .single();
@@ -115,6 +165,7 @@ export const adminAgendaService = {
       .from('event_activities')
       .select('*')
       .eq('event_id', eventId)
+      .is('archived_at', null)
       .eq('scheduled_date', fromDate);
 
     if (fetchError) throw new Error(fetchError.message);
@@ -174,5 +225,29 @@ export const adminAgendaService = {
       map.set(row.activity_id, (map.get(row.activity_id) ?? 0) + 1);
     }
     return map;
+  },
+
+  uploadSpeakerPhoto: async (eventId: string, file: File): Promise<string> => {
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const path = `${eventId}/${crypto.randomUUID()}.${ext}`;
+    const { error } = await supabase.storage
+      .from('speaker-photos')
+      .upload(path, file, { upsert: true, contentType: file.type });
+    if (error) throw new Error(error.message);
+    return path;
+  },
+
+  getSpeakerPhotoUrl: async (path: string): Promise<string | null> => {
+    if (!path) return null;
+    const { data, error } = await supabase.storage
+      .from('speaker-photos')
+      .createSignedUrl(path, 3600);
+    if (error) return null;
+    return data.signedUrl;
+  },
+
+  deleteSpeakerPhoto: async (path: string): Promise<void> => {
+    if (!path) return;
+    await supabase.storage.from('speaker-photos').remove([path]);
   },
 };
