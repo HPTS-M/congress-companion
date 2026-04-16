@@ -73,6 +73,9 @@ export interface EventActivity {
   checkin_code: string | null;
   created_at: string | null;
   updated_at: string | null;
+  speaker_photo_url?: string | null;
+  archived_at?: string | null;
+  sort_order?: number | null;
 }
 
 export interface SessionInterest {
