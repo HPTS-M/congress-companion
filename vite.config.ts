@@ -47,9 +47,21 @@ export default defineConfig(({ mode }) => ({
             urlPattern: ({ url }) =>
               url.hostname.includes("supabase.co") &&
               url.pathname.includes("/rest/v1/") &&
+              url.pathname.includes("attendees"),
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "supabase-attendees-cache",
+              networkTimeoutSeconds: 3,
+              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            urlPattern: ({ url }) =>
+              url.hostname.includes("supabase.co") &&
+              url.pathname.includes("/rest/v1/") &&
               (url.pathname.includes("event_activities") ||
                 url.pathname.includes("sponsors") ||
-                url.pathname.includes("attendees") ||
                 url.pathname.includes("documents")),
             handler: "StaleWhileRevalidate",
             options: {

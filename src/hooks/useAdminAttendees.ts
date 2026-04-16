@@ -2,6 +2,28 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminAttendeesService, type CreateAttendeeData, type AddServiceData } from '@/services/admin-attendees.service';
 import { useEvent } from '@/hooks/useEvent';
 
+async function clearAttendeesSWCache() {
+  if (typeof window === 'undefined' || !('caches' in window)) return;
+  try {
+    const cacheNames = await caches.keys();
+    await Promise.all(
+      cacheNames
+        .filter((n) => n.includes('supabase-data-cache') || n.includes('attendees'))
+        .map(async (name) => {
+          const cache = await caches.open(name);
+          const keys = await cache.keys();
+          await Promise.all(
+            keys
+              .filter((req) => req.url.includes('/attendees'))
+              .map((req) => cache.delete(req))
+          );
+        })
+    );
+  } catch {
+    // ignore SW cache errors
+  }
+}
+
 export function useAdminAttendees(search?: string, statusFilter?: string) {
   const { event } = useEvent();
   const eventId = event?.id ?? '';
@@ -34,9 +56,12 @@ export function useCreateAttendee() {
   return useMutation({
     mutationFn: (data: Omit<CreateAttendeeData, 'event_id'>) =>
       adminAttendeesService.createAttendee({ ...data, event_id: event!.id }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-attendees'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-attendees-counts'] });
+    onSuccess: async () => {
+      await clearAttendeesSWCache();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-attendees'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-attendees-counts'] }),
+      ]);
     },
   });
 }
@@ -48,9 +73,12 @@ export function useBulkCreateAttendees() {
   return useMutation({
     mutationFn: ({ rows, registrationStatus }: { rows: { full_name: string; email: string; specialty?: string; institution?: string }[]; registrationStatus?: string }) =>
       adminAttendeesService.bulkCreateAttendees(event!.id, rows, registrationStatus),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-attendees'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-attendees-counts'] });
+    onSuccess: async () => {
+      await clearAttendeesSWCache();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-attendees'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-attendees-counts'] }),
+      ]);
     },
   });
 }
@@ -61,10 +89,13 @@ export function useUpdateAttendee() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: Parameters<typeof adminAttendeesService.updateAttendee>[1] }) =>
       adminAttendeesService.updateAttendee(id, data),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['admin-attendees'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-attendees-counts'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-attendee-detail', variables.id] });
+    onSuccess: async (_, variables) => {
+      await clearAttendeesSWCache();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-attendees'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-attendees-counts'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-attendee-detail', variables.id] }),
+      ]);
     },
   });
 }
@@ -75,10 +106,13 @@ export function useUpdateAttendeeStatus() {
   return useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       adminAttendeesService.updateAttendeeStatus(id, status),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['admin-attendees'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-attendees-counts'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-attendee-detail', variables.id] });
+    onSuccess: async (_, variables) => {
+      await clearAttendeesSWCache();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-attendees'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-attendees-counts'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-attendee-detail', variables.id] }),
+      ]);
     },
   });
 }
@@ -88,9 +122,12 @@ export function useDeleteAttendee() {
 
   return useMutation({
     mutationFn: (attendeeId: string) => adminAttendeesService.deleteAttendee(attendeeId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-attendees'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-attendees-counts'] });
+    onSuccess: async () => {
+      await clearAttendeesSWCache();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-attendees'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-attendees-counts'] }),
+      ]);
     },
   });
 }
@@ -171,9 +208,12 @@ export function useSendInvitations() {
   return useMutation({
     mutationFn: (attendeeIds: string[]) =>
       adminAttendeesService.sendInvitations(attendeeIds, event!.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-attendee-detail'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-attendees'] });
+    onSuccess: async () => {
+      await clearAttendeesSWCache();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-attendee-detail'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-attendees'] }),
+      ]);
     },
   });
 }
