@@ -1,8 +1,11 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Calendar, MapPin, Users } from 'lucide-react';
+import { Calendar, MapPin, Users, ExternalLink, Copy, Check } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useEvent, useEventSettings } from '@/hooks/useEvent';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { es, enUS } from 'date-fns/locale';
 
@@ -12,6 +15,29 @@ export default function Home() {
   const { event } = useEvent();
   const settings = useEventSettings();
   const { bannerUrl } = settings;
+  const [copied, setCopied] = useState(false);
+
+  const fullAddress = event
+    ? [event.venue_name, event.venue_address].filter(Boolean).join(', ')
+    : '';
+
+  const handleOpenMaps = () => {
+    if (!fullAddress) return;
+    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleCopyAddress = async () => {
+    if (!fullAddress) return;
+    try {
+      await navigator.clipboard.writeText(fullAddress);
+      setCopied(true);
+      toast.success(t('home.addressCopied'));
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error(t('error'));
+    }
+  };
 
   const dateLocale = i18n.language === 'es' ? es : enUS;
   const startDate = event?.start_date ? format(new Date(event.start_date), 'dd MMM yyyy', { locale: dateLocale }) : '';
