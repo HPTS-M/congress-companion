@@ -150,9 +150,12 @@ Deno.serve(async (req) => {
       return jsonError(403, 'Registration cancelled');
     }
 
-    // 5b. Check for active session — block if already logged in elsewhere
+    // 5b. Clear any stale session marker (last login wins)
     if (matchedAttendee.last_session_id) {
-      return jsonError(409, 'Session already active');
+      await supabaseAdmin
+        .from('attendees')
+        .update({ last_session_id: null })
+        .eq('id', matchedAttendee.id);
     }
 
     // Auto-confirm pending attendees on first successful login
