@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { QrCode, KeyRound, Loader2 } from 'lucide-react';
+import { QrCode, KeyRound, Loader2, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/hooks/useAuth';
 import { useEvent, useEventSettings } from '@/hooks/useEvent';
 
@@ -18,6 +19,8 @@ export default function AttendeeLogin() {
   const [accessCode, setAccessCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [sessionConflict, setSessionConflict] = useState(false);
+  const [isForcing, setIsForcing] = useState(false);
 
   // Reactive redirect when session AND event are both loaded
   useEffect(() => {
@@ -34,28 +37,44 @@ export default function AttendeeLogin() {
     }
   }, [t]);
 
+  const performLogin = async (forceLogin: boolean) => {
+    try {
+      await loginWithCode(accessCode.trim(), eventSlug, forceLogin);
+      // useEffect will handle redirect when session updates
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : '';
+      if (errorMsg === 'Session already active') {
+        setSessionConflict(true);
+        setLoginError('');
+        return;
+      }
+      const messages: Record<string, string> = {
+        'Invalid code': t('auth.invalidCode'),
+        'Event not found': t('auth.eventNotFound'),
+        'Registration cancelled': t('auth.registrationCancelled'),
+        'Too many attempts. Try again later.': t('auth.tooManyAttempts', 'Demasiados intentos. Intenta más tarde.'),
+      };
+      setLoginError(messages[errorMsg] || t('error'));
+      setSessionConflict(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!accessCode.trim() || accessCode.trim().length < 6) return;
 
     setIsSubmitting(true);
     setLoginError('');
-    try {
-      await loginWithCode(accessCode.trim(), eventSlug);
-      // useEffect will handle redirect when session updates
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : '';
-      const messages: Record<string, string> = {
-        'Invalid code': t('auth.invalidCode'),
-        'Event not found': t('auth.eventNotFound'),
-        'Registration cancelled': t('auth.registrationCancelled'),
-        'Session already active': t('auth.sessionAlreadyActive'),
-        'Too many attempts. Try again later.': t('auth.tooManyAttempts', 'Demasiados intentos. Intenta más tarde.'),
-      };
-      setLoginError(messages[errorMsg] || t('error'));
-    } finally {
-      setIsSubmitting(false);
-    }
+    setSessionConflict(false);
+    await performLogin(false);
+    setIsSubmitting(false);
+  };
+
+  const handleForceLogin = async () => {
+    setIsForcing(true);
+    setLoginError('');
+    await performLogin(true);
+    setIsForcing(false);
   };
 
   return (
@@ -106,10 +125,37 @@ export default function AttendeeLogin() {
                 />
               </div>
 
-              {loginError && (
+              {loginError && !sessionConflict && (
                 <p className="text-sm text-destructive text-center">
                   {loginError}
                 </p>
+              )}
+
+              {sessionConflict && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>{t('auth.sessionConflictTitle')}</AlertTitle>
+                  <AlertDescription className="space-y-3">
+                    <p>{t('auth.sessionConflictMessage')}</p>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      className="w-full"
+                      onClick={handleForceLogin}
+                      disabled={isForcing}
+                    >
+                      {isForcing ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          {t('auth.forcingLogin')}
+                        </>
+                      ) : (
+                        t('auth.forceLoginButton')
+                      )}
+                    </Button>
+                  </AlertDescription>
+                </Alert>
               )}
 
               <Button

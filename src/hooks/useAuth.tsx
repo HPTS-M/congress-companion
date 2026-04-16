@@ -16,7 +16,7 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  loginWithCode: (accessCode: string, eventCode: string) => Promise<void>;
+  loginWithCode: (accessCode: string, eventCode: string, forceLogin?: boolean) => Promise<void>;
   loginAdmin: (email: string, password: string) => Promise<{ userId: string }>;
   logout: () => Promise<void>;
 }
@@ -113,8 +113,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const loginWithCode = useCallback(async (accessCode: string, eventCode: string) => {
-    const result = await authService.verifyAccessCode(accessCode, eventCode);
+  const loginWithCode = useCallback(async (accessCode: string, eventCode: string, forceLogin = false) => {
+    const result = await authService.verifyAccessCode(accessCode, eventCode, forceLogin);
     await authService.establishSession(result.email, result.email_otp);
     // Session marker is already set by the edge function
   }, []);
