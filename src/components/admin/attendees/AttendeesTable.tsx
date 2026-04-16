@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Eye, Pencil, Trash2, Copy } from 'lucide-react';
+import { Eye, Pencil, Trash2, Copy, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -14,6 +14,7 @@ import type { AttendeeWithServices } from '@/services/admin-attendees.service';
 interface Props {
   attendees: AttendeeWithServices[];
   isLoading: boolean;
+  isRefetching?: boolean;
   onView: (id: string) => void;
   onEdit: (attendee: AttendeeWithServices) => void;
   onDelete: (id: string, name: string) => void;
@@ -47,7 +48,7 @@ function StatusBadge({ status }: { status: string | null }) {
   );
 }
 
-export function AttendeesTable({ attendees, isLoading, onView, onEdit, onDelete, selectedIds, onSelectionChange }: Props) {
+export function AttendeesTable({ attendees, isLoading, isRefetching, onView, onEdit, onDelete, selectedIds, onSelectionChange }: Props) {
   const { t } = useTranslation('admin');
 
   const copyCode = (code: string) => {
@@ -92,7 +93,13 @@ export function AttendeesTable({ attendees, isLoading, onView, onEdit, onDelete,
   }
 
   return (
-    <>
+    <div className="relative">
+      {isRefetching && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/40 backdrop-blur-[1px] animate-fade-in">
+          <RefreshCw className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      )}
+      <div className={cn('transition-opacity', isRefetching && 'opacity-60')}>
       {/* Desktop table */}
       <div className="hidden md:block rounded-lg border bg-card">
         <Table>
@@ -225,6 +232,7 @@ export function AttendeesTable({ attendees, isLoading, onView, onEdit, onDelete,
           </div>
         ))}
       </div>
-    </>
+      </div>
+    </div>
   );
 }

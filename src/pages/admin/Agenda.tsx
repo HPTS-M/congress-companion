@@ -4,6 +4,7 @@ import { useEvent } from '@/hooks/useEvent';
 import { exportAgendaToExcel } from '@/services/admin-agenda-excel.service';
 import {
   useAdminActivities,
+  useAdminArchivedActivities,
   useAdminInterestCounts,
   useAdminCheckinCounts,
   useCreateSession,
@@ -11,6 +12,9 @@ import {
   useDeleteSession,
   useDuplicateSession,
   useDuplicateDay,
+  useArchiveSession,
+  useRestoreSession,
+  useReorderSessions,
 } from '@/hooks/useAdminAgenda';
 import type { SessionFormData } from '@/services/admin-agenda.service';
 import type { EventActivity, ActivityType } from '@/types';
@@ -18,31 +22,36 @@ import { DaySelector } from '@/components/attendee/DaySelector';
 import { SessionModal } from '@/components/admin/agenda/SessionModal';
 import { SessionDetailDrawer } from '@/components/admin/agenda/SessionDetailDrawer';
 import { ImportAgendaModal } from '@/components/admin/agenda/ImportAgendaModal';
+import { SortableSessionRow } from '@/components/admin/agenda/SortableSessionRow';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Plus, Pencil, Trash2, Copy, Star, Users, Download, CopyPlus, Upload } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Plus, Download, CopyPlus, Upload, RefreshCw, ArchiveRestore, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
 import { es, enUS } from 'date-fns/locale';
 import { useQueryClient } from '@tanstack/react-query';
+import { cn } from '@/lib/utils';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 
 const TYPE_COLORS: Record<string, string> = {
   talk: '#1A56A0',
@@ -54,31 +63,27 @@ const TYPE_COLORS: Record<string, string> = {
   networking: '#14B8A6',
 };
 
-const TYPE_LABEL_KEYS: Record<string, string> = {
-  talk: 'typeTalk',
-  workshop: 'typeWorkshop',
-  ceremony: 'typeCeremony',
-  other: 'typeOther',
-  symposium: 'typeSymposium',
-  conference_day: 'typeConferenceDay',
-  networking: 'typeNetworking',
-};
-
 export default function AdminAgenda() {
   const { t, i18n } = useTranslation('admin');
   const { event } = useEvent();
   const eventId = event?.id;
 
-  const { data: activities, isLoading, grouped, sortedDates, rooms } = useAdminActivities(eventId);
-  const { data: interestMap } = useAdminInterestCounts(eventId);
-  const { data: checkinMap } = useAdminCheckinCounts(eventId);
+  const activitiesQuery = useAdminActivities(eventId);
+  const { data: activities, isLoading, isFetching, grouped, sortedDates, rooms, refetch } = activitiesQuery;
+  const { data: archived = [], refetch: refetchArchived } = useAdminArchivedActivities(eventId);
+  const { data: interestMap, refetch: refetchInterests } = useAdminInterestCounts(eventId);
+  const { data: checkinMap, refetch: refetchCheckins } = useAdminCheckinCounts(eventId);
 
   const createMutation = useCreateSession(eventId);
   const updateMutation = useUpdateSession(eventId);
   const deleteMutation = useDeleteSession(eventId);
   const duplicateMutation = useDuplicateSession(eventId);
   const duplicateDayMutation = useDuplicateDay(eventId);
+  const archiveMutation = useArchiveSession(eventId);
+  const restoreMutation = useRestoreSession(eventId);
+  const reorderMutation = useReorderSessions(eventId);
 
+  const [view, setView] = useState<'active' | 'archived'>('active');
   const [selectedDate, setSelectedDate] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editSession, setEditSession] = useState<EventActivity | null>(null);
@@ -88,16 +93,20 @@ export default function AdminAgenda() {
   const [dupFrom, setDupFrom] = useState('');
   const [dupTo, setDupTo] = useState('');
   const [importOpen, setImportOpen] = useState(false);
+  const [orderedIds, setOrderedIds] = useState<string[] | null>(null);
   const qc = useQueryClient();
 
   const locale = i18n.language.startsWith('es') ? es : enUS;
+  const refreshing = isFetching && !isLoading;
 
-  // Auto-select first date
   if (sortedDates.length > 0 && !selectedDate) {
     setSelectedDate(sortedDates[0]);
   }
 
-  const sessionsForDay = grouped.get(selectedDate) ?? [];
+  const baseSessions = grouped.get(selectedDate) ?? [];
+  const sessionsForDay = orderedIds
+    ? [...baseSessions].sort((a, b) => orderedIds.indexOf(a.id) - orderedIds.indexOf(b.id))
+    : baseSessions;
 
   const handleSave = useCallback(async (data: Record<string, unknown>) => {
     const form: SessionFormData = {
@@ -112,6 +121,7 @@ export default function AdminAgenda() {
       description: data.description as string,
       requires_checkin: data.requires_checkin as boolean,
       capacity: (data.capacity as string) ? parseInt(data.capacity as string) : null,
+      speaker_photo_url: (data.speaker_photo_url as string | null) ?? null,
     };
 
     try {
@@ -139,6 +149,29 @@ export default function AdminAgenda() {
     setDeleteTarget(null);
   }, [deleteTarget, deleteMutation, t]);
 
+  const handleArchive = useCallback(async (session: EventActivity) => {
+    try {
+      await archiveMutation.mutateAsync(session.id);
+      toast.success(t('agenda.archiveSuccess'), {
+        action: {
+          label: t('agenda.undo'),
+          onClick: () => restoreMutation.mutate(session.id),
+        },
+      });
+    } catch {
+      toast.error(t('agenda.archiveError'));
+    }
+  }, [archiveMutation, restoreMutation, t]);
+
+  const handleRestore = useCallback(async (session: EventActivity) => {
+    try {
+      await restoreMutation.mutateAsync(session.id);
+      toast.success(t('agenda.restoreSuccess'));
+    } catch {
+      toast.error(t('agenda.restoreError'));
+    }
+  }, [restoreMutation, t]);
+
   const handleDuplicate = useCallback(async (session: EventActivity) => {
     try {
       await duplicateMutation.mutateAsync(session);
@@ -164,107 +197,178 @@ export default function AdminAgenda() {
     void exportAgendaToExcel(activities, event?.name ?? 'agenda');
   }, [activities, event]);
 
+  const handleRefreshAll = useCallback(() => {
+    void Promise.all([refetch(), refetchInterests(), refetchCheckins(), refetchArchived()]);
+  }, [refetch, refetchInterests, refetchCheckins, refetchArchived]);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const handleDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const oldIndex = sessionsForDay.findIndex((s) => s.id === active.id);
+    const newIndex = sessionsForDay.findIndex((s) => s.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const newOrder = arrayMove(sessionsForDay, oldIndex, newIndex);
+    setOrderedIds(newOrder.map((s) => s.id));
+    const updates = newOrder.map((s, i) => ({ id: s.id, sort_order: i }));
+    reorderMutation.mutate(updates, {
+      onSettled: () => setOrderedIds(null),
+    });
+  };
+
+  const showArchived = view === 'archived';
+
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-foreground">{t('agenda.title')}</h1>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={handleExport}>
-            <Download className="mr-1 h-4 w-4" />
-            {t('agenda.exportAgenda')}
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-            <Upload className="mr-1 h-4 w-4" />
-            {t('agenda.importAgenda')}
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => { setDuplicateDayOpen(true); setDupFrom(selectedDate); setDupTo(''); }}>
-            <CopyPlus className="mr-1 h-4 w-4" />
-            {t('agenda.duplicateDay')}
-          </Button>
-          <Button size="sm" onClick={() => { setEditSession(null); setModalOpen(true); }} style={{ backgroundColor: '#1A56A0' }}>
-            <Plus className="mr-1 h-4 w-4" />
-            {t('agenda.newSession')}
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="icon" onClick={handleRefreshAll} disabled={refreshing}>
+                <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('agenda.refresh')}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="sm" onClick={handleExport}>
+                <Download className="mr-1 h-4 w-4" />
+                {t('agenda.exportAgenda')}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('agenda.exportAgenda')}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+                <Upload className="mr-1 h-4 w-4" />
+                {t('agenda.importAgenda')}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('agenda.importAgenda')}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="sm" onClick={() => { setDuplicateDayOpen(true); setDupFrom(selectedDate); setDupTo(''); }}>
+                <CopyPlus className="mr-1 h-4 w-4" />
+                {t('agenda.duplicateDay')}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('agenda.duplicateDay')}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="sm" onClick={() => { setEditSession(null); setModalOpen(true); }} style={{ backgroundColor: '#1A56A0' }}>
+                <Plus className="mr-1 h-4 w-4" />
+                {t('agenda.newSession')}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('agenda.newSession')}</TooltipContent>
+          </Tooltip>
         </div>
       </div>
 
-      {/* Day Selector */}
-      {sortedDates.length > 0 && (
+      {/* Active / Archived tabs */}
+      <Tabs value={view} onValueChange={(v) => setView(v as 'active' | 'archived')}>
+        <TabsList>
+          <TabsTrigger value="active">
+            {t('agenda.tabActive')} <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5">{activities?.length ?? 0}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="archived">
+            {t('agenda.tabArchived')} <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5">{archived.length}</Badge>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {!showArchived && sortedDates.length > 0 && (
         <DaySelector dates={sortedDates} selectedDate={selectedDate} onSelect={setSelectedDate} />
       )}
 
-      {/* Session list */}
-      {isLoading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 w-full rounded-lg" />)}
-        </div>
-      ) : sessionsForDay.length === 0 ? (
-        <p className="text-center text-muted-foreground py-12">{t('agenda.noSessions')}</p>
-      ) : (
-        <div className="space-y-2">
-          {sessionsForDay.map((session) => {
-            const typeColor = TYPE_COLORS[session.activity_type ?? 'other'] ?? '#94A3B8';
-            const interests = interestMap?.get(session.id) ?? 0;
-            const checkins = checkinMap?.get(session.id) ?? 0;
-
-            return (
-              <div
-                key={session.id}
-                className="flex items-center gap-3 rounded-lg border border-border bg-card p-3 hover:bg-muted/50 transition-colors cursor-pointer"
-                style={{ borderLeft: `4px solid ${typeColor}` }}
-                onClick={() => setDetailSession(session)}
-              >
-                {/* Time */}
-                <div className="min-w-[70px] text-sm">
-                  <p className="font-bold text-foreground">{session.start_time?.slice(0, 5)}</p>
-                  <p className="text-muted-foreground text-xs">{session.end_time?.slice(0, 5)}</p>
-                </div>
-
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm text-foreground truncate">{session.title}</p>
-                  <div className="flex flex-wrap items-center gap-2 mt-1">
-                    {session.location && (
-                      <Badge variant="secondary" className="text-xs">{session.location}</Badge>
-                    )}
-                    {session.speaker_name && (
-                      <span className="text-xs text-muted-foreground">{session.speaker_name}</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Stats */}
-                <div className="hidden sm:flex items-center gap-3 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <Star className="h-3.5 w-3.5 text-amber-500" />
-                    {interests}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Users className="h-3.5 w-3.5 text-[hsl(168,76%,36%)]" />
-                    {checkins}
-                  </span>
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditSession(session); setModalOpen(true); }}>
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDuplicate(session)}>
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteTarget(session)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
+      {/* Refetching overlay wrapper */}
+      <div className="relative">
+        {refreshing && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/40 backdrop-blur-[1px] animate-fade-in">
+            <RefreshCw className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        )}
+        <div className={cn('transition-opacity', refreshing && 'opacity-60')}>
+          {showArchived ? (
+            archived.length === 0 ? (
+              <p className="text-center text-muted-foreground py-12">{t('agenda.noArchived')}</p>
+            ) : (
+              <div className="space-y-2 animate-fade-in">
+                {archived.map((s) => {
+                  const typeColor = TYPE_COLORS[s.activity_type ?? 'other'] ?? '#94A3B8';
+                  return (
+                    <div
+                      key={s.id}
+                      className="flex items-center gap-3 rounded-lg border border-border bg-card p-3"
+                      style={{ borderLeft: `4px solid ${typeColor}`, opacity: 0.7 }}
+                    >
+                      <div className="min-w-[70px] text-sm">
+                        <p className="font-bold text-foreground">{s.start_time?.slice(0, 5)}</p>
+                        <p className="text-muted-foreground text-xs">{s.scheduled_date}</p>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm text-foreground truncate">{s.title}</p>
+                        {s.location && <Badge variant="secondary" className="text-xs mt-1">{s.location}</Badge>}
+                      </div>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button variant="ghost" size="sm" onClick={() => handleRestore(s)}>
+                            <ArchiveRestore className="mr-1 h-4 w-4" />
+                            {t('agenda.restore')}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{t('agenda.restore')}</TooltipContent>
+                      </Tooltip>
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
+            )
+          ) : isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 w-full rounded-lg" />)}
+            </div>
+          ) : sessionsForDay.length === 0 ? (
+            <p className="text-center text-muted-foreground py-12">{t('agenda.noSessions')}</p>
+          ) : (
+            <div key={selectedDate} className="animate-fade-in">
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={sessionsForDay.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-2">
+                    {sessionsForDay.map((session) => {
+                      const typeColor = TYPE_COLORS[session.activity_type ?? 'other'] ?? '#94A3B8';
+                      const interests = interestMap?.get(session.id) ?? 0;
+                      const checkins = checkinMap?.get(session.id) ?? 0;
+                      return (
+                        <SortableSessionRow
+                          key={session.id}
+                          session={session}
+                          typeColor={typeColor}
+                          interests={interests}
+                          checkins={checkins}
+                          onClick={() => setDetailSession(session)}
+                          onEdit={() => { setEditSession(session); setModalOpen(true); }}
+                          onDuplicate={() => handleDuplicate(session)}
+                          onArchive={() => handleArchive(session)}
+                          onDelete={() => setDeleteTarget(session)}
+                        />
+                      );
+                    })}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
-      {/* Session Modal */}
       <SessionModal
         open={modalOpen}
         onClose={() => { setModalOpen(false); setEditSession(null); }}
@@ -273,9 +377,9 @@ export default function AdminAgenda() {
         isPending={createMutation.isPending || updateMutation.isPending}
         rooms={rooms}
         defaultDate={selectedDate}
+        eventId={eventId}
       />
 
-      {/* Detail Drawer */}
       <SessionDetailDrawer
         session={detailSession}
         open={!!detailSession}
@@ -285,7 +389,6 @@ export default function AdminAgenda() {
         eventId={eventId ?? ''}
       />
 
-      {/* Delete confirm */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -301,7 +404,6 @@ export default function AdminAgenda() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Duplicate Day Dialog */}
       <AlertDialog open={duplicateDayOpen} onOpenChange={setDuplicateDayOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -340,7 +442,6 @@ export default function AdminAgenda() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Import Modal */}
       <ImportAgendaModal
         open={importOpen}
         onClose={() => setImportOpen(false)}

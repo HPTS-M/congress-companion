@@ -18,6 +18,7 @@ import { ImportCsvModal } from '@/components/admin/attendees/ImportCsvModal';
 import { AttendeeDetailDrawer } from '@/components/admin/attendees/AttendeeDetailDrawer';
 import { DeleteAttendeeDialog } from '@/components/admin/attendees/DeleteAttendeeDialog';
 import { DataQualityPanel } from '@/components/admin/attendees/DataQualityPanel';
+import { cn } from '@/lib/utils';
 
 export default function AdminAttendees() {
   const { t } = useTranslation('admin');
@@ -35,7 +36,7 @@ export default function AdminAttendees() {
   const [isExporting, setIsExporting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const { attendees, isLoading, counts, isCountsLoading, refetch } = useAdminAttendees(debouncedSearch, statusFilter);
+  const { attendees, isLoading, isRefetching, counts, isCountsLoading, refetch } = useAdminAttendees(debouncedSearch, statusFilter);
   const sendInvitationsMutation = useSendInvitations();
   const deleteMutation = useDeleteAttendee();
 
@@ -140,8 +141,8 @@ export default function AdminAttendees() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-foreground">{t('attendees.title')}</h1>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="icon" onClick={handleRefresh} title={t('attendees.refresh')}>
-            <RefreshCw className="h-4 w-4" />
+          <Button variant="outline" size="icon" onClick={handleRefresh} title={t('attendees.refresh')} disabled={isRefetching}>
+            <RefreshCw className={cn('h-4 w-4', isRefetching && 'animate-spin')} />
           </Button>
           <Button variant="outline" onClick={handleExportExcel} disabled={isExporting}>
             <Download className="mr-2 h-4 w-4" />
@@ -255,15 +256,18 @@ export default function AdminAttendees() {
       )}
 
       {/* Table */}
-      <AttendeesTable
-        attendees={displayedAttendees}
-        isLoading={isLoading}
-        onView={(id) => setSelectedAttendeeId(id)}
-        onEdit={handleOpenEditModal}
-        onDelete={(id, name) => setDeleteAttendee({ id, name })}
-        selectedIds={selectedIds}
-        onSelectionChange={setSelectedIds}
-      />
+      <div key={statusFilter} className="animate-fade-in">
+        <AttendeesTable
+          attendees={displayedAttendees}
+          isLoading={isLoading}
+          isRefetching={isRefetching}
+          onView={(id) => setSelectedAttendeeId(id)}
+          onEdit={handleOpenEditModal}
+          onDelete={(id, name) => setDeleteAttendee({ id, name })}
+          selectedIds={selectedIds}
+          onSelectionChange={setSelectedIds}
+        />
+      </div>
 
       {/* Modals */}
       <NewAttendeeModal
