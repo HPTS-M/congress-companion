@@ -1,0 +1,1 @@
+UPDATE events SET venue_address = 'Calle 41 #55-80, Medellín, Colombia' WHERE id = '5efca36a-deef-489b-be85-3dc9d1501ed7';
