@@ -85,7 +85,10 @@
     "eventInfo": "Event Info",
     "dateRange": "{{start}} — {{end}}",
     "attendeeCount": "{{count}} attendees",
-    "packageFallback": "Attendee"
+    "packageFallback": "Attendee",
+    "openInMaps": "Open in Maps",
+    "copyAddress": "Copy address",
+    "addressCopied": "Address copied"
   },
   "notifications": {
     "title": "Notifications",
