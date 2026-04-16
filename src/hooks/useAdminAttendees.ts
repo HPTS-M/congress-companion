@@ -43,6 +43,7 @@ export function useAdminAttendees(search?: string, statusFilter?: string) {
   return {
     attendees: attendeesQuery.data ?? [],
     isLoading: attendeesQuery.isLoading,
+    isRefetching: attendeesQuery.isFetching && !attendeesQuery.isLoading,
     counts: countsQuery.data ?? { total: 0, confirmed: 0, pending: 0 },
     isCountsLoading: countsQuery.isLoading,
     refetch: attendeesQuery.refetch,
