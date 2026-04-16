@@ -93,7 +93,13 @@ export function AttendeesTable({ attendees, isLoading, isRefetching, onView, onE
   }
 
   return (
-    <>
+    <div className="relative">
+      {isRefetching && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/40 backdrop-blur-[1px] animate-fade-in">
+          <RefreshCw className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      )}
+      <div className={cn('transition-opacity', isRefetching && 'opacity-60')}>
       {/* Desktop table */}
       <div className="hidden md:block rounded-lg border bg-card">
         <Table>
