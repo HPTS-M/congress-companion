@@ -1,128 +1,173 @@
 
 
-## Diagnóstico: Bug del "primer cambio no se aplica"
+## Plan: Mejoras Asistentes + Agenda
 
-### Causa raíz (confirmada en código)
+### Pensamiento
 
-En `NewAttendeeModal.tsx` (líneas 50-99) el flujo de edición tiene una **race condition** entre el `form.reset()` del `useEffect` y el `mutate` del submit. Pero el problema **principal** está en otro lado:
+**Asistentes:** Solo es UI/animación. El refresh ya funciona, falta feedback visual al refetch + cambio de tab.
 
-**Bug #1 — `useEffect` resetea el formulario con datos viejos tras editar (NewAttendeeModal.tsx)**
-
-```text
-1. Usuario abre modal de edición → useEffect resetea form con attendee actual ✅
-2. Usuario cambia "specialty" de "X" a "Y" → form interno tiene "Y"
-3. Usuario hace submit → updateMutation.mutateAsync({...})
-4. onSuccess invalida ['admin-attendees'] → React Query refetch
-5. Query devuelve la lista NUEVA → prop `attendee` que llega al modal cambia de referencia
-6. PERO: form.reset() en onSubmit corre ANTES de cerrar (línea 117)
-   y onOpenChange(false) corre INMEDIATAMENTE después
-7. El `useEffect` [open, attendee, form] se vuelve a disparar porque
-   `attendee` cambió de referencia y `open` cambió a false → no resetea
-   pero la próxima apertura usa una referencia que puede estar stale.
-```
-
-**Bug #2 — `handleSearchChange` con setTimeout dentro de useCallback (Attendees.tsx línea 42-46)**
-
-```typescript
-const handleSearchChange = useCallback((value: string) => {
-  setSearch(value);
-  const timer = setTimeout(() => setDebouncedSearch(value), 300);
-  return () => clearTimeout(timer);  // ← este return NO hace nada, no es un useEffect cleanup
-}, []);
-```
-
-El `return () => clearTimeout(timer)` **no se ejecuta nunca** — `useCallback` no lo invoca como cleanup. Cada keystroke crea un timer nuevo sin cancelar el anterior, causando múltiples `setDebouncedSearch` en cadena. Esto provoca que la query se refetch varias veces con valores intermedios — y el último resultado puede ser de un valor de búsqueda anterior, **mostrando datos viejos en la tabla**.
-
-**Bug #3 — Falta `await refetch()` después de mutaciones (useAdminAttendees.ts)**
-
-```typescript
-onSuccess: (_, variables) => {
-  queryClient.invalidateQueries({ queryKey: ['admin-attendees'] });
-  // ↑ no se hace await — la promise del mutation resuelve antes
-  //   de que el refetch termine
-}
-```
-
-`invalidateQueries` marca la query como stale pero **no espera** al refetch. El modal se cierra antes de que llegue la data nueva → la tabla muestra el snapshot viejo del cache de TanStack Query hasta el siguiente render.
-
-**Bug #4 — Cache PWA Workbox (StaleWhileRevalidate sobre attendees)**
-
-Confirmado en discusiones previas. En `vite.config.ts` la tabla `attendees` usa `StaleWhileRevalidate`. Tras un PATCH:
-- Frontend invalida React Query → hace nuevo GET
-- Service Worker intercepta el GET → devuelve cache vieja inmediatamente (1ª lectura)
-- En background el SW actualiza la cache desde la red
-- En la **siguiente** invalidación (2º cambio) → ahora sí devuelve datos frescos
-
-Esto explica exactamente el síntoma de QA: "el primer cambio no aparece, el segundo sí".
+**Agenda:** Mezcla de cambios DB (foto ponente, archivar), UX (drag&drop, time picker, tooltips, refresh), y persistencia (auto-save / confirmación al cerrar). Drag & drop con `@dnd-kit/core` (ya común en el stack). Foto del ponente requiere bucket de Storage. Archivar = soft-delete con `archived_at`.
 
 ---
 
-### Plan de corrección
+### Parte 1 — Asistentes
 
-**1. Arreglar `NewAttendeeModal.tsx`** (foco principal)
+**1.1 Animación de refresco en `AttendeesTable.tsx`**
+- Aceptar nuevo prop `isRefetching: boolean`
+- Cuando `isRefetching=true`: aplicar clase `animate-pulse opacity-60` al contenedor de la tabla + overlay con `RefreshCw` rotando centrado
+- Animación `fade-in` al volver a `false` para suavizar el reemplazo de filas
 
-- Capturar `attendee.id` en una variable local al montar para evitar stale closures.
-- Después de submit exitoso: cerrar modal **antes** de resetear el form, usar `await mutateAsync` y luego `await refetch` antes de cerrar.
-- Eliminar el `form.reset()` redundante post-submit (el `useEffect` ya maneja el reset al cambiar `open`).
-- Agregar key={attendee?.id ?? 'new'} en el modal cuando se renderiza desde Attendees.tsx para forzar remount limpio entre ediciones.
+**1.2 Animación al cambiar de pestaña en `Attendees.tsx`**
+- Envolver `<AttendeesTable>` en un wrapper con `key={statusFilter}` para forzar remount
+- Aplicar clase `animate-fade-in` (ya existe en tailwind.config) al wrapper
+- Pasar `isRefetching` desde el hook `useAdminAttendees` (exponerlo)
 
-**2. Arreglar `useAdminAttendees.ts`**
+**1.3 Botón Refresh con feedback visual**
+- En `Attendees.tsx`, animar el icono `RefreshCw` con `className={cn('h-4 w-4', isRefetching && 'animate-spin')}`
+- Deshabilitar el botón mientras `isRefetching`
 
-Cambiar el patrón `onSuccess` para **esperar** al refetch antes de resolver la mutación:
-
-```typescript
-onSuccess: async (_, variables) => {
-  await queryClient.invalidateQueries({ queryKey: ['admin-attendees'] });
-  await queryClient.invalidateQueries({ queryKey: ['admin-attendees-counts'] });
-  await queryClient.invalidateQueries({ queryKey: ['admin-attendee-detail', variables.id] });
-}
-```
-
-Aplicar a `useUpdateAttendee`, `useCreateAttendee`, `useBulkCreateAttendees`, `useDeleteAttendee`, `useUpdateAttendeeStatus`.
-
-**3. Arreglar el debounce en `Attendees.tsx`**
-
-Reemplazar el patrón roto de `useCallback`+`setTimeout` por un `useEffect` real:
-
-```typescript
-useEffect(() => {
-  const timer = setTimeout(() => setDebouncedSearch(search), 300);
-  return () => clearTimeout(timer);
-}, [search]);
-```
-
-**4. Excluir `attendees` del cache StaleWhileRevalidate de Workbox** (`vite.config.ts`)
-
-Cambiar la estrategia de `attendees` a `NetworkFirst` con timeout corto (3s) para que siempre intente datos frescos primero. Mantiene offline support como fallback pero garantiza consistencia post-mutación.
-
-**5. Forzar invalidación de caches del SW en mutaciones críticas**
-
-En `useUpdateAttendee` y `useCreateAttendee`, después de `invalidateQueries`, ejecutar:
-
-```typescript
-if ('caches' in window) {
-  const cache = await caches.open('supabase-attendees');
-  const keys = await cache.keys();
-  await Promise.all(keys.map(k => cache.delete(k)));
-}
-```
+**Archivos:** `Attendees.tsx`, `AttendeesTable.tsx`, `useAdminAttendees.ts` (exponer `isRefetching`)
 
 ---
 
-### Archivos a modificar
+### Parte 2 — Agenda: Base de datos
 
-| Archivo | Cambio |
+**2.1 Migración `event_activities`:**
+```sql
+ALTER TABLE event_activities
+  ADD COLUMN speaker_photo_url text,
+  ADD COLUMN archived_at timestamptz,
+  ADD COLUMN sort_order integer DEFAULT 0;
+```
+- `speaker_photo_url`: foto del ponente (Storage signed URL key)
+- `archived_at`: si no es null, sesión archivada (oculta de listas activas)
+- `sort_order`: orden manual dentro del mismo día/sala para drag&drop
+
+**2.2 Bucket de Storage `speaker-photos` (privado):**
+- Migración SQL: `INSERT INTO storage.buckets (id, name, public) VALUES ('speaker-photos', 'speaker-photos', false)`
+- RLS: admins del evento pueden insert/update/delete; lectura via signed URL
+- Path convention: `{event_id}/{activity_id}.{ext}`
+
+**2.3 Filtro en queries:** `getActivities` excluye `archived_at IS NOT NULL` por defecto. Nuevo método `getArchivedActivities`.
+
+---
+
+### Parte 3 — Agenda: Persistencia y confirmación al cerrar
+
+**3.1 `SessionModal.tsx` — confirmar al cerrar con cambios sin guardar**
+- Usar `form.formState.isDirty` para detectar cambios pendientes
+- Al intentar cerrar (botón Cancelar, ESC, click fuera): si `isDirty`, abrir `AlertDialog` "¿Descartar cambios?"
+- Solo cerrar tras confirmación
+
+**3.2 Borrador local (autosave en localStorage)**
+- Mientras el modal esté abierto, `useEffect` que guarda `form.watch()` en `localStorage` cada 2s con clave `agenda-draft-{eventId}-{sessionId|new}`
+- Al abrir: si existe borrador y no estamos editando una sesión existente, ofrecer "Recuperar borrador"
+- Al guardar exitoso: limpiar borrador
+
+---
+
+### Parte 4 — Agenda: Drag & Drop
+
+**4.1 Reordenar dentro del mismo día (vertical)**
+- Instalar `@dnd-kit/core` + `@dnd-kit/sortable`
+- En `Agenda.tsx`, envolver `sessionsForDay` con `<DndContext>` + `<SortableContext>`
+- Cada session row se vuelve sortable con handle visible (icono `GripVertical` a la izquierda)
+- Al soltar: actualizar `sort_order` en BD para todas las sesiones del día afectadas
+
+**4.2 Mover entre horarios**
+- El drop calcula nuevo `start_time` basado en posición → permite reorganizar horarios visualmente
+- Modal de confirmación: "¿Mover '{title}' a las {newTime}?"
+
+**4.3 Mover entre salas (drag horizontal)**
+- Vista alternativa con columnas por sala (toggle "Vista por sala")
+- Drop en otra columna actualiza `location`
+- Mantener vista lista actual como default
+
+**4.4 Mutación nueva:** `useReorderSessions` que hace bulk `update` de `sort_order`/`start_time`/`location`
+
+---
+
+### Parte 5 — Agenda: Archivar sesiones
+
+**5.1 Acción "Archivar" en cada row**
+- Nuevo botón con icono `Archive` (lucide-react) entre Duplicar y Eliminar
+- Llama a `useArchiveSession` que setea `archived_at = now()`
+- Toast de confirmación con botón "Deshacer" (5s)
+
+**5.2 Vista de archivadas**
+- Tab/toggle "Archivadas" en el header de la página (badge con count)
+- Al activar: muestra solo `archived_at IS NOT NULL`
+- Cada row archivada muestra botón "Restaurar" (set `archived_at = null`)
+
+---
+
+### Parte 6 — Agenda: UX del modal
+
+**6.1 Time picker mejorado**
+- Reemplazar `<Input type="time">` nativo por componente custom con dropdown de horas en intervalos de 15min
+- Opción de teclear manualmente conservada
+- Visual: clock icon + texto grande + scroll selector (similar a iOS time picker simplificado)
+
+**6.2 Foto del ponente**
+- Nuevo campo en `SessionModal` debajo de `speaker_name`
+- Componente: avatar circular 80px con upload via click + drag&drop
+- Sube a `speaker-photos/{event_id}/{activity_id_or_temp}.{ext}` con `supabase.storage`
+- Validaciones: max 2MB, tipos `image/jpeg|png|webp`
+- Si ya existe: preview + botón "Cambiar" / "Eliminar"
+- Guardar `speaker_photo_url` en form
+
+**6.3 Tooltips en botones**
+- Envolver cada botón de acción (Pencil, Copy, Archive, Trash2, GripVertical) con `<Tooltip>` de shadcn
+- Textos i18n: `agenda.actions.edit`, `.duplicate`, `.archive`, `.delete`, `.reorder`
+- Aplicar también a botones del header (Export, Import, Duplicar día, Nueva sesión)
+
+---
+
+### Parte 7 — Agenda: Refresco y animación
+
+**7.1 Botón "Actualizar" en header**
+- Nuevo botón con `RefreshCw` (igual estilo que en Asistentes)
+- Llama `refetch()` de las 3 queries (activities, interestCounts, checkinCounts)
+- Animación `animate-spin` mientras refetch
+
+**7.2 Animación de la rejilla**
+- Wrapper de `sessionsForDay` con `key={selectedDate}` + `animate-fade-in`
+- Cada nueva sesión insertada: `animate-scale-in` (300ms)
+- Sesión eliminada/archivada: `animate-fade-out` antes de remover (manejar con estado local breve)
+
+**7.3 Mutaciones con `await invalidateQueries`** (consistente con fix anterior de Asistentes)
+- Aplicar mismo patrón `async onSuccess + await` a todas las mutaciones de `useAdminAgenda`
+
+---
+
+### Archivos a modificar/crear
+
+| Archivo | Acción |
 |---|---|
-| `src/components/admin/attendees/NewAttendeeModal.tsx` | Cerrar antes de reset, await mutación, eliminar `form.reset()` redundante |
-| `src/pages/admin/Attendees.tsx` | Debounce con useEffect; `key` prop en modal |
-| `src/hooks/useAdminAttendees.ts` | `onSuccess` async + `await invalidateQueries` en todos los hooks de mutación |
-| `vite.config.ts` | Cambiar estrategia de cache de `attendees` a NetworkFirst |
+| `supabase/migrations/<new>.sql` | Columnas + bucket + RLS |
+| `src/services/admin-agenda.service.ts` | speaker_photo_url, archive, reorder, getArchived |
+| `src/hooks/useAdminAgenda.ts` | useArchiveSession, useReorderSessions, await invalidate |
+| `src/hooks/useAdminAttendees.ts` | exponer isRefetching |
+| `src/pages/admin/Attendees.tsx` | animación refresh + tab key |
+| `src/components/admin/attendees/AttendeesTable.tsx` | overlay refetching |
+| `src/pages/admin/Agenda.tsx` | refresh btn, dnd, archived tab, animaciones |
+| `src/components/admin/agenda/SessionModal.tsx` | confirm-close, draft, time picker, foto, tooltips |
+| `src/components/admin/agenda/SpeakerPhotoUpload.tsx` | NUEVO componente |
+| `src/components/admin/agenda/SortableSessionRow.tsx` | NUEVO wrapper sortable |
+| `src/components/admin/agenda/TimePicker.tsx` | NUEVO time picker |
+| `src/locales/es/admin.json` + `en/admin.json` | nuevas claves i18n |
+| `package.json` | `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities` |
 
-### Validación post-fix
+### Validación post-implementación
 
-1. En modo incógnito: editar especialidad → debe verse al instante (sin recargar)
-2. En navegador habitual con SW viejo: Clear site data una vez, luego probar
-3. Editar dos asistentes seguidos: ambos cambios deben verse inmediatamente
-4. Crear nuevo asistente: aparece en la lista sin necesidad de "Actualizar"
-5. Buscar mientras se escribe: la tabla solo debe filtrar al final del typing, no parpadear con resultados intermedios
+1. Asistentes: presionar Refresh → icono gira, tabla con pulse, datos actualizados
+2. Asistentes: cambiar entre tabs → fade-in suave, no parpadeo
+3. Agenda: cerrar modal con cambios sin guardar → diálogo confirma; al recargar la página y reabrir, recuperar borrador
+4. Agenda: arrastrar sesión a otra posición → orden persiste tras recargar
+5. Agenda: archivar → desaparece de lista activa, aparece en tab "Archivadas", restaurar funciona
+6. Agenda: subir foto del ponente → preview, persiste, signed URL visible en detail drawer
+7. Agenda: hover sobre cualquier botón → tooltip i18n correcto
+8. Agenda: time picker abre dropdown 15min, también acepta input manual
+9. Agenda: refresh button gira y refetch las 3 queries
+10. Agenda: crear nueva sesión → aparece con animación scale-in sin necesidad de recargar
 
