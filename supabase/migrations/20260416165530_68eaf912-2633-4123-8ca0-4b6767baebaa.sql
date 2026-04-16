@@ -1,0 +1,1 @@
+UPDATE attendees SET last_session_id = NULL WHERE id = 'aa67acd8-84ba-4a90-bfdd-428c396d413f';
