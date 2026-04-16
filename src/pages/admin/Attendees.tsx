@@ -256,15 +256,18 @@ export default function AdminAttendees() {
       )}
 
       {/* Table */}
-      <AttendeesTable
-        attendees={displayedAttendees}
-        isLoading={isLoading}
-        onView={(id) => setSelectedAttendeeId(id)}
-        onEdit={handleOpenEditModal}
-        onDelete={(id, name) => setDeleteAttendee({ id, name })}
-        selectedIds={selectedIds}
-        onSelectionChange={setSelectedIds}
-      />
+      <div key={statusFilter} className="animate-fade-in">
+        <AttendeesTable
+          attendees={displayedAttendees}
+          isLoading={isLoading}
+          isRefetching={isRefetching}
+          onView={(id) => setSelectedAttendeeId(id)}
+          onEdit={handleOpenEditModal}
+          onDelete={(id, name) => setDeleteAttendee({ id, name })}
+          selectedIds={selectedIds}
+          onSelectionChange={setSelectedIds}
+        />
+      </div>
 
       {/* Modals */}
       <NewAttendeeModal
