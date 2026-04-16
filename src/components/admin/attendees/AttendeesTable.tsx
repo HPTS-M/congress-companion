@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Eye, Pencil, Trash2, Copy } from 'lucide-react';
+import { Eye, Pencil, Trash2, Copy, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -14,6 +14,7 @@ import type { AttendeeWithServices } from '@/services/admin-attendees.service';
 interface Props {
   attendees: AttendeeWithServices[];
   isLoading: boolean;
+  isRefetching?: boolean;
   onView: (id: string) => void;
   onEdit: (attendee: AttendeeWithServices) => void;
   onDelete: (id: string, name: string) => void;
