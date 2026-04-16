@@ -36,7 +36,7 @@ export default function AdminAttendees() {
   const [isExporting, setIsExporting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const { attendees, isLoading, counts, isCountsLoading, refetch } = useAdminAttendees(debouncedSearch, statusFilter);
+  const { attendees, isLoading, isRefetching, counts, isCountsLoading, refetch } = useAdminAttendees(debouncedSearch, statusFilter);
   const sendInvitationsMutation = useSendInvitations();
   const deleteMutation = useDeleteAttendee();
 
