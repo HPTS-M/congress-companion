@@ -80,9 +80,23 @@ export default function Home() {
           </div>
 
           {event?.venue_name && (
-            <div className="flex items-center gap-3 text-sm text-foreground">
-              <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span>{event.venue_name}{event.venue_address ? `, ${event.venue_address}` : ''}</span>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-start gap-3 text-sm text-foreground">
+                <MapPin className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
+                <span>{event.venue_name}{event.venue_address ? `, ${event.venue_address}` : ''}</span>
+              </div>
+              {event.venue_address && (
+                <div className="flex flex-wrap gap-2 pl-7">
+                  <Button size="sm" variant="outline" onClick={handleOpenMaps}>
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    {t('home.openInMaps')}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={handleCopyAddress}>
+                    {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                    {t('home.copyAddress')}
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 
