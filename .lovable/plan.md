@@ -1,41 +1,43 @@
 
 
-## Plan: Barra de navegación rápida visible en móvil y desktop, sin chocar con sidebar
+## Plan: Resolver error "Session already active" y prevenir recurrencia
 
 ### Problema
-La barra de navegación tiene `md:hidden`, desaparece en desktop. El usuario quiere que sea visible en ambos, posicionada debajo del header y del banner del asistente, sin superponerse al sidebar.
+El attendee tiene un `last_session_id` residual en la base de datos que no fue limpiado (sesión expirada, pestaña cerrada, etc.). La edge function bloquea el login en línea 154 si este campo no es null.
 
-### Solución
-Quitar `md:hidden` de BottomNav y desplazarla a la derecha del sidebar en desktop usando `md:left-[var(--sidebar-width)]`. Ajustar el padding del contenido principal para compensar la barra en ambos breakpoints.
+### Solución (2 partes)
 
-### Cambios
+**1. Fix inmediato: Limpiar el `last_session_id` estancado**
+- Ejecutar migración SQL para limpiar `last_session_id` del attendee afectado.
+
+```sql
+UPDATE attendees SET last_session_id = NULL 
+WHERE id = 'aa67acd8-84ba-4a90-bfdd-428c396d413f';
+```
+
+**2. Fix permanente: Modificar la edge function para no bloquear**
+- En `verify-access-code/index.ts`, en lugar de rechazar con 409 cuando `last_session_id` existe, simplemente limpiar la sesión anterior y permitir el nuevo login. Esto es más resiliente porque las sesiones pueden quedar huérfanas por múltiples razones (token expirado, navegador cerrado, localStorage limpiado).
 
 | Archivo | Cambio |
 |---|---|
-| `src/components/layout/BottomNav.tsx` | Quitar `md:hidden`. Agregar `md:left-[var(--sidebar-width)]` para que empiece después del sidebar en desktop. Mantener `left-0` en móvil. |
-| `src/components/layout/AttendeeLayout.tsx` | Cambiar padding de `<main>` a `pt-[7.5rem]` en ambos (quitar `md:pt-16`), para compensar header + nav en móvil y desktop. |
+| Edge function `verify-access-code` | Líneas 153-156: Reemplazar el bloqueo `return jsonError(409, 'Session already active')` por un `UPDATE` que limpia `last_session_id` y permite continuar el login. |
 
-### Layout resultante
+### Código del cambio en la edge function
 
-```text
-DESKTOP:
-┌──────┬──────────────────────────┐
-│      │  Header (64px)           │
-│ Side ├──────────────────────────┤
-│ bar  │  Nav bar (64px)          │
-│      ├──────────────────────────┤
-│      │  Contenido (scroll)      │
-└──────┴──────────────────────────┘
+```typescript
+// Antes (bloquea):
+if (matchedAttendee.last_session_id) {
+  return jsonError(409, 'Session already active');
+}
 
-MÓVIL:
-┌─────────────────────────────────┐
-│  Header (56px)                  │
-├─────────────────────────────────┤
-│  Nav bar (64px)                 │
-├─────────────────────────────────┤
-│  Contenido (scroll)             │
-└─────────────────────────────────┘
+// Después (permite, limpia sesión anterior):
+if (matchedAttendee.last_session_id) {
+  await supabaseAdmin
+    .from('attendees')
+    .update({ last_session_id: null })
+    .eq('id', matchedAttendee.id);
+}
 ```
 
-Dos archivos, cambios mínimos.
+Esto permite que el último dispositivo que inicie sesión siempre gane, en lugar de bloquear indefinidamente al usuario.
 
