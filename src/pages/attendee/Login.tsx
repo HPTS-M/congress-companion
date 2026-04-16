@@ -125,10 +125,37 @@ export default function AttendeeLogin() {
                 />
               </div>
 
-              {loginError && (
+              {loginError && !sessionConflict && (
                 <p className="text-sm text-destructive text-center">
                   {loginError}
                 </p>
+              )}
+
+              {sessionConflict && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>{t('auth.sessionConflictTitle')}</AlertTitle>
+                  <AlertDescription className="space-y-3">
+                    <p>{t('auth.sessionConflictMessage')}</p>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      className="w-full"
+                      onClick={handleForceLogin}
+                      disabled={isForcing}
+                    >
+                      {isForcing ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          {t('auth.forcingLogin')}
+                        </>
+                      ) : (
+                        t('auth.forceLoginButton')
+                      )}
+                    </Button>
+                  </AlertDescription>
+                </Alert>
               )}
 
               <Button
