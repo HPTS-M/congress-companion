@@ -48,7 +48,7 @@ function StatusBadge({ status }: { status: string | null }) {
   );
 }
 
-export function AttendeesTable({ attendees, isLoading, onView, onEdit, onDelete, selectedIds, onSelectionChange }: Props) {
+export function AttendeesTable({ attendees, isLoading, isRefetching, onView, onEdit, onDelete, selectedIds, onSelectionChange }: Props) {
   const { t } = useTranslation('admin');
 
   const copyCode = (code: string) => {
