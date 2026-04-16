@@ -75,11 +75,15 @@ export function NewAttendeeModal({ open, onOpenChange, attendee }: Props) {
   }, [open, attendee, form]);
 
   const onSubmit = async (values: FormValues) => {
+    // Capture id locally to avoid stale closures
+    const attendeeId = attendee?.id;
+    const attendeeEmail = attendee?.email;
+
     // Validate email against DB
     const emailLower = values.email.toLowerCase();
     const emails = existingEmails ?? [];
     const isDuplicate = emails.includes(emailLower);
-    const isSelfEmail = isEditMode && attendee?.email.toLowerCase() === emailLower;
+    const isSelfEmail = isEditMode && attendeeEmail?.toLowerCase() === emailLower;
 
     if (isDuplicate && !isSelfEmail) {
       form.setError('email', { message: t('attendees.importModal.duplicateEmailDb') });
@@ -87,9 +91,9 @@ export function NewAttendeeModal({ open, onOpenChange, attendee }: Props) {
     }
 
     try {
-      if (isEditMode && attendee) {
+      if (isEditMode && attendeeId) {
         await updateMutation.mutateAsync({
-          id: attendee.id,
+          id: attendeeId,
           data: {
             full_name: values.full_name,
             email: values.email,
@@ -106,7 +110,7 @@ export function NewAttendeeModal({ open, onOpenChange, attendee }: Props) {
           description: t('attendees.newAttendeeModal.successCode', { code: created.credential_code }),
         });
       }
-      form.reset();
+      // Close first; useEffect handles reset on next open
       onOpenChange(false);
     } catch {
       toast({

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Users, UserPlus, Upload, Download, Search, X, RefreshCw, Mail, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -39,11 +39,10 @@ export default function AdminAttendees() {
   const sendInvitationsMutation = useSendInvitations();
   const deleteMutation = useDeleteAttendee();
 
-  const handleSearchChange = useCallback((value: string) => {
-    setSearch(value);
-    const timer = setTimeout(() => setDebouncedSearch(value), 300);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(timer);
-  }, []);
+  }, [search]);
 
   const handleRefresh = () => {
     refetch();
@@ -216,7 +215,7 @@ export default function AdminAttendees() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
-            onChange={(e) => handleSearchChange(e.target.value)}
+            onChange={(e) => setSearch(e.target.value)}
             placeholder={t('attendees.searchPlaceholder')}
             className="pl-9"
           />
@@ -267,7 +266,12 @@ export default function AdminAttendees() {
       />
 
       {/* Modals */}
-      <NewAttendeeModal open={showNewModal} onOpenChange={handleCloseModal} attendee={editAttendee} />
+      <NewAttendeeModal
+        key={editAttendee?.id ?? 'new'}
+        open={showNewModal}
+        onOpenChange={handleCloseModal}
+        attendee={editAttendee}
+      />
       <ImportCsvModal open={showImportModal} onOpenChange={setShowImportModal} />
       <AttendeeDetailDrawer
         attendeeId={selectedAttendeeId}
