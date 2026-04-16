@@ -1,37 +1,67 @@
 
 
-## Plan: Resolver error "Session already active" y prevenir recurrencia
+## Plan: Restricción de sesión única con opción "Cerrar todas las sesiones"
 
-### Problema
-El attendee tiene un `last_session_id` residual en la base de datos que no fue limpiado (sesión expirada, pestaña cerrada, etc.). La edge function bloquea el login en línea 154 si este campo no es null.
+### Contexto
+Actualmente la edge function `verify-access-code` limpia automáticamente cualquier sesión previa y permite el login del nuevo dispositivo (cambio reciente). El usuario quiere revertir parcialmente: bloquear el login si hay sesión activa, pero ofrecer un botón visible que fuerce el cierre de la sesión anterior y permita continuar.
 
-### Solución (2 partes)
+### Comportamiento deseado
 
-**1. Fix inmediato: Limpiar el `last_session_id` estancado**
-- Ejecutar migración SQL para limpiar `last_session_id` del attendee afectado.
-
-```sql
-UPDATE attendees SET last_session_id = NULL 
-WHERE id = 'aa67acd8-84ba-4a90-bfdd-428c396d413f';
+```text
+1. Usuario ingresa código de acceso
+2. Edge function detecta last_session_id activo en otro dispositivo
+3. Retorna error 409 "Session already active" (NO limpia automáticamente)
+4. Frontend detecta el 409 → muestra Alert con badge:
+   ⚠️ "Ya tienes una sesión activa en otro dispositivo"
+   [Botón: Cerrar todas las sesiones e iniciar aquí]
+5. Usuario hace click en el botón
+6. Frontend re-llama edge function con flag force_login=true
+7. Edge function limpia last_session_id y permite login
+8. Usuario entra al evento
 ```
 
-**2. Fix permanente: Modificar la edge function para no bloquear**
-- En `verify-access-code/index.ts`, en lugar de rechazar con 409 cuando `last_session_id` existe, simplemente limpiar la sesión anterior y permitir el nuevo login. Esto es más resiliente porque las sesiones pueden quedar huérfanas por múltiples razones (token expirado, navegador cerrado, localStorage limpiado).
+### Cambios
 
 | Archivo | Cambio |
 |---|---|
-| Edge function `verify-access-code` | Líneas 153-156: Reemplazar el bloqueo `return jsonError(409, 'Session already active')` por un `UPDATE` que limpia `last_session_id` y permite continuar el login. |
+| `supabase/functions/verify-access-code/index.ts` | Restaurar bloqueo 409 cuando existe `last_session_id`. Aceptar parámetro opcional `force_login: boolean`. Si `force_login=true`, limpiar sesión y continuar. Schema Zod actualizado. |
+| `src/services/auth.service.ts` | `verifyAccessCode` acepta tercer parámetro `forceLogin: boolean = false` y lo envía al body. |
+| `src/hooks/useAuth.tsx` | `loginWithCode` acepta tercer parámetro `forceLogin` y lo pasa al service. |
+| `src/pages/attendee/Login.tsx` | Agregar estado `sessionConflict: boolean`. Detectar error "Session already active" → mostrar `Alert` destructivo con icono y botón "Cerrar todas las sesiones e iniciar aquí". El botón re-ejecuta `loginWithCode(..., true)`. |
+| `src/locales/es/common.json` y `src/locales/en/common.json` | Agregar claves: `auth.sessionConflictTitle`, `auth.sessionConflictMessage`, `auth.forceLoginButton`, `auth.forcingLogin`. |
 
-### Código del cambio en la edge function
+### UI del conflicto (en Login.tsx)
+
+```text
+┌─────────────────────────────────────────┐
+│ ⚠️  Sesión activa en otro dispositivo  │
+│                                         │
+│ Ya tienes una sesión iniciada. Por      │
+│ seguridad solo se permite una sesión    │
+│ activa a la vez.                        │
+│                                         │
+│ [Cerrar todas las sesiones e iniciar]  │
+└─────────────────────────────────────────┘
+```
+
+Usa `<Alert variant="destructive">` de shadcn con `<AlertCircle>` de lucide.
+
+### Lógica edge function (snippet)
 
 ```typescript
-// Antes (bloquea):
-if (matchedAttendee.last_session_id) {
-  return jsonError(409, 'Session already active');
-}
+// Schema
+const requestSchema = z.object({
+  access_code: z.string()...,
+  event_code: z.string()...,
+  force_login: z.boolean().optional().default(false),
+});
 
-// Después (permite, limpia sesión anterior):
+// En el flow, donde antes limpiaba siempre:
 if (matchedAttendee.last_session_id) {
+  if (!force_login) {
+    return jsonError(409, 'Session already active');
+  }
+  // force_login=true → limpiar y continuar
   await supabaseAdmin
     .from('attendees')
     .update({ last_session_id: null })
@@ -39,5 +69,9 @@ if (matchedAttendee.last_session_id) {
 }
 ```
 
-Esto permite que el último dispositivo que inicie sesión siempre gane, en lugar de bloquear indefinidamente al usuario.
+### Notas
+- Mantiene seguridad: una sesión por usuario en todo momento.
+- El usuario tiene control explícito para cerrar la sesión anterior.
+- No se rompe el rate limiting actual (cada intento sigue contando).
+- i18n completo para ES/EN.
 
