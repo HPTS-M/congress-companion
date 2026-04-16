@@ -141,8 +141,8 @@ export default function AdminAttendees() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-foreground">{t('attendees.title')}</h1>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="icon" onClick={handleRefresh} title={t('attendees.refresh')}>
-            <RefreshCw className="h-4 w-4" />
+          <Button variant="outline" size="icon" onClick={handleRefresh} title={t('attendees.refresh')} disabled={isRefetching}>
+            <RefreshCw className={cn('h-4 w-4', isRefetching && 'animate-spin')} />
           </Button>
           <Button variant="outline" onClick={handleExportExcel} disabled={isExporting}>
             <Download className="mr-2 h-4 w-4" />
