@@ -85,7 +85,10 @@
     "eventInfo": "Info del Evento",
     "dateRange": "{{start}} — {{end}}",
     "attendeeCount": "{{count}} asistentes",
-    "packageFallback": "Asistente"
+    "packageFallback": "Asistente",
+    "openInMaps": "Abrir en Maps",
+    "copyAddress": "Copiar dirección",
+    "addressCopied": "Dirección copiada"
   },
   "notifications": {
     "title": "Notificaciones",
