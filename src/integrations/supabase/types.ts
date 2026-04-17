@@ -160,6 +160,13 @@ export type Database = {
             referencedRelation: "attendees"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "attendee_checkins_attendee_id_fkey"
+            columns: ["attendee_id"]
+            isOneToOne: false
+            referencedRelation: "public_attendee_directory"
+            referencedColumns: ["id"]
+          },
         ]
       }
       attendee_notes: {
@@ -209,6 +216,13 @@ export type Database = {
             referencedRelation: "attendees"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "attendee_notes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_attendee_directory"
+            referencedColumns: ["id"]
+          },
         ]
       }
       attendee_services: {
@@ -254,6 +268,13 @@ export type Database = {
             columns: ["attendee_id"]
             isOneToOne: false
             referencedRelation: "attendees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendee_services_attendee_id_fkey"
+            columns: ["attendee_id"]
+            isOneToOne: false
+            referencedRelation: "public_attendee_directory"
             referencedColumns: ["id"]
           },
           {
@@ -575,6 +596,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "contacts_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "public_attendee_directory"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "contacts_event_id_fkey"
             columns: ["event_id"]
             isOneToOne: false
@@ -586,6 +614,13 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "attendees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contacts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_attendee_directory"
             referencedColumns: ["id"]
           },
         ]
@@ -1030,6 +1065,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "poll_responses_attendee_id_fkey"
+            columns: ["attendee_id"]
+            isOneToOne: false
+            referencedRelation: "public_attendee_directory"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "poll_responses_option_id_fkey"
             columns: ["option_id"]
             isOneToOne: false
@@ -1278,6 +1320,13 @@ export type Database = {
             referencedRelation: "attendees"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "push_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_attendee_directory"
+            referencedColumns: ["id"]
+          },
         ]
       }
       ratings: {
@@ -1328,6 +1377,13 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "attendees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ratings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_attendee_directory"
             referencedColumns: ["id"]
           },
         ]
@@ -1489,6 +1545,13 @@ export type Database = {
             referencedRelation: "attendees"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "session_interests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_attendee_directory"
+            referencedColumns: ["id"]
+          },
         ]
       }
       sponsor_leads: {
@@ -1522,6 +1585,13 @@ export type Database = {
             columns: ["attendee_id"]
             isOneToOne: false
             referencedRelation: "attendees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sponsor_leads_attendee_id_fkey"
+            columns: ["attendee_id"]
+            isOneToOne: false
+            referencedRelation: "public_attendee_directory"
             referencedColumns: ["id"]
           },
           {
@@ -1713,7 +1783,41 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      public_attendee_directory: {
+        Row: {
+          event_id: string | null
+          full_name: string | null
+          id: string | null
+          institution: string | null
+          registration_status: string | null
+          specialty: string | null
+        }
+        Insert: {
+          event_id?: string | null
+          full_name?: string | null
+          id?: string | null
+          institution?: string | null
+          registration_status?: string | null
+          specialty?: string | null
+        }
+        Update: {
+          event_id?: string | null
+          full_name?: string | null
+          id?: string | null
+          institution?: string | null
+          registration_status?: string | null
+          specialty?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendees_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       cleanup_old_attempts: { Args: never; Returns: undefined }
@@ -1742,6 +1846,13 @@ export type Database = {
       get_provider_service_attendees: {
         Args: { _provider_id: string; _service_catalog_id: string }
         Returns: Json
+      }
+      get_session_interest_counts: {
+        Args: { _event_id: string }
+        Returns: {
+          interest_count: number
+          session_id: string
+        }[]
       }
       get_unread_count: { Args: { _user_id: string }; Returns: number }
       get_user_organization: { Args: { _user_id: string }; Returns: string }
