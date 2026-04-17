@@ -213,7 +213,26 @@
     "bulkDelete": "Eliminar",
     "bulkDeleteConfirm": "¿Eliminar {{count}} asistentes seleccionados? Esta acción no se puede deshacer.",
     "bulkDeleteSuccess": "{{count}} asistentes eliminados",
-    "clearSelection": "Limpiar selección"
+    "clearSelection": "Limpiar selección",
+    "deactivate": "Desactivar",
+    "reactivate": "Reactivar",
+    "deactivateTitle": "Desactivar asistente",
+    "deactivateConfirm": "¿Desactivar a {{name}}? No podrá iniciar sesión, su QR dejará de funcionar y no recibirá nuevos servicios.",
+    "reactivateTitle": "Reactivar asistente",
+    "reactivateConfirm": "¿Reactivar a {{name}}? Recuperará el acceso a la plataforma.",
+    "deactivateSuccess": "Asistente desactivado",
+    "reactivateSuccess": "Asistente reactivado",
+    "deactivateError": "Error al cambiar el estado del asistente",
+    "deactivateButton": "Desactivar acceso",
+    "reactivateButton": "Reactivar acceso",
+    "deactivatedBadge": "Desactivado",
+    "addServiceBlocked": "No se pueden agregar servicios a un asistente desactivado",
+    "newAttendeeModal2": {
+      "discardTitle": "¿Descartar cambios?",
+      "discardDescription": "Tienes datos sin guardar. Si cierras ahora se perderán.",
+      "keepEditing": "Seguir editando",
+      "discard": "Descartar"
+    }
   },
   "agenda": {
     "title": "Agenda",

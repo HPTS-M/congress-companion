@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Users, UserPlus, Upload, Download, Search, X, RefreshCw, Mail, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,18 +7,28 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
-import { useAdminAttendees, useSendInvitations, useDeleteAttendee } from '@/hooks/useAdminAttendees';
+import { useAdminAttendees, useSendInvitations, useDeleteAttendee, useUpdateAttendeeStatus } from '@/hooks/useAdminAttendees';
 import { adminAttendeesService, type AttendeeWithServices } from '@/services/admin-attendees.service';
 import { useEvent } from '@/hooks/useEvent';
 import { writeExcelFile } from '@/lib/excel';
 import { AttendeesTable } from '@/components/admin/attendees/AttendeesTable';
 import { NewAttendeeModal } from '@/components/admin/attendees/NewAttendeeModal';
 import { ImportCsvModal } from '@/components/admin/attendees/ImportCsvModal';
-import { AttendeeDetailDrawer } from '@/components/admin/attendees/AttendeeDetailDrawer';
 import { DeleteAttendeeDialog } from '@/components/admin/attendees/DeleteAttendeeDialog';
 import { DataQualityPanel } from '@/components/admin/attendees/DataQualityPanel';
+import { DataTablePagination } from '@/components/ui/data-table-pagination';
+import { usePagination } from '@/hooks/usePagination';
 import { cn } from '@/lib/utils';
+
+// Lazy-load drawer (only loaded when an attendee is selected)
+const AttendeeDetailDrawer = lazy(() =>
+  import('@/components/admin/attendees/AttendeeDetailDrawer').then((m) => ({ default: m.AttendeeDetailDrawer })),
+);
 
 export default function AdminAttendees() {
   const { t } = useTranslation('admin');
@@ -31,6 +41,7 @@ export default function AdminAttendees() {
   const [selectedAttendeeId, setSelectedAttendeeId] = useState<string | null>(null);
   const [editAttendee, setEditAttendee] = useState<AttendeeWithServices | null>(null);
   const [deleteAttendee, setDeleteAttendee] = useState<{ id: string; name: string } | null>(null);
+  const [toggleActiveTarget, setToggleActiveTarget] = useState<AttendeeWithServices | null>(null);
   const [qualityFilterIds, setQualityFilterIds] = useState<string[] | null>(null);
   const [qualityFilterLabel, setQualityFilterLabel] = useState('');
   const [isExporting, setIsExporting] = useState(false);
@@ -39,16 +50,17 @@ export default function AdminAttendees() {
   const { attendees, isLoading, isRefetching, counts, isCountsLoading, refetch } = useAdminAttendees(debouncedSearch, statusFilter);
   const sendInvitationsMutation = useSendInvitations();
   const deleteMutation = useDeleteAttendee();
+  const updateStatusMutation = useUpdateAttendeeStatus();
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(timer);
   }, [search]);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     refetch();
     toast({ title: t('attendees.refreshed'), duration: 1500 });
-  };
+  }, [refetch, t]);
 
   const handleExportExcel = async () => {
     if (!event?.id) return;
@@ -78,15 +90,15 @@ export default function AdminAttendees() {
     }
   };
 
-  const handleQualityFilter = (ids: string[], label: string) => {
+  const handleQualityFilter = useCallback((ids: string[], label: string) => {
     setQualityFilterIds(ids);
     setQualityFilterLabel(label);
-  };
+  }, []);
 
-  const clearQualityFilter = () => {
+  const clearQualityFilter = useCallback(() => {
     setQualityFilterIds(null);
     setQualityFilterLabel('');
-  };
+  }, []);
 
   const handleBulkSendCredentials = async () => {
     if (selectedIds.size === 0 || !event?.id) return;
@@ -114,26 +126,57 @@ export default function AdminAttendees() {
     }
   };
 
-  const handleOpenEditModal = (attendee: AttendeeWithServices) => {
+  const handleOpenEditModal = useCallback((attendee: AttendeeWithServices) => {
     setEditAttendee(attendee);
     setShowNewModal(true);
-  };
+  }, []);
 
-  const handleCloseModal = (open: boolean) => {
+  const handleCloseModal = useCallback((open: boolean) => {
     setShowNewModal(open);
     if (!open) setEditAttendee(null);
+  }, []);
+
+  const handleToggleActive = useCallback((a: AttendeeWithServices) => {
+    setToggleActiveTarget(a);
+  }, []);
+
+  const confirmToggleActive = async () => {
+    if (!toggleActiveTarget) return;
+    const isCancelled = toggleActiveTarget.registration_status === 'cancelled';
+    const newStatus = isCancelled ? 'pending' : 'cancelled';
+    try {
+      await updateStatusMutation.mutateAsync({ id: toggleActiveTarget.id, status: newStatus });
+      toast({ title: t(isCancelled ? 'attendees.reactivateSuccess' : 'attendees.deactivateSuccess') });
+      setToggleActiveTarget(null);
+    } catch {
+      toast({ title: t('attendees.deactivateError'), variant: 'destructive' });
+    }
   };
 
-  // Apply quality filter client-side
-  const displayedAttendees = qualityFilterIds
-    ? attendees.filter((a) => qualityFilterIds.includes(a.id))
-    : attendees;
+  // Apply quality filter client-side, memoized
+  const displayedAttendees = useMemo(
+    () => (qualityFilterIds ? attendees.filter((a) => qualityFilterIds.includes(a.id)) : attendees),
+    [attendees, qualityFilterIds],
+  );
 
-  const statCards = [
+  // Pagination over the filtered list (10 per page)
+  const {
+    paginatedItems,
+    currentPage,
+    totalPages,
+    totalItems,
+    startIndex,
+    endIndex,
+    setPage,
+  } = usePagination(displayedAttendees, 10);
+
+  const statCards = useMemo(() => [
     { label: t('attendees.totalRegistered'), value: counts.total, color: 'text-primary' },
     { label: t('attendees.confirmed'), value: counts.confirmed, color: 'text-accent' },
     { label: t('attendees.pending'), value: counts.pending, color: 'text-amber-500' },
-  ];
+  ], [t, counts]);
+
+  const isCancelledTarget = toggleActiveTarget?.registration_status === 'cancelled';
 
   return (
     <div className="space-y-6">
@@ -258,14 +301,23 @@ export default function AdminAttendees() {
       {/* Table */}
       <div key={statusFilter} className="animate-fade-in">
         <AttendeesTable
-          attendees={displayedAttendees}
+          attendees={paginatedItems}
           isLoading={isLoading}
           isRefetching={isRefetching}
-          onView={(id) => setSelectedAttendeeId(id)}
+          onView={setSelectedAttendeeId}
           onEdit={handleOpenEditModal}
           onDelete={(id, name) => setDeleteAttendee({ id, name })}
+          onToggleActive={handleToggleActive}
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}
+        />
+        <DataTablePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          startIndex={startIndex}
+          endIndex={endIndex}
+          onPageChange={setPage}
         />
       </div>
 
@@ -277,14 +329,43 @@ export default function AdminAttendees() {
         attendee={editAttendee}
       />
       <ImportCsvModal open={showImportModal} onOpenChange={setShowImportModal} />
-      <AttendeeDetailDrawer
-        attendeeId={selectedAttendeeId}
-        onClose={() => setSelectedAttendeeId(null)}
-      />
+      {selectedAttendeeId && (
+        <Suspense fallback={null}>
+          <AttendeeDetailDrawer
+            attendeeId={selectedAttendeeId}
+            onClose={() => setSelectedAttendeeId(null)}
+          />
+        </Suspense>
+      )}
       <DeleteAttendeeDialog
         attendee={deleteAttendee}
         onClose={() => setDeleteAttendee(null)}
       />
+
+      {/* Deactivate / Reactivate confirmation */}
+      <AlertDialog open={!!toggleActiveTarget} onOpenChange={(o) => { if (!o) setToggleActiveTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t(isCancelledTarget ? 'attendees.reactivateTitle' : 'attendees.deactivateTitle')}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(isCancelledTarget ? 'attendees.reactivateConfirm' : 'attendees.deactivateConfirm', {
+                name: toggleActiveTarget?.full_name ?? '',
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('attendees.deleteConfirm.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmToggleActive}
+              className={isCancelledTarget ? 'bg-accent text-accent-foreground' : 'bg-destructive text-destructive-foreground'}
+            >
+              {t(isCancelledTarget ? 'attendees.reactivate' : 'attendees.deactivate')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

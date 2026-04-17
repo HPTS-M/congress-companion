@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
-import { Calendar, RefreshCw, Mail, Bus, UtensilsCrossed, Sparkles, Map, Plus, Trash2 } from 'lucide-react';
+import { Calendar, RefreshCw, Mail, Bus, UtensilsCrossed, Sparkles, Map, Plus, Trash2, Ban, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from '@/components/ui/sheet';
-import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
@@ -46,6 +49,7 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
   const sendInvitationsMutation = useSendInvitations();
   const updateAttendeeStatusMutation = useUpdateAttendeeStatus();
   const [showAddService, setShowAddService] = useState(false);
+  const [confirmToggleActive, setConfirmToggleActive] = useState(false);
 
   const handleRegenerate = async () => {
     if (!attendeeId) return;
@@ -106,6 +110,19 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
   // Determine credential button state
   const attendee = data?.attendee;
   const hasBeenSent = !!attendee?.invitation_sent_at;
+  const isCancelled = attendee?.registration_status === 'cancelled';
+
+  const handleToggleActive = async () => {
+    if (!attendeeId) return;
+    const newStatus = isCancelled ? 'pending' : 'cancelled';
+    try {
+      await updateAttendeeStatusMutation.mutateAsync({ id: attendeeId, status: newStatus });
+      toast({ title: t(isCancelled ? 'attendees.reactivateSuccess' : 'attendees.deactivateSuccess') });
+      setConfirmToggleActive(false);
+    } catch {
+      toast({ title: t('attendees.deactivateError'), variant: 'destructive' });
+    }
+  };
 
   return (
     <>
@@ -187,6 +204,20 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
                     </SelectContent>
                   </Select>
                 </div>
+                <Button
+                  variant={isCancelled ? 'outline' : 'outline'}
+                  size="sm"
+                  onClick={() => setConfirmToggleActive(true)}
+                  className={cn(
+                    'w-full',
+                    isCancelled
+                      ? 'border-accent/30 text-accent hover:bg-accent/10'
+                      : 'border-destructive/30 text-destructive hover:bg-destructive/10',
+                  )}
+                >
+                  {isCancelled ? <RotateCcw className="mr-2 h-3.5 w-3.5" /> : <Ban className="mr-2 h-3.5 w-3.5" />}
+                  {t(isCancelled ? 'attendees.reactivateButton' : 'attendees.deactivateButton')}
+                </Button>
               </div>
 
               <Separator />
@@ -332,6 +363,30 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
           attendeeId={attendeeId}
         />
       )}
+
+      <AlertDialog open={confirmToggleActive} onOpenChange={setConfirmToggleActive}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t(isCancelled ? 'attendees.reactivateTitle' : 'attendees.deactivateTitle')}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(isCancelled ? 'attendees.reactivateConfirm' : 'attendees.deactivateConfirm', {
+                name: attendee?.full_name ?? '',
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('attendees.deleteConfirm.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleToggleActive}
+              className={isCancelled ? 'bg-accent text-accent-foreground' : 'bg-destructive text-destructive-foreground'}
+            >
+              {t(isCancelled ? 'attendees.reactivate' : 'attendees.deactivate')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

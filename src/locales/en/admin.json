@@ -213,7 +213,26 @@
     "bulkDelete": "Delete",
     "bulkDeleteConfirm": "Delete {{count}} selected attendees? This action cannot be undone.",
     "bulkDeleteSuccess": "{{count}} attendees deleted",
-    "clearSelection": "Clear selection"
+    "clearSelection": "Clear selection",
+    "deactivate": "Deactivate",
+    "reactivate": "Reactivate",
+    "deactivateTitle": "Deactivate attendee",
+    "deactivateConfirm": "Deactivate {{name}}? They won't be able to log in, their QR will stop working, and no new services can be added.",
+    "reactivateTitle": "Reactivate attendee",
+    "reactivateConfirm": "Reactivate {{name}}? Their platform access will be restored.",
+    "deactivateSuccess": "Attendee deactivated",
+    "reactivateSuccess": "Attendee reactivated",
+    "deactivateError": "Error changing attendee status",
+    "deactivateButton": "Deactivate access",
+    "reactivateButton": "Reactivate access",
+    "deactivatedBadge": "Deactivated",
+    "addServiceBlocked": "Cannot add services to a deactivated attendee",
+    "newAttendeeModal2": {
+      "discardTitle": "Discard changes?",
+      "discardDescription": "You have unsaved data. It will be lost if you close now.",
+      "keepEditing": "Keep editing",
+      "discard": "Discard"
+    }
   },
   "agenda": {
     "title": "Agenda",

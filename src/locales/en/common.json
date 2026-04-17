@@ -17,6 +17,11 @@
   "logout": "Log out",
   "language": "Language",
   "comingSoon": "Coming soon",
+  "pagination": {
+    "showing": "Showing {{start}}-{{end}} of {{total}}",
+    "previous": "Previous",
+    "next": "Next"
+  },
   "offlineBanner": {
     "offline": "Offline — showing cached data",
     "reconnected": "Connection restored ✓",

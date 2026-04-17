@@ -57,7 +57,9 @@ export const adminAttendeesService = {
   ): Promise<AttendeeWithServices[]> => {
     let query = supabase
       .from('attendees')
-      .select('*')
+      .select(
+        'id, event_id, full_name, email, credential_code, registration_status, specialty, institution, phone, registration_date, invitation_sent_at, created_at, user_id',
+      )
       .eq('event_id', eventId)
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
@@ -79,6 +81,7 @@ export const adminAttendeesService = {
     let servicesCounts: Record<string, number> = {};
 
     if (attendeeIds.length > 0) {
+      // Single batch query — replaces N+1 pattern
       const { data: services } = await supabase
         .from('attendee_services')
         .select('attendee_id')
@@ -96,7 +99,7 @@ export const adminAttendeesService = {
     }
 
     return (data ?? []).map((a) => ({
-      ...a,
+      ...(a as AttendeeRow),
       servicesCount: servicesCounts[a.id] ?? 0,
     }));
   },
@@ -240,6 +243,17 @@ export const adminAttendeesService = {
     eventId: string,
     data: AddServiceData,
   ): Promise<void> => {
+    // Guard: block adding services to deactivated (cancelled) attendees
+    const { data: attendee, error: aErr } = await supabase
+      .from('attendees')
+      .select('registration_status')
+      .eq('id', attendeeId)
+      .single();
+    if (aErr) throw new Error(aErr.message);
+    if (attendee?.registration_status === 'cancelled') {
+      throw new Error('ATTENDEE_DEACTIVATED');
+    }
+
     const { data: catalog, error: catError } = await supabase
       .from('service_catalog')
       .insert({
