@@ -17,7 +17,12 @@
   "logout": "Cerrar sesión",
   "language": "Idioma",
   "comingSoon": "Próximamente",
-  "offlineBanner": "Sin conexión — mostrando datos guardados",
+  "offlineBanner": {
+    "offline": "Sin conexión — mostrando datos guardados",
+    "reconnected": "Conexión restaurada ✓",
+    "syncingTitle": "Conexión restaurada",
+    "syncingDescription": "Actualizando datos…"
+  },
   "status": {
     "confirmed": "Confirmado",
     "pending": "Pendiente",

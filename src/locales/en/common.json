@@ -17,7 +17,12 @@
   "logout": "Log out",
   "language": "Language",
   "comingSoon": "Coming soon",
-  "offlineBanner": "Offline — showing cached data",
+  "offlineBanner": {
+    "offline": "Offline — showing cached data",
+    "reconnected": "Connection restored ✓",
+    "syncingTitle": "Connection restored",
+    "syncingDescription": "Refreshing data…"
+  },
   "status": {
     "confirmed": "Confirmed",
     "pending": "Pending",
