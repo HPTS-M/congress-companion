@@ -32,18 +32,12 @@ export function useActivities(eventId: string | undefined) {
 export function useSessionInterests(eventId: string | undefined) {
   const query = useQuery({
     queryKey: ['session-interests', eventId],
-    queryFn: () => agendaService.getInterests(eventId!),
+    queryFn: () => agendaService.getInterestCounts(eventId!),
     enabled: !!eventId,
     staleTime: 5 * 60 * 1000,
   });
 
-  const countMap = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const i of query.data ?? []) {
-      map.set(i.session_id, (map.get(i.session_id) ?? 0) + 1);
-    }
-    return map;
-  }, [query.data]);
+  const countMap = query.data ?? new Map<string, number>();
 
   return { ...query, countMap };
 }
@@ -91,7 +85,7 @@ export function useToggleInterest(eventId: string | undefined, attendeeId: strin
       await qc.cancelQueries({ queryKey: ['session-interests', eventId] });
 
       const prevUser = qc.getQueryData<SessionInterest[]>(['user-interests', eventId, attendeeId]);
-      const prevAll = qc.getQueryData<SessionInterest[]>(['session-interests', eventId]);
+      const prevCounts = qc.getQueryData<Map<string, number>>(['session-interests', eventId]);
 
       // Optimistic user interests
       if (isInterested) {
@@ -109,11 +103,19 @@ export function useToggleInterest(eventId: string | undefined, attendeeId: strin
         );
       }
 
-      return { prevUser, prevAll };
+      // Optimistic count delta
+      if (prevCounts) {
+        const next = new Map(prevCounts);
+        const cur = next.get(sessionId) ?? 0;
+        next.set(sessionId, Math.max(0, cur + (isInterested ? -1 : 1)));
+        qc.setQueryData(['session-interests', eventId], next);
+      }
+
+      return { prevUser, prevCounts };
     },
     onError: (_err, _vars, context) => {
       if (context?.prevUser) qc.setQueryData(['user-interests', eventId, attendeeId], context.prevUser);
-      if (context?.prevAll) qc.setQueryData(['session-interests', eventId], context.prevAll);
+      if (context?.prevCounts) qc.setQueryData(['session-interests', eventId], context.prevCounts);
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ['user-interests', eventId, attendeeId] });

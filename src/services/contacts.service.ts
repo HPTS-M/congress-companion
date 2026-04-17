@@ -20,16 +20,19 @@ export interface ContactRow {
 
 export const contactsService = {
   async getEventAttendees(eventId: string): Promise<DirectoryAttendee[]> {
-    const { data, error } = await supabase
-      .from('attendees')
-      .select('id, full_name, email, specialty, institution')
+    // Uses public_attendee_directory view which exposes only safe fields
+    // (no email/phone/document/credential). Email is no longer surfaced here for privacy.
+    const { data, error } = await (supabase as any)
+      .from('public_attendee_directory')
+      .select('id, full_name, specialty, institution')
       .eq('event_id', eventId)
-      .eq('registration_status', 'confirmed')
-      .is('deleted_at', null)
       .order('full_name');
 
     if (error) throw new Error(error.message);
-    return (data ?? []) as DirectoryAttendee[];
+    return ((data ?? []) as Array<Omit<DirectoryAttendee, 'email'>>).map((d) => ({
+      ...d,
+      email: '', // email no longer exposed via public directory
+    }));
   },
 
   async getMyContacts(attendeeId: string): Promise<ContactRow[]> {
@@ -69,13 +72,24 @@ export const contactsService = {
   },
 
   async getAttendeeById(attendeeId: string): Promise<DirectoryAttendee | null> {
-    const { data, error } = await supabase
+    // Full attendee record only readable for accepted contacts (RLS policy).
+    // For non-contacts, falls back to public directory view.
+    const { data: full } = await supabase
       .from('attendees')
       .select('id, full_name, email, specialty, institution')
       .eq('id', attendeeId)
       .maybeSingle();
 
+    if (full) return full as DirectoryAttendee;
+
+    const { data: pub, error } = await (supabase as any)
+      .from('public_attendee_directory')
+      .select('id, full_name, specialty, institution')
+      .eq('id', attendeeId)
+      .maybeSingle();
+
     if (error) throw new Error(error.message);
-    return data as DirectoryAttendee | null;
+    if (!pub) return null;
+    return { ...(pub as Omit<DirectoryAttendee, 'email'>), email: '' };
   },
 };
