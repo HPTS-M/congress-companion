@@ -363,6 +363,30 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
           attendeeId={attendeeId}
         />
       )}
+
+      <AlertDialog open={confirmToggleActive} onOpenChange={setConfirmToggleActive}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t(isCancelled ? 'attendees.reactivateTitle' : 'attendees.deactivateTitle')}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(isCancelled ? 'attendees.reactivateConfirm' : 'attendees.deactivateConfirm', {
+                name: attendee?.full_name ?? '',
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('attendees.deleteConfirm.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleToggleActive}
+              className={isCancelled ? 'bg-accent text-accent-foreground' : 'bg-destructive text-destructive-foreground'}
+            >
+              {t(isCancelled ? 'attendees.reactivate' : 'attendees.deactivate')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
