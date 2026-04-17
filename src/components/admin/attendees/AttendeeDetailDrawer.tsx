@@ -204,6 +204,20 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
                     </SelectContent>
                   </Select>
                 </div>
+                <Button
+                  variant={isCancelled ? 'outline' : 'outline'}
+                  size="sm"
+                  onClick={() => setConfirmToggleActive(true)}
+                  className={cn(
+                    'w-full',
+                    isCancelled
+                      ? 'border-accent/30 text-accent hover:bg-accent/10'
+                      : 'border-destructive/30 text-destructive hover:bg-destructive/10',
+                  )}
+                >
+                  {isCancelled ? <RotateCcw className="mr-2 h-3.5 w-3.5" /> : <Ban className="mr-2 h-3.5 w-3.5" />}
+                  {t(isCancelled ? 'attendees.reactivateButton' : 'attendees.deactivateButton')}
+                </Button>
               </div>
 
               <Separator />
