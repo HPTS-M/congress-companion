@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/hooks/useAuth';
 import { useEvent } from '@/hooks/useEvent';
 import { useDirectMessages, useAttendeeNames, useDeleteConversation } from '@/hooks/useMessaging';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { messagingService, type ChatMessage, type DirectConversation } from '@/services/messaging.service';
 import { supabase } from '@/integrations/supabase/client';
 import { format, isToday, isYesterday } from 'date-fns';
@@ -49,6 +50,7 @@ export default function DirectChatView({ conversation, onBack }: Props) {
   const { attendee } = useAuth();
   const { event } = useEvent();
   const queryClient = useQueryClient();
+  const isOnline = useOnlineStatus();
   const dateFnsLocale = i18n.language?.startsWith('es') ? es : enUS;
   const attendeeId = attendee?.id ?? '';
   const eventId = event?.id ?? '';
@@ -73,7 +75,7 @@ export default function DirectChatView({ conversation, onBack }: Props) {
 
   // Realtime for direct messages
   useEffect(() => {
-    if (!conversation.id || conversation.status !== 'active' || !navigator.onLine) return;
+    if (!conversation.id || conversation.status !== 'active' || !isOnline) return;
 
     const channel = supabase
       .channel(`dm-${conversation.id}`)
@@ -101,7 +103,7 @@ export default function DirectChatView({ conversation, onBack }: Props) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [conversation.id, conversation.status, queryClient]);
+  }, [conversation.id, conversation.status, queryClient, isOnline]);
 
   const handleSend = useCallback(async () => {
     if (!input.trim() || sending || isPending) return;

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useCallback } from 'react';
 import { useEvent } from '@/hooks/useEvent';
 import { useAuth } from '@/hooks/useAuth';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { pollsService } from '@/services/polls.service';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
@@ -10,6 +11,7 @@ export function usePolls() {
   const { event } = useEvent();
   const { attendee } = useAuth();
   const qc = useQueryClient();
+  const isOnline = useOnlineStatus();
   const eventId = event?.id ?? '';
   const attendeeId = attendee?.id ?? '';
 
@@ -35,7 +37,7 @@ export function usePolls() {
 
   // Realtime: refetch when polls are updated (e.g. activated/closed)
   useEffect(() => {
-    if (!eventId || !navigator.onLine) return;
+    if (!eventId || !isOnline) return;
 
     const channel = supabase
       .channel(`active-polls-${eventId}`)
@@ -68,7 +70,7 @@ export function usePolls() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [eventId, attendeeId, qc]);
+  }, [eventId, attendeeId, qc, isOnline]);
 
   return {
     polls: pollsQuery.data ?? [],
@@ -80,9 +82,10 @@ export function usePolls() {
 
 export function usePollRealtime(pollId: string | null, onUpdate: () => void) {
   const stableOnUpdate = useCallback(onUpdate, [onUpdate]);
+  const isOnline = useOnlineStatus();
 
   useEffect(() => {
-    if (!pollId || !navigator.onLine) return;
+    if (!pollId || !isOnline) return;
 
     const channel = supabase
       .channel(`poll-${pollId}`)
@@ -101,5 +104,5 @@ export function usePollRealtime(pollId: string | null, onUpdate: () => void) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [pollId, stableOnUpdate]);
+  }, [pollId, stableOnUpdate, isOnline]);
 }

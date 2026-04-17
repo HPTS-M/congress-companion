@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { toast as sonnerToast } from 'sonner';
 import { Toaster } from '@/components/ui/toaster';
 import { Toaster as Sonner } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -8,6 +9,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from '@/hooks/useAuth';
 import { EventProvider } from '@/components/layout/EventProvider';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 
 // Lazy loaded pages
 const Index = lazy(() => import('@/pages/Index'));
@@ -67,6 +69,7 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 5 * 60 * 1000,
       retry: 1,
+      refetchOnReconnect: 'always',
     },
   },
 });
@@ -81,24 +84,50 @@ function PageLoader() {
 
 function OfflineBanner() {
   const { t } = useTranslation();
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [status, setStatus] = useState<'online' | 'offline' | 'reconnected'>(
+    navigator.onLine ? 'online' : 'offline'
+  );
 
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    let hideTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const handleOnline = () => {
+      setStatus('reconnected');
+      // Force refetch of all active queries
+      queryClient.invalidateQueries();
+      // Toast confirming sync
+      sonnerToast.success(t('offlineBanner.syncingTitle'), {
+        description: t('offlineBanner.syncingDescription'),
+        duration: 3000,
+      });
+      // Hide green banner after 1.5s
+      if (hideTimer) clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => setStatus('online'), 1500);
+    };
+    const handleOffline = () => {
+      if (hideTimer) clearTimeout(hideTimer);
+      setStatus('offline');
+    };
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      if (hideTimer) clearTimeout(hideTimer);
     };
-  }, []);
+  }, [t]);
 
-  if (isOnline) return null;
+  if (status === 'online') return null;
 
   return (
-    <div className="bg-amber-500 text-white text-center py-1.5 text-[13px] font-medium sticky top-0 z-[9999]">
-      {t('offlineBanner')}
+    <div
+      className={cn(
+        'text-white text-center py-1.5 text-[13px] font-medium sticky top-0 z-[9999] transition-colors',
+        status === 'offline' ? 'bg-amber-500' : 'bg-emerald-500'
+      )}
+    >
+      {status === 'offline' ? t('offlineBanner.offline') : t('offlineBanner.reconnected')}
     </div>
   );
 }
