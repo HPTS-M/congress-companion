@@ -49,6 +49,7 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
   const sendInvitationsMutation = useSendInvitations();
   const updateAttendeeStatusMutation = useUpdateAttendeeStatus();
   const [showAddService, setShowAddService] = useState(false);
+  const [confirmToggleActive, setConfirmToggleActive] = useState(false);
 
   const handleRegenerate = async () => {
     if (!attendeeId) return;
@@ -109,6 +110,19 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
   // Determine credential button state
   const attendee = data?.attendee;
   const hasBeenSent = !!attendee?.invitation_sent_at;
+  const isCancelled = attendee?.registration_status === 'cancelled';
+
+  const handleToggleActive = async () => {
+    if (!attendeeId) return;
+    const newStatus = isCancelled ? 'pending' : 'cancelled';
+    try {
+      await updateAttendeeStatusMutation.mutateAsync({ id: attendeeId, status: newStatus });
+      toast({ title: t(isCancelled ? 'attendees.reactivateSuccess' : 'attendees.deactivateSuccess') });
+      setConfirmToggleActive(false);
+    } catch {
+      toast({ title: t('attendees.deactivateError'), variant: 'destructive' });
+    }
+  };
 
   return (
     <>
