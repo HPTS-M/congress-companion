@@ -1,17 +1,23 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
 import { useCreateAttendee, useUpdateAttendee, useExistingEmails } from '@/hooks/useAdminAttendees';
+import { useEvent } from '@/hooks/useEvent';
 import type { AttendeeWithServices } from '@/services/admin-attendees.service';
 
 const schema = z.object({
@@ -36,26 +42,40 @@ interface Props {
   attendee?: AttendeeWithServices | null;
 }
 
+const DRAFT_KEY = (eventId: string) => `attendee-draft-${eventId}-new`;
+
+const emptyValues: FormValues = {
+  full_name: '',
+  email: '',
+  specialty: '',
+  institution: '',
+  registration_status: 'pending',
+};
+
 export function NewAttendeeModal({ open, onOpenChange, attendee }: Props) {
   const { t } = useTranslation('admin');
+  const { event } = useEvent();
+  const queryClient = useQueryClient();
   const createMutation = useCreateAttendee();
   const updateMutation = useUpdateAttendee();
   const { data: existingEmails } = useExistingEmails();
   const isEditMode = !!attendee;
+  const eventId = event?.id ?? '';
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const draftLoadedRef = useRef(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      full_name: '',
-      email: '',
-      specialty: '',
-      institution: '',
-      registration_status: 'pending',
-    },
+    defaultValues: emptyValues,
   });
 
+  // Reset / draft recovery on open
   useEffect(() => {
-    if (open && attendee) {
+    if (!open) {
+      draftLoadedRef.current = false;
+      return;
+    }
+    if (attendee) {
       form.reset({
         full_name: attendee.full_name,
         email: attendee.email,
@@ -63,23 +83,68 @@ export function NewAttendeeModal({ open, onOpenChange, attendee }: Props) {
         institution: attendee.institution || '',
         registration_status: attendee.registration_status || 'pending',
       });
-    } else if (open && !attendee) {
-      form.reset({
-        full_name: '',
-        email: '',
-        specialty: '',
-        institution: '',
-        registration_status: 'pending',
-      });
+    } else {
+      // New mode: try to restore draft
+      if (eventId && !draftLoadedRef.current) {
+        try {
+          const raw = localStorage.getItem(DRAFT_KEY(eventId));
+          if (raw) {
+            const draft = JSON.parse(raw) as Partial<FormValues>;
+            form.reset({ ...emptyValues, ...draft });
+            draftLoadedRef.current = true;
+            return;
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      form.reset(emptyValues);
     }
-  }, [open, attendee, form]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, attendee, eventId]);
+
+  // Auto-save draft for new attendee every 2s while dirty
+  useEffect(() => {
+    if (!open || !eventId || isEditMode) return;
+    const interval = setInterval(() => {
+      if (form.formState.isDirty) {
+        try {
+          localStorage.setItem(DRAFT_KEY(eventId), JSON.stringify(form.getValues()));
+        } catch {
+          /* ignore */
+        }
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [open, eventId, isEditMode, form]);
+
+  const clearDraft = () => {
+    if (!eventId) return;
+    try {
+      localStorage.removeItem(DRAFT_KEY(eventId));
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const tryClose = () => {
+    if (form.formState.isDirty) {
+      setConfirmDiscard(true);
+    } else {
+      onOpenChange(false);
+    }
+  };
+
+  const confirmClose = () => {
+    setConfirmDiscard(false);
+    if (!isEditMode) clearDraft();
+    onOpenChange(false);
+  };
 
   const onSubmit = async (values: FormValues) => {
-    // Capture id locally to avoid stale closures
     const attendeeId = attendee?.id;
     const attendeeEmail = attendee?.email;
 
-    // Validate email against DB
     const emailLower = values.email.toLowerCase();
     const emails = existingEmails ?? [];
     const isDuplicate = emails.includes(emailLower);
@@ -109,8 +174,10 @@ export function NewAttendeeModal({ open, onOpenChange, attendee }: Props) {
           title: t('attendees.newAttendeeModal.success'),
           description: t('attendees.newAttendeeModal.successCode', { code: created.credential_code }),
         });
+        clearDraft();
       }
-      // Close first; useEffect handles reset on next open
+      // Force refetch BEFORE closing so the table reflects the new row instantly
+      await queryClient.refetchQueries({ queryKey: ['admin-attendees'], type: 'active' });
       onOpenChange(false);
     } catch {
       toast({
@@ -123,109 +190,133 @@ export function NewAttendeeModal({ open, onOpenChange, attendee }: Props) {
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>
-            {isEditMode ? t('attendees.newAttendeeModal.titleEdit') : t('attendees.newAttendeeModal.title')}
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={(o) => { if (!o) tryClose(); else onOpenChange(true); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {isEditMode ? t('attendees.newAttendeeModal.titleEdit') : t('attendees.newAttendeeModal.title')}
+            </DialogTitle>
+          </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="full_name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('attendees.newAttendeeModal.fullName')}</FormLabel>
-                  <FormControl>
-                    <Input placeholder={t('attendees.newAttendeeModal.fullNamePlaceholder')} {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('attendees.newAttendeeModal.email')}</FormLabel>
-                  <FormControl>
-                    <Input type="email" placeholder={t('attendees.newAttendeeModal.emailPlaceholder')} {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="specialty"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('attendees.newAttendeeModal.specialty')}</FormLabel>
-                  <FormControl>
-                    <Input placeholder={t('attendees.newAttendeeModal.specialtyPlaceholder')} {...field} />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="institution"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('attendees.newAttendeeModal.institution')}</FormLabel>
-                  <FormControl>
-                    <Input placeholder={t('attendees.newAttendeeModal.institutionPlaceholder')} {...field} />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="registration_status"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('attendees.newAttendeeModal.status')}</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="full_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('attendees.newAttendeeModal.fullName')}</FormLabel>
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
+                      <Input placeholder={t('attendees.newAttendeeModal.fullNamePlaceholder')} {...field} />
                     </FormControl>
-                    <SelectContent>
-                      <SelectItem value="confirmed">{t('attendees.statusConfirmed')}</SelectItem>
-                      <SelectItem value="pending">{t('attendees.statusPending')}</SelectItem>
-                      <SelectItem value="cancelled">{t('attendees.statusCancelled')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    {field.value === 'confirmed'
-                      ? t('attendees.confirmedHint')
-                      : field.value === 'cancelled'
-                        ? t('attendees.cancelledHint')
-                        : t('attendees.pendingHint')}
-                  </p>
-                </FormItem>
-              )}
-            />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <Button type="submit" className="w-full" disabled={isPending}>
-              {isPending
-                ? t('attendees.newAttendeeModal.saving')
-                : isEditMode
-                  ? t('attendees.newAttendeeModal.saveEdit')
-                  : t('attendees.newAttendeeModal.save')}
-            </Button>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('attendees.newAttendeeModal.email')}</FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder={t('attendees.newAttendeeModal.emailPlaceholder')} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="specialty"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('attendees.newAttendeeModal.specialty')}</FormLabel>
+                    <FormControl>
+                      <Input placeholder={t('attendees.newAttendeeModal.specialtyPlaceholder')} {...field} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="institution"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('attendees.newAttendeeModal.institution')}</FormLabel>
+                    <FormControl>
+                      <Input placeholder={t('attendees.newAttendeeModal.institutionPlaceholder')} {...field} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="registration_status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('attendees.newAttendeeModal.status')}</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="confirmed">{t('attendees.statusConfirmed')}</SelectItem>
+                        <SelectItem value="pending">{t('attendees.statusPending')}</SelectItem>
+                        <SelectItem value="cancelled">{t('attendees.statusCancelled')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {field.value === 'confirmed'
+                        ? t('attendees.confirmedHint')
+                        : field.value === 'cancelled'
+                          ? t('attendees.cancelledHint')
+                          : t('attendees.pendingHint')}
+                    </p>
+                  </FormItem>
+                )}
+              />
+
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" className="flex-1" onClick={tryClose} disabled={isPending}>
+                  {t('attendees.deleteConfirm.cancel')}
+                </Button>
+                <Button type="submit" className="flex-1" disabled={isPending}>
+                  {isPending
+                    ? t('attendees.newAttendeeModal.saving')
+                    : isEditMode
+                      ? t('attendees.newAttendeeModal.saveEdit')
+                      : t('attendees.newAttendeeModal.save')}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('attendees.newAttendeeModal2.discardTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('attendees.newAttendeeModal2.discardDescription')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('attendees.newAttendeeModal2.keepEditing')}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmClose} className="bg-destructive text-destructive-foreground">
+              {t('attendees.newAttendeeModal2.discard')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
