@@ -67,12 +67,30 @@ export function AppHeader({ onMenuOpen }: AppHeaderProps) {
         <Button variant="ghost" size="icon" onClick={toggleLanguage} className="text-white hover:bg-white/10">
           <Globe className="h-4 w-4" />
         </Button>
-        <Button variant="ghost" size="icon" className="relative text-white hover:bg-white/10" onClick={handleBellClick}>
+        <Button variant="ghost" size="icon" className="relative text-white hover:bg-white/10" onClick={handleBellClick} aria-label="Announcements">
           <Bell className="h-4 w-4" />
-          {unreadCount > 0 && (
+          {announcements.count > 0 && (
             <span className="absolute right-0.5 top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
-              {unreadCount > 99 ? '99+' : unreadCount}
+              {announcements.count > 99 ? '99+' : announcements.count}
             </span>
+          )}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative text-white hover:bg-white/10"
+          onClick={handleMessagingClick}
+          aria-label={tMessaging('headerTooltip')}
+          title={tMessaging('headerTooltip')}
+        >
+          <MessageCircle className="h-4 w-4" />
+          {messages.count > 0 && (
+            <span className="absolute right-0.5 top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
+              {messages.count > 99 ? '99+' : messages.count}
+            </span>
+          )}
+          {messages.count === 0 && showMessagingDot && (
+            <span className="absolute right-1 top-1 flex h-2 w-2 items-center justify-center rounded-full bg-accent animate-pulse" />
           )}
         </Button>
         <Button variant="ghost" size="icon" className="relative text-white hover:bg-white/10 md:w-auto md:px-2" onClick={() => navigate(`/${eventSlug}/profile`)}>
