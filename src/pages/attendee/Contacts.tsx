@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useEvent } from '@/hooks/useEvent';
-import { useEventAttendees, useMyContacts, useSendContactRequest, useAcceptContact, useRejectContact } from '@/hooks/useContacts';
+import { useEventAttendees, useMyContacts, useSendContactRequest, useAcceptContact, useRejectContact, useCancelContactRequest } from '@/hooks/useContacts';
 import type { ContactRow, DirectoryAttendee } from '@/services/contacts.service';
 
 function getInitials(name: string) {
