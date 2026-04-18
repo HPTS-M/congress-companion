@@ -3,6 +3,10 @@ import { useTranslation } from 'react-i18next';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,16 +27,18 @@ interface Props {
   onUploaded: () => void;
 }
 
-const ACCEPTED = '.pdf,.pptx,.docx,.xlsx';
+const ACCEPTED_EXTS = ['pdf', 'pptx', 'ppt', 'docx', 'doc', 'xlsx', 'xls', 'zip', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'mp4', 'webm', 'txt', 'csv'] as const;
+const ACCEPTED = ACCEPTED_EXTS.map((e) => `.${e}`).join(',');
 const MAX_SIZE = 50 * 1024 * 1024; // 50MB
 
 function getFileType(name: string): string | null {
   const ext = name.split('.').pop()?.toLowerCase();
-  if (ext === 'pdf') return 'pdf';
-  if (ext === 'pptx' || ext === 'ppt') return 'pptx';
-  if (ext === 'docx' || ext === 'doc') return 'docx';
-  if (ext === 'xlsx' || ext === 'xls') return 'xlsx';
-  return ext ?? null;
+  if (!ext) return null;
+  if (ext === 'ppt' || ext === 'pptx') return 'pptx';
+  if (ext === 'doc' || ext === 'docx') return 'docx';
+  if (ext === 'xls' || ext === 'xlsx') return 'xlsx';
+  if (ext === 'jpg' || ext === 'jpeg') return 'jpg';
+  return ext;
 }
 
 export function UploadDocumentModal({ open, onClose, eventId, activities, onUploaded }: Props) {
@@ -42,6 +48,7 @@ export function UploadDocumentModal({ open, onClose, eventId, activities, onUplo
   const [sessionId, setSessionId] = useState('');
   const [description, setDescription] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [duplicateConfirm, setDuplicateConfirm] = useState(false);
 
   const reset = useCallback(() => {
     setFile(null);
@@ -49,11 +56,17 @@ export function UploadDocumentModal({ open, onClose, eventId, activities, onUplo
     setSessionId('');
     setDescription('');
     setUploading(false);
+    setDuplicateConfirm(false);
   }, []);
 
   const handleClose = useCallback(() => { reset(); onClose(); }, [reset, onClose]);
 
   const handleFile = useCallback((f: File) => {
+    const ext = f.name.split('.').pop()?.toLowerCase() ?? '';
+    if (!ACCEPTED_EXTS.includes(ext as typeof ACCEPTED_EXTS[number])) {
+      toast.error(t('documents.invalidFormat'));
+      return;
+    }
     if (f.size > MAX_SIZE) {
       toast.error(t('documents.fileTooLarge'));
       return;
@@ -68,7 +81,7 @@ export function UploadDocumentModal({ open, onClose, eventId, activities, onUplo
     if (f) handleFile(f);
   }, [handleFile]);
 
-  const handleUpload = useCallback(async () => {
+  const performUpload = useCallback(async () => {
     if (!file || !title.trim()) return;
     setUploading(true);
     try {
@@ -79,7 +92,7 @@ export function UploadDocumentModal({ open, onClose, eventId, activities, onUplo
         file_path: path,
         file_type: getFileType(file.name),
         file_size: size,
-        session_id: sessionId || null,
+        session_id: sessionId && sessionId !== 'none' ? sessionId : null,
         description: description.trim() || null,
       });
       toast.success(t('documents.uploadSuccess'));
@@ -92,74 +105,101 @@ export function UploadDocumentModal({ open, onClose, eventId, activities, onUplo
     }
   }, [file, title, sessionId, description, eventId, t, onUploaded, handleClose]);
 
+  const handleUpload = useCallback(async () => {
+    if (!file || !title.trim()) return;
+    try {
+      const isDup = await adminDocumentsService.checkDuplicate(eventId, title.trim());
+      if (isDup) {
+        setDuplicateConfirm(true);
+        return;
+      }
+      await performUpload();
+    } catch {
+      toast.error(t('documents.uploadError'));
+    }
+  }, [file, title, eventId, performUpload, t]);
+
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{t('documents.uploadTitle')}</DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t('documents.uploadTitle')}</DialogTitle>
+          </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Drop zone */}
-          {!file ? (
-            <div
-              className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-8 transition-colors hover:border-primary"
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={handleDrop}
-            >
-              <Upload className="mb-2 h-8 w-8 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground mb-1">{t('documents.dropHere')}</p>
-              <p className="text-xs text-muted-foreground mb-2">{t('documents.maxSize')}</p>
-              <label>
-                <input type="file" accept={ACCEPTED} className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
-                <span className="cursor-pointer text-sm font-medium text-primary underline">{t('documents.selectFile')}</span>
-              </label>
-            </div>
-          ) : (
-            <div className="flex items-center gap-3 rounded-lg border border-border p-3 bg-muted/50">
-              <FileText className="h-8 w-8 text-primary" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{file.name}</p>
-                <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(0)} KB</p>
+          <div className="space-y-4">
+            {!file ? (
+              <div
+                className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-8 transition-colors hover:border-primary"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={handleDrop}
+              >
+                <Upload className="mb-2 h-8 w-8 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground mb-1">{t('documents.dropHere')}</p>
+                <p className="text-xs text-muted-foreground mb-2">{t('documents.maxSizeExtended')}</p>
+                <label>
+                  <input type="file" accept={ACCEPTED} className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
+                  <span className="cursor-pointer text-sm font-medium text-primary underline">{t('documents.selectFile')}</span>
+                </label>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => setFile(null)}>{t('documents.changeFile')}</Button>
+            ) : (
+              <div className="flex items-center gap-3 rounded-lg border border-border p-3 bg-muted/50">
+                <FileText className="h-8 w-8 text-primary" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{file.name}</p>
+                  <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(0)} KB</p>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => setFile(null)}>{t('documents.changeFile')}</Button>
+              </div>
+            )}
+
+            <div>
+              <Label>{t('documents.docTitle')}</Label>
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('documents.docTitlePlaceholder')} />
             </div>
-          )}
 
-          {/* Title */}
-          <div>
-            <Label>{t('documents.docTitle')}</Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('documents.docTitlePlaceholder')} />
+            <div>
+              <Label>{t('documents.associateSession')}</Label>
+              <Select value={sessionId} onValueChange={setSessionId}>
+                <SelectTrigger><SelectValue placeholder={t('documents.noSession')} /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{t('documents.noSession')}</SelectItem>
+                  {activities.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>{a.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>{t('documents.description')}</Label>
+              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder={t('documents.descriptionPlaceholder')} />
+            </div>
           </div>
 
-          {/* Session */}
-          <div>
-            <Label>{t('documents.associateSession')}</Label>
-            <Select value={sessionId} onValueChange={setSessionId}>
-              <SelectTrigger><SelectValue placeholder={t('documents.noSession')} /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">{t('documents.noSession')}</SelectItem>
-                {activities.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>{a.title}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleClose}>{t('documents.cancel')}</Button>
+            <Button onClick={handleUpload} disabled={!file || !title.trim() || uploading} className="bg-primary text-primary-foreground">
+              {uploading ? t('documents.uploading') : t('documents.upload')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-          {/* Description */}
-          <div>
-            <Label>{t('documents.description')}</Label>
-            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder={t('documents.descriptionPlaceholder')} />
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={handleClose}>{t('documents.cancel')}</Button>
-          <Button onClick={handleUpload} disabled={!file || !title.trim() || uploading} className="bg-primary text-primary-foreground">
-            {uploading ? t('documents.uploading') : t('documents.upload')}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <AlertDialog open={duplicateConfirm} onOpenChange={setDuplicateConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('documents.duplicate.title')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('documents.duplicate.message', { title: title.trim() })}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('documents.duplicate.cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setDuplicateConfirm(false); void performUpload(); }}>
+              {t('documents.duplicate.uploadAnyway')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

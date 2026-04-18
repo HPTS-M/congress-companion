@@ -53,6 +53,7 @@ export function useEventSettings() {
   const settings = (event?.settings ?? {}) as Record<string, unknown>;
   return {
     qrEnabled: settings.qr_enabled !== false,
+    documentsDownloadEnabled: settings.documents_download_enabled !== false,
     contactsEnabled: settings.contacts_enabled !== false,
     documentsEnabled: settings.documents_enabled !== false,
     notesEnabled: settings.notes_enabled !== false,
