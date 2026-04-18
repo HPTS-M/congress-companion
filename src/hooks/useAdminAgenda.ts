@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminAgendaService, type SessionFormData } from '@/services/admin-agenda.service';
 import type { EventActivity } from '@/types';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 export function useAdminActivities(eventId: string | undefined) {
   const query = useQuery({
@@ -66,11 +67,63 @@ export function useAdminCheckinCounts(eventId: string | undefined) {
 
 async function invalidateAgenda(qc: ReturnType<typeof useQueryClient>, eventId: string | undefined) {
   await Promise.all([
+    // Admin agenda views
     qc.invalidateQueries({ queryKey: ['admin-activities', eventId] }),
     qc.invalidateQueries({ queryKey: ['admin-archived-activities', eventId] }),
     qc.invalidateQueries({ queryKey: ['admin-interest-counts', eventId] }),
     qc.invalidateQueries({ queryKey: ['admin-checkin-counts', eventId] }),
+    // Attendee-side
+    qc.invalidateQueries({ queryKey: ['activities', eventId] }),
+    qc.invalidateQueries({ queryKey: ['session-interests', eventId] }),
+    qc.invalidateQueries({ queryKey: ['user-interests', eventId] }),
+    qc.invalidateQueries({ queryKey: ['user-checkins'] }),
+    qc.invalidateQueries({ queryKey: ['recent-checkins'] }),
+    qc.invalidateQueries({ queryKey: ['event-activities-list', eventId] }),
+    // Polls (admin + attendee dropdowns/associations)
+    qc.invalidateQueries({ queryKey: ['admin-polls', eventId] }),
+    qc.invalidateQueries({ queryKey: ['admin-poll-sessions', eventId] }),
+    qc.invalidateQueries({ queryKey: ['attendee-polls', eventId] }),
+    // Reports aggregations by session
+    qc.invalidateQueries({ queryKey: ['admin-reports-summary', eventId] }),
+    qc.invalidateQueries({ queryKey: ['admin-reports-attendance', eventId] }),
+    qc.invalidateQueries({ queryKey: ['admin-reports-ratings', eventId] }),
+    // Ratings (filter by session)
+    qc.invalidateQueries({ queryKey: ['ratings', eventId] }),
+    // Check-in staff session list
+    qc.invalidateQueries({ queryKey: ['staff-activities', eventId] }),
+    // Documents (filtered by session_id)
+    qc.invalidateQueries({ queryKey: ['documents', eventId] }),
+    qc.invalidateQueries({ queryKey: ['admin-documents', eventId] }),
+    qc.invalidateQueries({ queryKey: ['admin-doc-activities', eventId] }),
+    // Dashboard tiles
+    qc.invalidateQueries({ queryKey: ['admin-stats', eventId] }),
   ]);
+}
+
+/**
+ * Realtime subscription to event_activities. When any agenda row changes
+ * (insert/update/delete) for the current event, invalidate every dependent
+ * query so all consumers (admin + attendee + polls + reports + check-in)
+ * refresh without manual reload.
+ */
+export function useAgendaRealtime(eventId: string | undefined) {
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (!eventId) return;
+    const channel = supabase
+      .channel(`agenda-sync-${eventId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'event_activities', filter: `event_id=eq.${eventId}` },
+        () => {
+          void invalidateAgenda(qc, eventId);
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [eventId, qc]);
 }
 
 export function useCreateSession(eventId: string | undefined) {

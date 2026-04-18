@@ -1,12 +1,17 @@
 import { Outlet, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useEventLoader, EventContext } from '@/hooks/useEvent';
+import { useAgendaRealtime } from '@/hooks/useAdminAgenda';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export function EventProvider() {
   const { eventSlug = '' } = useParams<{ eventSlug: string }>();
   const { data: event, isLoading, error } = useEventLoader(eventSlug);
   const { t } = useTranslation();
+
+  // Global agenda realtime sync — invalidates every dependent query
+  // (admin + attendee views) when sessions change anywhere in the event.
+  useAgendaRealtime(event?.id);
 
   if (isLoading) {
     return (
