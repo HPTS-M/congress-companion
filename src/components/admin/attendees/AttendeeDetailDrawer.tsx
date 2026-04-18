@@ -259,36 +259,74 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
 
               <Separator />
 
-              {/* Credential + QR */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-foreground">{t('attendees.detail.credentialCode')}</h3>
-                <div className="font-mono text-lg text-primary font-bold text-center">
-                  {data.attendee.credential_code}
+              {/* Credential Code (Display + QR) */}
+              <TooltipProvider delayDuration={200}>
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-foreground">{t('attendees.detail.credentialDisplay')}</h3>
+                  <div className="font-mono text-lg text-primary font-bold text-center">
+                    {data.attendee.credential_code}
+                  </div>
+                  <div className="flex justify-center">
+                    <QRCodeSVG value={data.attendee.credential_code} size={120} />
+                  </div>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="outline" size="sm" className="w-full" onClick={handleRegenerate}>
+                        <RefreshCw className="mr-2 h-3 w-3" />
+                        {t('attendees.detail.regenerateCode')}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{t('attendees.detail.regenerateCodeTooltip')}</TooltipContent>
+                  </Tooltip>
                 </div>
-                <div className="flex justify-center">
-                  <QRCodeSVG value={data.attendee.credential_code} size={120} />
+
+                <Separator />
+
+                {/* Access Code (Login) */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <KeyRound className="h-4 w-4 text-accent" />
+                    {t('attendees.detail.accessCodeSection')}
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    {t('attendees.detail.accessCodeDescription')}
+                  </p>
+                  <p className="text-xs text-muted-foreground italic">
+                    {t('attendees.detail.accessCodeHidden')}
+                  </p>
+                  <div className="flex gap-2">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => setConfirmRegenAccess(true)}
+                          disabled={regeneratingAccess}
+                        >
+                          <KeyRound className="mr-2 h-3 w-3" />
+                          {t('attendees.detail.regenerateAccessCode')}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>{t('attendees.detail.regenerateAccessCodeTooltip')}</TooltipContent>
+                    </Tooltip>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={handleSendCredentials}
+                      disabled={sendInvitationsMutation.isPending}
+                    >
+                      <Mail className="mr-2 h-3 w-3" />
+                      {sendInvitationsMutation.isPending
+                        ? t('attendees.sendingInvitation')
+                        : hasBeenSent
+                          ? t('attendees.resendCredentials')
+                          : t('attendees.sendCredentials')}
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="flex-1" onClick={handleRegenerate}>
-                    <RefreshCw className="mr-2 h-3 w-3" />
-                    {t('attendees.detail.regenerateCode')}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={handleSendCredentials}
-                    disabled={sendInvitationsMutation.isPending}
-                  >
-                    <Mail className="mr-2 h-3 w-3" />
-                    {sendInvitationsMutation.isPending
-                      ? t('attendees.sendingInvitation')
-                      : hasBeenSent
-                        ? t('attendees.resendCredentials')
-                        : t('attendees.sendCredentials')}
-                  </Button>
-                </div>
-              </div>
+              </TooltipProvider>
 
               <Separator />
 
