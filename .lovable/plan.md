@@ -1,30 +1,72 @@
 
 
-## Plan: Mostrar nombres reales en chat y contactos
+## Diagnóstico
 
-### Problema
-`messagingService` y los componentes de contactos consultan directamente la tabla `attendees` para resolver nombres. La RLS solo permite ver el propio registro o contactos aceptados, así que para invitaciones pendientes / mensajes recibidos, el `full_name` viene vacío → la UI muestra el fallback **"Asistente"**.
+**Estado de los usuarios** (evento ACQFH-2026):
 
-La vista `public_attendee_directory` (que ya arreglamos) SÍ devuelve a todos los confirmados del evento sin exponer PII. Hay que usarla como fuente de nombres.
+| Usuario | Estado |
+|---|---|
+| Mauricio Larrea (`larreamauricio10@gmail.com`) | ✅ confirmed, user_id activo |
+| DAVID SANGUINO (`sanguino.david@gmail.com`) | ✅ confirmed, user_id activo |
 
-### Cambios
+⚠️ Nota: existe un registro duplicado adicional con el email de Mauricio asignado a "Alberto Gonzalez" (deleted, pending) — no afecta la conexión pero es ruido en la BD.
 
-**1. `src/services/messaging.service.ts`**
-- `getAttendeeNames(eventId)`: cambiar `from('attendees')` → `from('public_attendee_directory')` (mantiene `id` + `full_name`).
-- En `getDirectConversations`, la consulta para resolver nombres de la otra persona (líneas 93-101): igual cambio a `public_attendee_directory`.
+**Solicitudes de contacto existentes** — hay DOS registros pendientes:
+1. Mauricio → David · `pending` · creada 17-abr 23:58
+2. David → Mauricio · `pending` · creada 18-abr 00:22
 
-**2. `src/services/contacts.service.ts`**
-- `getAttendeeById()`: ya intenta primero `attendees` (con PII) y cae a `public_attendee_directory`. Funciona — no requiere cambios.
-- Verificar que la lookup de nombres en pendientes use el directorio (revisar `Contacts.tsx`).
+Las dos solicitudes existen en la BD. El problema NO es de datos, es de **visibilidad UI**.
 
-**3. `src/pages/attendee/Contacts.tsx`**
-- Si está resolviendo nombres de solicitudes pendientes vía `attendees` directamente, redirigir a `useEventAttendees` (que ya usa la vista pública) o a un map derivado.
+## Causa raíz
+
+`Contacts.tsx` separa las solicitudes pendientes en dos buckets, pero solo muestra al usuario un único bucket. Revisando el patrón típico:
+
+- **"Recibidas"** (`contact_id = miAttendeeId`) → se muestran con botones Aceptar/Rechazar
+- **"Enviadas"** (`user_id = miAttendeeId`) → frecuentemente NO se renderizan en ninguna pestaña → "no las veo en ningún lado"
+
+Resultado: cada usuario ve la solicitud que recibió del otro (o ninguna si la lógica de filtrado las excluye), pero no la que ÉL envió. Y como ambos enviaron solicitud cruzada antes de aceptar, el sistema queda en limbo: dos solicitudes pendientes opuestas que nunca se auto-resuelven.
+
+Además, la política RLS `Authenticated update contacts` solo permite actualizar a `contact_id IN get_my_attendee_ids()` → solo el **receptor** puede aceptar, no el emisor. Entonces aunque vieran la solicitud enviada, no podrían "auto-aceptarla".
+
+## Plan
+
+**1. Fix de datos inmediato** (resuelve el caso actual de Mauricio ↔ David)
+
+Auto-aceptar ambas solicitudes ya que hay intención mutua confirmada (ambos enviaron):
+
+```sql
+UPDATE contacts
+SET status = 'accepted', connected_at = now()
+WHERE id IN ('9fe55e03-8a90-4471-9808-40054814337e',
+             '5a847b20-c262-4e0c-af9e-82f5431b1f95');
+```
+
+**2. Fix de UI en `src/pages/attendee/Contacts.tsx`**
+
+Dentro de la pestaña "Mis Contactos", agregar tres secciones claras:
+- **Solicitudes recibidas** (`pending` donde `contact_id = miId`) — con botones Aceptar / Rechazar
+- **Solicitudes enviadas** (`pending` donde `user_id = miId`) — con badge "Enviado" + botón Cancelar (delete)
+- **Conexiones** (`accepted`)
+
+Hoy probablemente solo existe la primera y la tercera.
+
+**3. Fix de lógica en el servicio / hook de envío de solicitudes**
+
+En `useSendContactRequest` (o `contactsService.sendRequest`), antes de insertar:
+- Verificar si ya existe una solicitud `pending` del otro lado (`user_id = targetId AND contact_id = miId`)
+- Si existe → en lugar de crear una nueva, **aceptarla automáticamente** (auto-match cuando ambos quisieron conectar). Esto requiere ampliar la política RLS o usar un RPC `SECURITY DEFINER` `accept_or_create_contact(_target_id)` ya que el emisor original es quien debe ejecutar el UPDATE en la fila opuesta.
+
+**4. RPC nuevo recomendado** (para el punto 3)
+
+```sql
+CREATE FUNCTION accept_or_create_contact(_event_id uuid, _target_attendee_id uuid)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER ...
+-- Si hay pending inverso → UPDATE a accepted
+-- Si no → INSERT pending
+```
 
 ### Resultado esperado
-- Daniel verá los nombres reales de quienes le envían invitaciones de chat o solicitudes de contacto.
-- Las conversaciones activas y pendientes mostrarán "Carlos Restrepo", "Ana Martínez", etc., en lugar de "Asistente".
-- PII (email/teléfono) sigue oculta hasta aceptar conexión mutua.
-
-### Nota técnica
-La vista `public_attendee_directory` está marcada como SECURITY DEFINER (lo cual genera el warning del scanner que ves en la pantalla de Security). Es intencional y seguro: la vista solo expone columnas no sensibles y filtra por `event_id IN (get_my_event_ids())`. Marcaremos ese finding como resuelto/ignorado con justificación tras el fix.
+- Mauricio y David quedan conectados ahora mismo.
+- En el futuro, si dos asistentes se mandan solicitud cruzada, se conectan automáticamente.
+- Los usuarios siempre ven el estado de sus solicitudes enviadas (badge "Enviado") y pueden cancelarlas.
 
