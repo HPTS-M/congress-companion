@@ -238,7 +238,7 @@ export default function AdminSponsors() {
           onClose={handleCloseModal}
           eventId={event.id}
           sponsor={editingSponsor}
-          onSaved={() => {/* invalidated by hook */}}
+          onSaved={handleCloseModal}
         />
       )}
 
@@ -269,7 +269,7 @@ export default function AdminSponsors() {
           open={importOpen}
           onClose={() => setImportOpen(false)}
           eventId={event.id}
-          onImported={() => {/* invalidated by hook */}}
+          onImported={() => setImportOpen(false)}
         />
       )}
     </div>

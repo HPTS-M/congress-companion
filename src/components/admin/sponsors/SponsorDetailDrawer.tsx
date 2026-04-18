@@ -1,15 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Globe, Mail, MessageCircle, Linkedin, Instagram, MapPin, Play, FileText, Eye, MousePointerClick, Download, Users, Heart } from 'lucide-react';
+import { Globe, Mail, MessageCircle, Linkedin, Instagram, MapPin, Play, FileText, Eye, MousePointerClick, Download, Heart, Search, CheckCircle2 } from 'lucide-react';
 import { adminSponsorsService, type SponsorRow } from '@/services/admin-sponsors.service';
 import { sponsorLeadsService, type SponsorLeadWithAttendee } from '@/services/sponsor-leads.service';
 import { writeExcelFile } from '@/lib/excel';
 import { toast } from 'sonner';
+import { SponsorMaterialPreviewModal } from './SponsorMaterialPreviewModal';
 
 interface Props {
   open: boolean;
@@ -28,11 +29,19 @@ const LEVEL_LABELS: Record<string, string> = {
   gold: 'Oro', silver: 'Plata', bronze: 'Bronce', exhibitor: 'Expositor',
 };
 
+function buildWhatsAppLink(phone: string, message?: string | null): string {
+  const cleaned = phone.replace(/[\s\-()+]/g, '');
+  const base = `https://wa.me/${cleaned}`;
+  return message ? `${base}?text=${encodeURIComponent(message)}` : base;
+}
+
 export function SponsorDetailDrawer({ open, onClose, sponsor }: Props) {
   const { t } = useTranslation('admin');
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [leads, setLeads] = useState<SponsorLeadWithAttendee[]>([]);
   const [leadsLoading, setLeadsLoading] = useState(false);
+  const [leadSearch, setLeadSearch] = useState('');
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
     if (sponsor?.logo_url) {
@@ -52,6 +61,16 @@ export function SponsorDetailDrawer({ open, onClose, sponsor }: Props) {
     }
   }, [sponsor?.id, open]);
 
+  const filteredLeads = useMemo(() => {
+    if (!leadSearch.trim()) return leads;
+    const q = leadSearch.toLowerCase();
+    return leads.filter(l =>
+      l.attendees.full_name.toLowerCase().includes(q) ||
+      (l.attendees.specialty ?? '').toLowerCase().includes(q) ||
+      (l.attendees.institution ?? '').toLowerCase().includes(q)
+    );
+  }, [leads, leadSearch]);
+
   if (!sponsor) return null;
 
   const initials = sponsor.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
@@ -66,14 +85,20 @@ export function SponsorDetailDrawer({ open, onClose, sponsor }: Props) {
           { header: 'especialidad', key: 'especialidad', width: 20 },
           { header: 'organizacion', key: 'organizacion', width: 25 },
           { header: 'email', key: 'email', width: 25 },
+          { header: 'whatsapp', key: 'whatsapp', width: 18 },
+          { header: 'telefono', key: 'telefono', width: 18 },
           { header: 'fecha', key: 'fecha', width: 20 },
+          { header: 'contactado', key: 'contactado', width: 20 },
         ],
         rows: leads.map(l => ({
           nombre: l.attendees.full_name,
           especialidad: l.attendees.specialty ?? '',
           organizacion: l.attendees.institution ?? '',
           email: l.attendees.email,
+          whatsapp: l.attendees.phone ?? '',
+          telefono: l.attendees.phone ?? '',
           fecha: new Date(l.created_at).toLocaleString(),
+          contactado: l.contacted_at ? new Date(l.contacted_at).toLocaleString() : '',
         })),
       });
       toast.success(t('sponsors.leads.exportSuccess'));
@@ -82,7 +107,18 @@ export function SponsorDetailDrawer({ open, onClose, sponsor }: Props) {
     }
   };
 
+  const handleMarkContacted = async (leadId: string) => {
+    try {
+      await sponsorLeadsService.markAsContacted(leadId);
+      setLeads((prev) => prev.map(l => l.id === leadId ? { ...l, contacted_at: new Date().toISOString() } : l));
+      toast.success(t('sponsors.leads.markedContacted'));
+    } catch {
+      toast.error(t('sponsors.leads.markError'));
+    }
+  };
+
   return (
+    <>
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
         <SheetHeader>
@@ -145,7 +181,13 @@ export function SponsorDetailDrawer({ open, onClose, sponsor }: Props) {
                 <div className="flex items-center gap-2 text-sm"><Play className="h-4 w-4 text-muted-foreground" /> <a href={sponsor.video_url} target="_blank" rel="noopener noreferrer" className="text-primary underline truncate">{sponsor.video_url}</a></div>
               )}
               {sponsor.materials_url && (
-                <div className="flex items-center gap-2 text-sm"><FileText className="h-4 w-4 text-muted-foreground" /> {t('sponsors.hasMaterials')}</div>
+                <div className="flex items-center gap-2 text-sm">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-foreground">{t('sponsors.hasMaterials')}</span>
+                  <Button variant="ghost" size="sm" onClick={() => setPreviewOpen(true)} className="ml-auto">
+                    <Eye className="mr-1 h-3 w-3" /> {t('sponsors.preview.open')}
+                  </Button>
+                </div>
               )}
             </TabsContent>
 
@@ -177,7 +219,7 @@ export function SponsorDetailDrawer({ open, onClose, sponsor }: Props) {
 
             {/* Leads tab */}
             <TabsContent value="leads" className="mt-4 space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <p className="text-sm text-muted-foreground">
                   <Heart className="inline h-4 w-4 mr-1" />
                   {t('sponsors.leads.count', { count: leads.length })}
@@ -189,31 +231,75 @@ export function SponsorDetailDrawer({ open, onClose, sponsor }: Props) {
                 )}
               </div>
 
+              {leads.length > 0 && (
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    value={leadSearch}
+                    onChange={(e) => setLeadSearch(e.target.value)}
+                    placeholder={t('sponsors.leads.search')}
+                    className="pl-9"
+                  />
+                </div>
+              )}
+
               {leadsLoading ? (
                 <p className="text-sm text-muted-foreground">{t('sponsors.leads.loading')}</p>
-              ) : leads.length === 0 ? (
+              ) : filteredLeads.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-8 text-center">{t('sponsors.leads.noLeads')}</p>
               ) : (
                 <div className="space-y-2">
-                  {leads.map(lead => (
-                    <div key={lead.id} className="flex items-start gap-3 p-3 rounded-lg border border-border">
-                      <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0">
-                        {lead.attendees.full_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                  {filteredLeads.map(lead => {
+                    const phone = lead.attendees.phone;
+                    const email = lead.attendees.email;
+                    return (
+                      <div key={lead.id} className="flex items-start gap-3 p-3 rounded-lg border border-border">
+                        <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0">
+                          {lead.attendees.full_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-medium text-foreground truncate">{lead.attendees.full_name}</p>
+                            {lead.contacted_at && (
+                              <Badge variant="secondary" className="bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 text-xs">
+                                <CheckCircle2 className="h-3 w-3 mr-1" /> {t('sponsors.leads.alreadyContacted')}
+                              </Badge>
+                            )}
+                          </div>
+                          {lead.attendees.specialty && (
+                            <p className="text-xs text-muted-foreground">{lead.attendees.specialty}</p>
+                          )}
+                          {lead.attendees.institution && (
+                            <p className="text-xs text-muted-foreground">{lead.attendees.institution}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {new Date(lead.created_at).toLocaleDateString()}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-1 mt-2">
+                            {email ? (
+                              <Button asChild variant="outline" size="sm" className="h-7 text-xs">
+                                <a href={`mailto:${email}`} title={t('sponsors.leads.contactEmail')}>
+                                  <Mail className="h-3 w-3 mr-1" /> {t('sponsors.leads.contactEmail')}
+                                </a>
+                              </Button>
+                            ) : null}
+                            {phone ? (
+                              <Button asChild variant="outline" size="sm" className="h-7 text-xs">
+                                <a href={buildWhatsAppLink(phone)} target="_blank" rel="noopener noreferrer" title={t('sponsors.leads.contactWhatsapp')}>
+                                  <MessageCircle className="h-3 w-3 mr-1" /> WhatsApp
+                                </a>
+                              </Button>
+                            ) : null}
+                            {!lead.contacted_at && (
+                              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleMarkContacted(lead.id)}>
+                                <CheckCircle2 className="h-3 w-3 mr-1" /> {t('sponsors.leads.markContacted')}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground">{lead.attendees.full_name}</p>
-                        {lead.attendees.specialty && (
-                          <p className="text-xs text-muted-foreground">{lead.attendees.specialty}</p>
-                        )}
-                        {lead.attendees.institution && (
-                          <p className="text-xs text-muted-foreground">{lead.attendees.institution}</p>
-                        )}
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {new Date(lead.created_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </TabsContent>
@@ -221,5 +307,12 @@ export function SponsorDetailDrawer({ open, onClose, sponsor }: Props) {
         </div>
       </SheetContent>
     </Sheet>
+
+    <SponsorMaterialPreviewModal
+      open={previewOpen}
+      onClose={() => setPreviewOpen(false)}
+      filePath={sponsor.materials_url}
+    />
+    </>
   );
 }
