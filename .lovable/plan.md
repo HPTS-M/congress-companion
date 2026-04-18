@@ -1,47 +1,30 @@
 
 
-## Plan: Restaurar visibilidad de participantes en Networking
+## Plan: Mostrar nombres reales en chat y contactos
 
-### Causa raíz
-La migración de seguridad del 17-abr eliminó la política `Attendees view event directory` y la sustituyó por una más restrictiva (`Attendees view accepted contacts`) que solo deja ver asistentes con contacto aceptado. La vista `public_attendee_directory` está marcada con `security_invoker = true`, por lo que hereda esa restricción → devuelve 0 filas para todos.
+### Problema
+`messagingService` y los componentes de contactos consultan directamente la tabla `attendees` para resolver nombres. La RLS solo permite ver el propio registro o contactos aceptados, así que para invitaciones pendientes / mensajes recibidos, el `full_name` viene vacío → la UI muestra el fallback **"Asistente"**.
 
-Resultado: el módulo **Networking → Participantes** muestra "No se encontraron participantes" aunque haya 19 asistentes confirmados.
-
-### Solución
-Cambiar la vista `public_attendee_directory` a `security_invoker = false`. La vista ya filtra internamente:
-- `deleted_at IS NULL`
-- `registration_status = 'confirmed'`
-- `event_id IN (SELECT get_my_event_ids())` ← garantiza aislamiento por evento
-
-Y solo expone columnas seguras (id, full_name, specialty, institution, registration_status). **No expone email/teléfono/documento/credencial**, así que la PII sigue protegida.
-
-La política `Attendees view accepted contacts` se mantiene intacta para la tabla base `attendees` — para ver datos completos (email, etc.) seguirá requiriéndose conexión mutua.
+La vista `public_attendee_directory` (que ya arreglamos) SÍ devuelve a todos los confirmados del evento sin exponer PII. Hay que usarla como fuente de nombres.
 
 ### Cambios
 
-**1. Migración SQL nueva**
-```sql
-DROP VIEW IF EXISTS public.public_attendee_directory;
+**1. `src/services/messaging.service.ts`**
+- `getAttendeeNames(eventId)`: cambiar `from('attendees')` → `from('public_attendee_directory')` (mantiene `id` + `full_name`).
+- En `getDirectConversations`, la consulta para resolver nombres de la otra persona (líneas 93-101): igual cambio a `public_attendee_directory`.
 
-CREATE VIEW public.public_attendee_directory
-WITH (security_invoker = false) AS
-SELECT
-  a.id, a.event_id, a.full_name,
-  a.specialty, a.institution, a.registration_status
-FROM public.attendees a
-WHERE a.deleted_at IS NULL
-  AND a.registration_status = 'confirmed'
-  AND a.event_id IN (SELECT public.get_my_event_ids());
+**2. `src/services/contacts.service.ts`**
+- `getAttendeeById()`: ya intenta primero `attendees` (con PII) y cae a `public_attendee_directory`. Funciona — no requiere cambios.
+- Verificar que la lookup de nombres en pendientes use el directorio (revisar `Contacts.tsx`).
 
-GRANT SELECT ON public.public_attendee_directory TO authenticated;
-```
+**3. `src/pages/attendee/Contacts.tsx`**
+- Si está resolviendo nombres de solicitudes pendientes vía `attendees` directamente, redirigir a `useEventAttendees` (que ya usa la vista pública) o a un map derivado.
 
-**2. Memoria a actualizar**
-- `mem://security/attendee-directory-access`: aclarar que el directorio público se sirve vía vista SECURITY DEFINER con columnas no sensibles, mientras que la tabla `attendees` solo expone PII completa a contactos aceptados.
+### Resultado esperado
+- Daniel verá los nombres reales de quienes le envían invitaciones de chat o solicitudes de contacto.
+- Las conversaciones activas y pendientes mostrarán "Carlos Restrepo", "Ana Martínez", etc., en lugar de "Asistente".
+- PII (email/teléfono) sigue oculta hasta aceptar conexión mutua.
 
-### Comportamiento esperado
-- Daniel Sanchez verá los otros 18 participantes confirmados del ACQFH-2026 en la pestaña "Participantes".
-- Búsqueda por nombre/especialidad/institución funcional.
-- Botón "Conectar" disponible para enviar solicitudes.
-- Email/teléfono siguen ocultos hasta que la conexión sea mutuamente aceptada (sin regresión de seguridad).
+### Nota técnica
+La vista `public_attendee_directory` está marcada como SECURITY DEFINER (lo cual genera el warning del scanner que ves en la pantalla de Security). Es intencional y seguro: la vista solo expone columnas no sensibles y filtra por `event_id IN (get_my_event_ids())`. Marcaremos ese finding como resuelto/ignorado con justificación tras el fix.
 
