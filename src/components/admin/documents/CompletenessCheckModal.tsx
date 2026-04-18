@@ -117,7 +117,7 @@ export function CompletenessCheckModal({ open, onClose, documents }: Props) {
         {!result ? (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">{t('documents.completeness.description')}</p>
-            <p className="text-xs text-muted-foreground">{t('documents.completeness.columns')}</p>
+            <p className="text-xs text-muted-foreground">{t('documents.completeness.columnsExtended')}</p>
 
             <div
               onDragOver={(e) => e.preventDefault()}
