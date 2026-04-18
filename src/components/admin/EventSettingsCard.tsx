@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Settings, QrCode } from 'lucide-react';
+import { Settings, QrCode, Download } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -16,6 +16,7 @@ export function EventSettingsCard() {
 
   const settings = (event?.settings ?? {}) as Record<string, unknown>;
   const qrEnabled = settings.qr_enabled !== false;
+  const documentsDownloadEnabled = settings.documents_download_enabled !== false;
 
   const updateSetting = useMutation({
     mutationFn: async ({ key, value }: { key: string; value: unknown }) => {
@@ -63,6 +64,28 @@ export function EventSettingsCard() {
             disabled={updateSetting.isPending}
             onCheckedChange={(checked) =>
               updateSetting.mutate({ key: 'qr_enabled', value: checked })
+            }
+          />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Download className="h-4 w-4 text-muted-foreground" />
+            <div>
+              <Label htmlFor="docs-download-toggle" className="text-sm font-medium">
+                {t('settings.documentsDownload')}
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                {t('settings.documentsDownloadDescription')}
+              </p>
+            </div>
+          </div>
+          <Switch
+            id="docs-download-toggle"
+            checked={documentsDownloadEnabled}
+            disabled={updateSetting.isPending}
+            onCheckedChange={(checked) =>
+              updateSetting.mutate({ key: 'documents_download_enabled', value: checked })
             }
           />
         </div>

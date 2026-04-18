@@ -79,6 +79,24 @@ export const adminDocumentsService = {
     if (error) throw new Error(error.message);
   },
 
+  checkDuplicate: async (eventId: string, title: string, excludeId?: string): Promise<boolean> => {
+    let q = supabase
+      .from('documents')
+      .select('id')
+      .eq('event_id', eventId)
+      .ilike('title', title.trim());
+    if (excludeId) q = q.neq('id', excludeId);
+    const { data, error } = await q.limit(1);
+    if (error) throw new Error(error.message);
+    return (data?.length ?? 0) > 0;
+  },
+
+  downloadFileBlob: async (filePath: string): Promise<Blob> => {
+    const { data, error } = await supabase.storage.from('event-documents').download(filePath);
+    if (error || !data) throw new Error(error?.message ?? 'Download failed');
+    return data;
+  },
+
   bulkDelete: async (docs: { id: string; file_path: string }[]): Promise<void> => {
     const paths = docs.map((d) => d.file_path);
     if (paths.length > 0) {

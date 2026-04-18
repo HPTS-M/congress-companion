@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FileText, Presentation, Sheet, Download } from 'lucide-react';
-import { useEvent } from '@/hooks/useEvent';
+import { useEvent, useEventSettings } from '@/hooks/useEvent';
 import { useDocuments } from '@/hooks/useDocuments';
 import { documentsService, type EventDocument } from '@/services/documents.service';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -34,6 +34,7 @@ function matchesFilter(doc: EventDocument, filter: FilterTab): boolean {
 export default function Documents() {
   const { t } = useTranslation('documents');
   const { event } = useEvent();
+  const { documentsDownloadEnabled } = useEventSettings();
   const { data: documents, isLoading } = useDocuments(event?.id ?? '');
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
   const [downloading, setDownloading] = useState<string | null>(null);
@@ -131,14 +132,16 @@ export default function Documents() {
                 </div>
 
                 {/* Download */}
-                <button
-                  onClick={() => handleDownload(doc)}
-                  disabled={downloading === doc.id}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-primary transition-colors hover:bg-muted disabled:opacity-50"
-                  aria-label="Download"
-                >
-                  <Download className="h-5 w-5" />
-                </button>
+                {documentsDownloadEnabled && (
+                  <button
+                    onClick={() => handleDownload(doc)}
+                    disabled={downloading === doc.id}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-primary transition-colors hover:bg-muted disabled:opacity-50"
+                    aria-label="Download"
+                  >
+                    <Download className="h-5 w-5" />
+                  </button>
+                )}
               </div>
             );
           })
