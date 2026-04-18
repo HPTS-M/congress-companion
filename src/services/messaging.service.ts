@@ -90,8 +90,8 @@ export const messagingService = {
 
     let nameMap: Record<string, string> = {};
     if (uniqueIds.length > 0) {
-      const { data: attendees } = await supabase
-        .from('attendees')
+      const { data: attendees } = await (supabase as any)
+        .from('public_attendee_directory')
         .select('id, full_name')
         .in('id', uniqueIds);
       (attendees ?? []).forEach((a: any) => {
