@@ -21,6 +21,8 @@ import {
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format, isToday, parseISO } from 'date-fns';
+import { usePagination } from '@/hooks/usePagination';
+import { DataTablePagination } from '@/components/ui/data-table-pagination';
 
 type FlashState = 'idle' | 'success' | 'duplicate' | 'error';
 
@@ -71,6 +73,8 @@ export default function CheckinStaff() {
           c.credential_code.toLowerCase().includes(searchQuery.toLowerCase()),
       )
     : checkins;
+
+  const checkinPagination = usePagination(filteredCheckins ?? [], 10);
 
   // Flash animation
   const triggerFlash = useCallback((state: FlashState, message: string) => {
@@ -308,7 +312,7 @@ export default function CheckinStaff() {
                 </div>
 
                 {/* List */}
-                <div className="max-h-80 space-y-1 overflow-y-auto">
+                <div className="space-y-1">
                   {loadingCheckins ? (
                     Array.from({ length: 3 }).map((_, i) => (
                       <Skeleton key={i} className="h-12 w-full rounded-lg" />
@@ -318,30 +322,40 @@ export default function CheckinStaff() {
                       {t('checkinStaff.noCheckinsYet')}
                     </p>
                   ) : (
-                    filteredCheckins.map((c) => (
-                      <div
-                        key={c.id}
-                        className="flex items-center gap-3 rounded-lg border border-border bg-card p-2"
-                      >
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                          {c.attendee_name
-                            .split(' ')
-                            .slice(0, 2)
-                            .map((n) => n[0])
-                            .join('')
-                            .toUpperCase()}
+                    <>
+                      {checkinPagination.paginatedItems.map((c) => (
+                        <div
+                          key={c.id}
+                          className="flex items-center gap-3 rounded-lg border border-border bg-card p-2"
+                        >
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                            {c.attendee_name
+                              .split(' ')
+                              .slice(0, 2)
+                              .map((n) => n[0])
+                              .join('')
+                              .toUpperCase()}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-foreground">
+                              {c.attendee_name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">{c.credential_code}</p>
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {c.checked_in_at ? format(new Date(c.checked_in_at), 'HH:mm') : ''}
+                          </span>
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-foreground">
-                            {c.attendee_name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">{c.credential_code}</p>
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          {c.checked_in_at ? format(new Date(c.checked_in_at), 'HH:mm') : ''}
-                        </span>
-                      </div>
-                    ))
+                      ))}
+                      <DataTablePagination
+                        currentPage={checkinPagination.currentPage}
+                        totalPages={checkinPagination.totalPages}
+                        totalItems={checkinPagination.totalItems}
+                        startIndex={checkinPagination.startIndex}
+                        endIndex={checkinPagination.endIndex}
+                        onPageChange={checkinPagination.setPage}
+                      />
+                    </>
                   )}
                 </div>
 

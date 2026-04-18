@@ -123,3 +123,30 @@
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
 }
+
+@layer utilities {
+  /* Branded scrollbar — applied to overflow containers (tables, lists). */
+  .scrollbar-branded {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary) / 0.4) transparent;
+  }
+  .scrollbar-branded::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+  .scrollbar-branded::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 4px;
+  }
+  .scrollbar-branded::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary) / 0.4);
+    border-radius: 4px;
+    transition: background 0.2s ease;
+  }
+  .scrollbar-branded::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--accent));
+  }
+  .scrollbar-branded::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}

@@ -26,6 +26,8 @@ import {
 import { format } from 'date-fns';
 import { es as esLocale } from 'date-fns/locale';
 import type { AdminAnnouncement, ChatMessageAdmin } from '@/services/admin-communications.service';
+import { usePagination } from '@/hooks/usePagination';
+import { DataTablePagination } from '@/components/ui/data-table-pagination';
 
 /* ───── Stat Card ───── */
 function StatCard({ label, value, icon: Icon, loading }: { label: string; value: number | undefined; icon: React.ElementType; loading: boolean }) {
@@ -67,6 +69,9 @@ export default function AdminCommunications() {
   const [deleteChatTarget, setDeleteChatTarget] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [newBody, setNewBody] = useState('');
+
+  const annPagination = usePagination(announcements.data ?? [], 10);
+  const chatPagination = usePagination(chatMessages.data ?? [], 10);
 
   const handleCreate = async () => {
     if (!newTitle.trim() || !newBody.trim()) return;
@@ -158,7 +163,7 @@ export default function AdminCommunications() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {announcements.data.map((a) => (
+                    {annPagination.paginatedItems.map((a) => (
                       <TableRow key={a.id}>
                         <TableCell>
                           <p className="font-semibold text-foreground">{a.title}</p>
@@ -187,6 +192,18 @@ export default function AdminCommunications() {
               )}
             </CardContent>
           </Card>
+          {(announcements.data?.length ?? 0) > 0 && (
+            <div className="mt-2">
+              <DataTablePagination
+                currentPage={annPagination.currentPage}
+                totalPages={annPagination.totalPages}
+                totalItems={annPagination.totalItems}
+                startIndex={annPagination.startIndex}
+                endIndex={annPagination.endIndex}
+                onPageChange={annPagination.setPage}
+              />
+            </div>
+          )}
         </TabsContent>
 
         {/* ─── Chat General Tab ─── */}
@@ -200,8 +217,9 @@ export default function AdminCommunications() {
               ) : !chatMessages.data?.length ? (
                 <div className="p-8 text-center text-muted-foreground">{t('communications.noMessages')}</div>
               ) : (
-                <div className="space-y-3 max-h-[500px] overflow-y-auto">
-                  {chatMessages.data.map((msg) => (
+                <>
+                <div className="space-y-3">
+                  {chatPagination.paginatedItems.map((msg) => (
                     <div key={msg.id} className="flex items-start gap-3 rounded-lg border p-3 bg-muted/30">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
@@ -226,6 +244,15 @@ export default function AdminCommunications() {
                     </div>
                   ))}
                 </div>
+                <DataTablePagination
+                  currentPage={chatPagination.currentPage}
+                  totalPages={chatPagination.totalPages}
+                  totalItems={chatPagination.totalItems}
+                  startIndex={chatPagination.startIndex}
+                  endIndex={chatPagination.endIndex}
+                  onPageChange={chatPagination.setPage}
+                />
+                </>
               )}
             </CardContent>
           </Card>

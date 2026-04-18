@@ -12,6 +12,8 @@ import { Users, Calendar, Star, Ticket, Download, FileSpreadsheet, Eye, Clipboar
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { toast } from '@/hooks/use-toast';
 import type { AttendanceReport, RatingsReport, LogisticsReport, SponsorEngagementReport } from '@/services/admin-reports.service';
+import { usePagination } from '@/hooks/usePagination';
+import { DataTablePagination } from '@/components/ui/data-table-pagination';
 
 function StatCard({ icon: Icon, label, value, loading }: { icon: React.ElementType; label: string; value: string | number; loading?: boolean }) {
   return (
@@ -270,6 +272,9 @@ export default function Reports() {
   const eventId = event?.id;
   const { summary, attendance, ratings, logistics, sponsorEngagement } = useAdminReports(eventId);
 
+  const logisticsPagination = usePagination(logistics.data ?? [], 10);
+  const sponsorsPagination = usePagination(sponsorEngagement.data ?? [], 10);
+
   const handleExportAll = async () => {
     if (!attendance.data || !ratings.data || !logistics.data || !sponsorEngagement.data) return;
     try {
@@ -385,7 +390,7 @@ export default function Reports() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {logistics.data!.map((s) => (
+                    {logisticsPagination.paginatedItems.map((s) => (
                       <TableRow key={s.service_id}>
                         <TableCell className="font-medium text-sm">{s.name}</TableCell>
                         <TableCell className="text-center">{s.total}</TableCell>
@@ -398,6 +403,14 @@ export default function Reports() {
                     ))}
                   </TableBody>
                 </Table>
+                <DataTablePagination
+                  currentPage={logisticsPagination.currentPage}
+                  totalPages={logisticsPagination.totalPages}
+                  totalItems={logisticsPagination.totalItems}
+                  startIndex={logisticsPagination.startIndex}
+                  endIndex={logisticsPagination.endIndex}
+                  onPageChange={logisticsPagination.setPage}
+                />
               </div>
             )}
           </CardContent>
