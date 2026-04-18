@@ -49,11 +49,10 @@ export const messagingService = {
   },
 
   async getAttendeeNames(eventId: string): Promise<Record<string, string>> {
-    const { data } = await supabase
-      .from('attendees')
+    const { data } = await (supabase as any)
+      .from('public_attendee_directory')
       .select('id, full_name')
-      .eq('event_id', eventId)
-      .is('deleted_at', null);
+      .eq('event_id', eventId);
 
     const map: Record<string, string> = {};
     (data ?? []).forEach((a: any) => {
