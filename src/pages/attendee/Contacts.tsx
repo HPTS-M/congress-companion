@@ -143,6 +143,8 @@ export default function Contacts() {
       })
       .filter(r => r.attendee);
   }, [contacts, myId, attendees]);
+
+  const acceptedContacts = useMemo(() => {
     if (!contacts || !myId || !attendees) return [];
     return contacts
       .filter(c => c.status === 'accepted')
