@@ -1,7 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { useEvent } from '@/hooks/useEvent';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useEventAttendees } from '@/hooks/useContacts';
 import {
   useDirectConversations,
@@ -9,6 +11,7 @@ import {
   useAcceptConversation,
   useRejectConversation,
 } from '@/hooks/useMessaging';
+import { supabase } from '@/integrations/supabase/client';
 import { Search, Plus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -34,12 +37,46 @@ export default function DirectConversationList({ onSelectConversation }: Props) 
   const { t } = useTranslation('messaging');
   const { attendee } = useAuth();
   const { event } = useEvent();
+  const queryClient = useQueryClient();
+  const isOnline = useOnlineStatus();
   const eventId = event?.id ?? '';
   const attendeeId = attendee?.id ?? '';
 
   const { data: conversations = [], isLoading } = useDirectConversations(eventId, attendeeId);
   const acceptMutation = useAcceptConversation();
   const rejectMutation = useRejectConversation();
+
+  // Realtime: refresh list on conversation/message changes for this event
+  useEffect(() => {
+    if (!eventId || !attendeeId || !isOnline) return;
+
+    const invalidate = () => {
+      queryClient.invalidateQueries({ queryKey: ['direct-conversations', eventId, attendeeId] });
+    };
+
+    const channel = supabase
+      .channel(`conv-list-${eventId}-${attendeeId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'chat_conversations',
+          filter: `event_id=eq.${eventId}`,
+        },
+        invalidate
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'chat_messages' },
+        invalidate
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [eventId, attendeeId, isOnline, queryClient]);
   const [showNewDialog, setShowNewDialog] = useState(false);
 
   const pendingInvites = conversations.filter(
