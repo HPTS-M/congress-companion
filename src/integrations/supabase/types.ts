@@ -1557,6 +1557,7 @@ export type Database = {
       sponsor_leads: {
         Row: {
           attendee_id: string
+          contacted_at: string | null
           created_at: string
           event_id: string
           id: string
@@ -1565,6 +1566,7 @@ export type Database = {
         }
         Insert: {
           attendee_id: string
+          contacted_at?: string | null
           created_at?: string
           event_id: string
           id?: string
@@ -1573,6 +1575,7 @@ export type Database = {
         }
         Update: {
           attendee_id?: string
+          contacted_at?: string | null
           created_at?: string
           event_id?: string
           id?: string
@@ -1905,6 +1908,7 @@ export type Database = {
         Args: { _checkin_id: string }
         Returns: boolean
       }
+      mark_lead_contacted: { Args: { _lead_id: string }; Returns: undefined }
       mark_messages_as_read: {
         Args: { _conversation_id: string; _user_id: string }
         Returns: undefined

@@ -7,6 +7,7 @@ export interface SponsorLead {
   event_id: string;
   note: string | null;
   created_at: string;
+  contacted_at?: string | null;
 }
 
 export interface SponsorLeadWithAttendee extends SponsorLead {
@@ -15,6 +16,7 @@ export interface SponsorLeadWithAttendee extends SponsorLead {
     email: string;
     specialty: string | null;
     institution: string | null;
+    phone: string | null;
   };
 }
 
@@ -43,11 +45,16 @@ export const sponsorLeadsService = {
   async getLeadsForSponsor(sponsorId: string): Promise<SponsorLeadWithAttendee[]> {
     const { data, error } = await supabase
       .from('sponsor_leads')
-      .select('*, attendees(full_name, email, specialty, institution)')
+      .select('*, attendees(full_name, email, specialty, institution, phone)')
       .eq('sponsor_id', sponsorId)
       .order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
     return (data ?? []) as unknown as SponsorLeadWithAttendee[];
+  },
+
+  async markAsContacted(leadId: string): Promise<void> {
+    const { error } = await supabase.rpc('mark_lead_contacted' as never, { _lead_id: leadId } as never);
+    if (error) throw new Error(error.message);
   },
 
   async getLeadsForEvent(eventId: string): Promise<(SponsorLead & { sponsors: { name: string }; attendees: { full_name: string; email: string; specialty: string | null; institution: string | null } })[]> {
