@@ -1,120 +1,134 @@
 
 
-## Revisión del plan: Independencia total Mensajería ↔ Anuncios
+## Plan: Credenciales + Módulo Documentos
 
-### Veredicto
+### PARTE 1 · Diagnóstico y arreglo del flujo de credenciales
 
-El plan **cumple los objetivos** y es claro, pero antes de implementar conviene endurecer algunos puntos de tipado estricto y consistencia con el código actual. A continuación, el plan revisado y blindado.
+#### Problema raíz identificado
 
-### Objetivos (chequeo)
+Existen **dos códigos** y se confunden entre sí:
 
-| Objetivo | ¿Lo cumple? |
+| Código | Columna DB | Propósito | Generado por |
+|---|---|---|---|
+| `credential_code` | `attendees.credential_code` | Display + QR (formato `MCONG-YYYYMMDD-XXXXXXXX`) | Trigger `auto_generate_credential` y RPC `create_attendee_credential` |
+| `access_code` (8 chars) | NO se almacena en plano; solo `access_code_hash` (bcrypt) | **Login** real del asistente (lo que debe escribir en pantalla de ingreso) | Edge Function `send-invitation-email` |
+
+#### Bugs detectados
+
+1. **RPC `create_attendee_credential` está rota**: tiene una variable local llamada igual que la columna (`credential_code`), por lo que `UPDATE attendees SET credential_code = credential_code` es ambiguo. Causa el error al regenerar.
+2. **"Regenerar código" sólo regenera el display**, no el `access_code_hash`. Aunque arreglemos el RPC, el asistente seguirá sin poder ingresar con el código nuevo porque su hash de login no cambió.
+3. **Asistentes sin invitación enviada (`has_hash:false`) no pueden ingresar**: 6 de 10 asistentes en el evento están en este estado. La pantalla de login parece "no funcionar" porque su credential_code (display) no es el access_code de login.
+4. **Confusión UX**: el botón dice "Regenerar código" pero no aclara qué código (display vs login).
+
+#### Cambios propuestos
+
+**A. Arreglar RPC `create_attendee_credential` (migración SQL)**
+- Renombrar variable interna a `_new_code` para eliminar ambigüedad.
+- Devolver el código generado correctamente.
+
+**B. Nuevo RPC `regenerate_attendee_access_code(_attendee_id)` (no implementado todavía — pendiente)**
+- Genera nuevo access code de 8 chars (mismo charset sin O/0/I/1).
+- Hashea con bcrypt vía Edge Function (no se puede bcrypt en RPC PostgreSQL fácilmente).
+- Limpia `last_session_id` para forzar re-login.
+- Retorna el código en plano una sola vez (para mostrar al admin).
+
+**C. Nueva Edge Function `regenerate-access-code`**
+- Endpoint admin-only (verifica rol).
+- Genera código de 8 chars, lo hashea con bcrypt, actualiza `access_code_hash` + `invitation_sent_at` + limpia `last_session_id`.
+- Retorna `{ access_code: "ABCD2345" }` para que el admin lo copie/envíe.
+- Opcional: parámetro `send_email=true` para reenviar correo automáticamente.
+
+**D. Refactor del Drawer de Asistentes (`AttendeeDetailDrawer.tsx`)**
+- Separar visualmente en dos bloques claros:
+  - **"Código de credencial (Display/QR)"** — botón `Regenerar` que llama al RPC arreglado.
+  - **"Código de acceso (Login)"** — botón `Regenerar código de acceso` que llama a la nueva Edge Function, muestra el código generado en un `AlertDialog` con botón "Copiar" y "Enviar por correo".
+- El botón actual `Enviar credenciales` queda como está (genera + envía email).
+- Tooltips en cada botón explicando para qué sirve.
+
+**E. QA de login con asistente regenerado**
+- Probar: regenerar acceso → copiar código → probar login en `/{event_code}` con el nuevo código.
+- Validar que `last_session_id` se limpia y permite ingreso aunque hubiera sesión activa previa.
+
+---
+
+### PARTE 2 · Módulo Documentos — Mejoras
+
+#### 2.1 Carga y gestión
+
+| Cambio | Detalle |
 |---|---|
-| Ícono de mensajería separado en el header | ✓ |
-| Identifica solicitud de chat o mensaje nuevo | ✓ (badge numérico + punto teal pulsante para invitaciones) |
-| Sincronizado con módulo de mensajería | ✓ (realtime + invalidación instantánea) |
-| Sigue mejores prácticas de la industria | ✓ (separación por canal: LinkedIn/Slack/Gmail) |
-| Independencia total entre los dos sistemas | ✓ (hooks separados, storage keys separados, invalidaciones separadas) |
+| Ampliar formatos aceptados | PDF, PPT/PPTX, DOC/DOCX, XLS/XLSX, **ZIP**, **PNG/JPG**, **MP4**, **TXT/CSV** |
+| Constante `ACCEPTED` | Pasar a array tipado: `['pdf','pptx','docx','xlsx','zip','png','jpg','jpeg','mp4','txt','csv']` |
+| Mapa `getFileType()` | Ampliar para devolver tipo correcto según extensión |
+| Iconos por tipo | Añadir colores e iconos para zip (gris), imágenes (índigo), video (rosa), texto (slate) |
+| **Validación de duplicados** | Antes de crear el documento, query a `documents` por `event_id + title` (case-insensitive) o por hash de archivo. Si existe → mostrar diálogo "Ya existe un documento con ese título / archivo similar. ¿Reemplazar / Renombrar / Cancelar?" |
+| Validación de completitud (`CompletenessCheckModal`) | Aceptar todos los nuevos tipos en el campo `tipo` de la plantilla XLS de referencia |
 
-### Refinamientos de tipado estricto y robustez
+#### 2.2 Interacción y visualización
 
-**1. Tipos explícitos en los nuevos hooks** (no implicit `any`, conforme a `tsconfig: strict`):
-
-```ts
-// src/hooks/useUnreadAnnouncements.ts
-interface UnreadAnnouncementsResult {
-  count: number;
-  markAsSeen: () => void;
-}
-export function useUnreadAnnouncements(eventId: string): UnreadAnnouncementsResult { ... }
-
-// src/hooks/useUnreadMessages.ts
-interface UnreadMessagesResult {
-  count: number;
-  pendingInvites: number;
-  unreadMessages: number;
-  markAsSeen: () => void;
-}
-export function useUnreadMessages(eventId: string): UnreadMessagesResult { ... }
-```
-
-**2. Guardas robustas** (no romper si `attendee` es `null`, alineado con `isProfileLoading` pattern):
-- `enabled: !!attendee?.id && !!eventId` en cada `useQuery`.
-- `markAsSeen` no-op si `attendee?.id` es undefined.
-- Storage keys solo se construyen cuando `attendee.id` existe.
-
-**3. Migración de la key vieja sin acoplar** los dos hooks:
-- Cada hook lee independientemente la key vieja `notifications_last_seen_${attendeeId}` como **fallback de solo lectura** la primera vez.
-- Al primer `markAsSeen` de cada tipo se escribe la key nueva específica.
-- La key vieja **no se borra** (1 entrada por usuario, despreciable).
-
-**4. Realtime sin canales nuevos**:
-- Reutilizar el listener existente en `DirectConversationList.tsx` (sobre `chat_conversations`). Solo se añade una invalidación adicional dentro del callback `invalidate` ya existente:
-  ```ts
-  queryClient.invalidateQueries({ queryKey: ['unread-messages', eventId] });
-  ```
-- No tocar `chat_messages` (sigue desactivado conforme al cambio anterior).
-- Cumple `realtime-cleanup-pattern` (cleanup intacto).
-
-**5. AppHeader — tipado y orden visual**:
-
-```tsx
-const announcements = useUnreadAnnouncements(event?.id ?? '');
-const messages = useUnreadMessages(event?.id ?? '');
-
-const handleBellClick = (): void => {
-  announcements.markAsSeen();
-  navigate(`/${eventSlug}/announcements`);
-};
-
-const handleMessagingClick = (): void => {
-  messages.markAsSeen();
-  navigate(`/${eventSlug}/messaging`);
-};
-```
-
-Orden en el header (de izq. a der.):
-`[🌐] [🔔 anuncios] [💬 mensajes] [👤 avatar]`
-
-**6. Indicador "acción requerida" para invitaciones**:
-- Si `messages.pendingInvites > 0 && messages.unreadMessages === 0` → mostrar punto teal `#00B89F` con `animate-pulse`.
-- Si `messages.count > 0` (cualquier combinación) → mostrar badge rojo numérico.
-- Si `count === 0` y no hay invitaciones → ningún indicador.
-
-**7. i18n estricto** (cero strings hardcodeados):
-- Añadir `headerTooltip` en `messaging.json` (es/en) → usado en `aria-label` y `title` del botón.
-
-### Tabla final de comportamiento garantizado
-
-| Acción | Badge campana | Badge chat |
-|---|---|---|
-| Click campana | Se limpia | Sin cambios |
-| Click chat | Sin cambios | Se limpia |
-| Llega anuncio nuevo | +1 | Sin cambios |
-| Llega invitación | Sin cambios | Punto teal pulsante |
-| Llega mensaje nuevo | Sin cambios | +1 (badge rojo) |
-| Visita /announcements | Se limpia (vía markAsSeen) | Sin cambios |
-| Visita /messaging | Sin cambios | Se limpia (vía markAsSeen) |
-
-### Archivos a modificar (final)
-
-| Archivo | Cambio |
+| Cambio | Detalle |
 |---|---|
-| `src/hooks/useUnreadAnnouncements.ts` | **Nuevo** — interface tipada, queryKey `['unread-announcements', eventId, attendeeId]`, storage key propio |
-| `src/hooks/useUnreadMessages.ts` | **Nuevo** — interface tipada, queryKey `['unread-messages', eventId, attendeeId]`, storage key propio |
-| `src/hooks/useUnreadCount.ts` | **Eliminar** (único consumidor es `AppHeader`, se migra en el mismo cambio) |
-| `src/components/layout/AppHeader.tsx` | Agregar `MessageCircle`, dos handlers separados, indicador dual (badge rojo + punto teal pulsante) |
-| `src/components/attendee/DirectConversationList.tsx` | Añadir `queryClient.invalidateQueries({ queryKey: ['unread-messages', eventId] })` dentro del callback `invalidate` ya existente |
-| `src/locales/es/messaging.json` | `"headerTooltip": "Mensajería"` |
-| `src/locales/en/messaging.json` | `"headerTooltip": "Messaging"` |
+| **Refresco inmediato** | Tras subir/editar/eliminar, además de `invalidateQueries` hacer `refetch()` explícito. Ya está parcialmente implementado pero hay que asegurar que después de `onUploaded` se ejecute. |
+| **Botón "Actualizar"** | Añadir botón en header con ícono `RefreshCw` que dispara `qc.invalidateQueries(['admin-documents', eventId])` + spinner mientras `isFetching`. |
+| **Tooltips** | Envolver los botones de acción (Descargar, Editar, Eliminar, Subir, Índice, Completitud, Exportar, Actualizar) con `<Tooltip>` de shadcn. Usar i18n keys nuevas `documents.tooltip.*`. |
+| **Previsualización** | Nuevo componente `DocumentPreviewModal`: <br>• PDF → iframe con signed URL.<br>• Imágenes → `<img>` con signed URL.<br>• Video → `<video controls>` con signed URL.<br>• PPT/DOC/XLS/ZIP → mensaje "Vista previa no disponible. Usa Descargar." con botón directo.<br>Botón "Ver" (ícono `Eye`) en la fila junto a Descargar. |
+
+#### 2.3 Descargas y exportación
+
+| Cambio | Detalle |
+|---|---|
+| **Corregir descarga desde rejilla** | El `handleDownload` actual abre signed URL en `window.open`, pero algunos navegadores bloquean si tarda. Cambiar a: crear `<a href download>` programático tras obtener signed URL, así fuerza descarga vs apertura. |
+| **Restricción de descarga** | Añadir nueva config `documents_download_enabled` (boolean) en `events.settings`. Cuando es `false`: ocultar botón Descargar en `attendee/Documents.tsx` (ya existe el patrón `qrEnabled`). En admin sí se muestra siempre. Toggle en `EventSettingsCard` siguiendo patrón de QR. |
+| **Exportar listado a XLS** | Reemplazar `handleExportList` (CSV) por `writeExcelFile` de `@/lib/excel`. Columnas: Título, Tipo, Sesión, Tamaño, Fecha, Descargas. |
+| **Exportación masiva XLS + archivos** | Nueva acción "Exportar todo (ZIP)": <br>1. Generar XLS con metadatos.<br>2. Descargar cada archivo del bucket.<br>3. Empaquetar todo en un ZIP con `jszip` (ya común en frontend, añadir si no está).<br>4. Ofrecer descarga del ZIP `documentos-{event_code}-{date}.zip`.<br>Mostrar progreso (0/N) durante el proceso. |
+
+---
+
+### Archivos a modificar / crear
+
+#### Backend (DB + Edge Functions)
+- **Migración SQL**: arreglar `create_attendee_credential` (renombrar variable).
+- **Migración SQL**: ampliar columna `documents.file_type` no necesaria (es `text`); pero añadir índice opcional `(event_id, lower(title))` para validar duplicados rápido.
+- **Nueva Edge Function** `supabase/functions/regenerate-access-code/index.ts`.
+
+#### Frontend — Credenciales
+- `src/services/admin-attendees.service.ts` — nuevo método `regenerateAccessCode(attendeeId, sendEmail)`.
+- `src/hooks/useAdminAttendees.ts` — nuevo hook `useRegenerateAccessCode`.
+- `src/components/admin/attendees/AttendeeDetailDrawer.tsx` — separar en dos bloques (display vs access), añadir tooltips, dialog para mostrar código nuevo.
+- i18n: `attendees.detail.accessCode.*`, `attendees.detail.accessCodeRegenerated`, `attendees.detail.copyCode`, etc.
+
+#### Frontend — Documentos
+- `src/components/admin/documents/UploadDocumentModal.tsx` — ampliar formatos, validar duplicados.
+- `src/components/admin/documents/CompletenessCheckModal.tsx` — aceptar nuevos tipos.
+- **Nuevo** `src/components/admin/documents/DocumentPreviewModal.tsx`.
+- `src/pages/admin/Documents.tsx` — botón Actualizar, tooltips, exportar XLS, exportar masivo ZIP, botón Ver.
+- `src/services/admin-documents.service.ts` — método `checkDuplicate(eventId, title)`, método `bulkDownloadAsZip(docs)`.
+- `src/components/admin/EventSettingsCard.tsx` — toggle `documents_download_enabled`.
+- `src/pages/attendee/Documents.tsx` — ocultar botón descargar cuando `documents_download_enabled === false`.
+- `src/hooks/useEventSettings.ts` (si existe) o `useEvent.ts` — exponer `documentsDownloadEnabled`.
+- i18n: `documents.tooltip.*`, `documents.duplicate.*`, `documents.preview.*`, `documents.refresh`, `documents.bulkExport`, `settings.documentsDownload*`.
+- **Dependencia nueva**: `jszip` (para exportación masiva).
+
+---
 
 ### Restricciones honradas
 
-- TypeScript strict, sin `any`.
-- Sin nuevas dependencias (`MessageCircle` ya en lucide-react).
-- Cumple `notification-system-logic` (storage por tipo, polling 30s independiente).
-- Cumple `realtime-cleanup-pattern` (sin canales nuevos).
-- Cumple i18n, dark mode, mobile-first (4 íconos caben en 360px).
-- Sin cambios a DB, RLS, servicios ni esquema.
-- Cero acople entre las dos funcionalidades en datos, storage e invalidaciones.
+- TypeScript strict, sin `any` (excepto donde ya existe en código legado y no aplica al cambio).
+- Mobile-first preservado.
+- Cero strings hardcodeados (i18n es/en).
+- Cumple `notification-system-logic`, `realtime-cleanup-pattern`.
+- Edge Functions con bcrypt SÍNCRONO (memoria `bcrypt-edge-runtime-limitations`).
+- RLS no requiere cambios — la nueva Edge Function usa service role + verifica rol admin.
+- Bucket `event-documents` permanece privado, signed URLs siempre.
+
+### Orden de ejecución sugerido
+
+1. **Credenciales primero** (alta prioridad — bloquea ingreso de asistentes):
+   - Migración fix RPC + nueva Edge Function `regenerate-access-code` + UI drawer.
+2. **Documentos** (en una segunda iteración o sub-divididos):
+   - 2A: formatos + duplicados + tooltips + botón actualizar.
+   - 2B: previsualización + descarga corregida.
+   - 2C: exportación XLS + exportación masiva ZIP + restricción de descarga.
+
+¿Apruebas este plan completo o prefieres dividirlo en fases (1 primero, luego 2A/2B/2C)?
 
