@@ -24,6 +24,8 @@ import { ProviderModal } from '@/components/admin/providers/ProviderModal';
 import { AssignServicesModal } from '@/components/admin/providers/AssignServicesModal';
 import { adminProvidersService } from '@/services/admin-providers.service';
 import type { ProviderRow, ProviderForm } from '@/services/admin-providers.service';
+import { usePagination } from '@/hooks/usePagination';
+import { DataTablePagination } from '@/components/ui/data-table-pagination';
 
 const TYPE_ICONS: Record<string, React.ElementType> = {
   transport: Bus, food: UtensilsCrossed, tour: Map, special: Sparkles,
@@ -82,6 +84,8 @@ export default function AdminProviders() {
       (p.contact_email ?? '').toLowerCase().includes(q)
     );
   }, [providers, search]);
+
+  const pagination = usePagination(filtered, 10);
 
   const handleSave = useCallback(async (data: ProviderForm) => {
     try {
@@ -245,7 +249,7 @@ export default function AdminProviders() {
                   {t('providers.noProviders')}
                 </TableCell>
               </TableRow>
-            ) : filtered.map((p) => {
+            ) : pagination.paginatedItems.map((p) => {
               const Icon = TYPE_ICONS[p.category] ?? Bus;
               const invStatus = getInvitationStatus(p);
               const isPendingLong = invStatus === 'pending' && p.user_id && !p.last_login;
@@ -340,6 +344,14 @@ export default function AdminProviders() {
           </TableBody>
         </Table>
       </div>
+      <DataTablePagination
+        currentPage={pagination.currentPage}
+        totalPages={pagination.totalPages}
+        totalItems={pagination.totalItems}
+        startIndex={pagination.startIndex}
+        endIndex={pagination.endIndex}
+        onPageChange={pagination.setPage}
+      />
 
       {/* Provider Modal */}
       {modalOpen && (

@@ -18,6 +18,8 @@ import { useEvent } from '@/hooks/useEvent';
 import { useAuth } from '@/hooks/useAuth';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
+import { usePagination } from '@/hooks/usePagination';
+import { DataTablePagination } from '@/components/ui/data-table-pagination';
 
 
 // ---- Format session label ----
@@ -275,7 +277,7 @@ export default function AdminPolls() {
   const [resultsId, setResultsId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
 
-  
+  const pagination = usePagination(polls, 10);
 
   const stats = {
     total: polls.length,
@@ -366,7 +368,7 @@ export default function AdminPolls() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {polls.map(poll => (
+                {pagination.paginatedItems.map(poll => (
                   <TableRow key={poll.id}>
                     <TableCell className="max-w-[250px]">
                       <span className="line-clamp-2 font-medium">{poll.question}</span>
@@ -410,6 +412,16 @@ export default function AdminPolls() {
           )}
         </CardContent>
       </Card>
+      {polls.length > 0 && (
+        <DataTablePagination
+          currentPage={pagination.currentPage}
+          totalPages={pagination.totalPages}
+          totalItems={pagination.totalItems}
+          startIndex={pagination.startIndex}
+          endIndex={pagination.endIndex}
+          onPageChange={pagination.setPage}
+        />
+      )}
 
       <NewPollModal
         open={showNew}

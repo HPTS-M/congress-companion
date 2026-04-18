@@ -30,6 +30,8 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 import type { StaffMember } from '@/services/admin-staff.service';
+import { usePagination } from '@/hooks/usePagination';
+import { DataTablePagination } from '@/components/ui/data-table-pagination';
 
 const ROOMS = ['General', 'Sala 1', 'Sala 2', 'Sala 3', 'Sala 4'];
 
@@ -62,6 +64,8 @@ export default function StaffPage() {
         (s.assigned_room ?? '').toLowerCase().includes(searchQuery.toLowerCase())
       )
     : staff;
+
+  const pagination = usePagination(filteredStaff ?? [], 10);
 
   const openNewModal = () => {
     setEditingStaff(null);
@@ -215,6 +219,7 @@ export default function StaffPage() {
           </CardContent>
         </Card>
       ) : (
+        <>
         <Table>
           <TableHeader>
             <TableRow>
@@ -227,7 +232,7 @@ export default function StaffPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredStaff.map((s) => (
+            {pagination.paginatedItems.map((s) => (
               <TableRow key={s.id}>
                 <TableCell>
                   <div className="flex items-center gap-2">
@@ -284,6 +289,15 @@ export default function StaffPage() {
             ))}
           </TableBody>
         </Table>
+        <DataTablePagination
+          currentPage={pagination.currentPage}
+          totalPages={pagination.totalPages}
+          totalItems={pagination.totalItems}
+          startIndex={pagination.startIndex}
+          endIndex={pagination.endIndex}
+          onPageChange={pagination.setPage}
+        />
+        </>
       )}
 
       {/* Create/Edit Dialog */}

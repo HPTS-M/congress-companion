@@ -21,6 +21,8 @@ import { SponsorDetailDrawer } from '@/components/admin/sponsors/SponsorDetailDr
 import { ImportSponsorsModal } from '@/components/admin/sponsors/ImportSponsorsModal';
 import { exportSponsorsToExcel } from '@/services/admin-sponsors-excel.service';
 import type { SponsorRow } from '@/services/admin-sponsors.service';
+import { usePagination } from '@/hooks/usePagination';
+import { DataTablePagination } from '@/components/ui/data-table-pagination';
 
 const LEVEL_COLORS: Record<string, string> = {
   gold: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
@@ -54,6 +56,8 @@ export default function AdminSponsors() {
       (s.contact_email ?? '').toLowerCase().includes(q)
     );
   }, [sponsors, search]);
+
+  const pagination = usePagination(filtered, 10);
 
   const stats = useMemo(() => ({
     total: sponsors.length,
@@ -176,7 +180,7 @@ export default function AdminSponsors() {
                   {t('sponsors.noSponsors')}
                 </TableCell>
               </TableRow>
-            ) : filtered.map((s) => (
+            ) : pagination.paginatedItems.map((s) => (
               <TableRow key={s.id}>
                 <TableCell>
                   <div className="flex items-center gap-3">
@@ -218,6 +222,14 @@ export default function AdminSponsors() {
           </TableBody>
         </Table>
       </div>
+      <DataTablePagination
+        currentPage={pagination.currentPage}
+        totalPages={pagination.totalPages}
+        totalItems={pagination.totalItems}
+        startIndex={pagination.startIndex}
+        endIndex={pagination.endIndex}
+        onPageChange={pagination.setPage}
+      />
 
       {/* Modal */}
       {modalOpen && event && (

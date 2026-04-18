@@ -24,6 +24,8 @@ import { toast } from 'sonner';
 import { ServiceModal } from '@/components/admin/logistics/ServiceModal';
 import { ServiceAssigneesDrawer } from '@/components/admin/logistics/ServiceAssigneesDrawer';
 import type { ServiceCatalogRow, ServiceCatalogForm } from '@/services/admin-logistics.service';
+import { usePagination } from '@/hooks/usePagination';
+import { DataTablePagination } from '@/components/ui/data-table-pagination';
 
 const TYPE_ICONS: Record<string, React.ElementType> = {
   transport: Bus,
@@ -85,6 +87,8 @@ export default function AdminLogistics() {
     }
     return list;
   }, [services, tab, search]);
+
+  const pagination = usePagination(filtered, 10);
 
   const handleSave = useCallback(async (data: ServiceCatalogForm) => {
     try {
@@ -205,7 +209,7 @@ export default function AdminLogistics() {
                   {t('logistics.noServices')}
                 </TableCell>
               </TableRow>
-            ) : filtered.map((s) => {
+            ) : pagination.paginatedItems.map((s) => {
               const Icon = TYPE_ICONS[s.service_type] ?? Ticket;
               const pendingCount = s.total_tickets - s.used_tickets - s.cancelled_tickets;
               return (
@@ -260,6 +264,14 @@ export default function AdminLogistics() {
           </TableBody>
         </Table>
       </div>
+      <DataTablePagination
+        currentPage={pagination.currentPage}
+        totalPages={pagination.totalPages}
+        totalItems={pagination.totalItems}
+        startIndex={pagination.startIndex}
+        endIndex={pagination.endIndex}
+        onPageChange={pagination.setPage}
+      />
 
       {/* Modal */}
       {modalOpen && (
