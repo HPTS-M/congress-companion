@@ -462,6 +462,59 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={confirmRegenAccess} onOpenChange={setConfirmRegenAccess}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('attendees.detail.regenerateAccessCode')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('attendees.detail.regenerateAccessConfirm')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={regeneratingAccess}>
+              {t('attendees.deleteConfirm.cancel')}
+            </AlertDialogCancel>
+            <Button
+              variant="outline"
+              onClick={() => handleRegenerateAccess(false)}
+              disabled={regeneratingAccess}
+            >
+              <KeyRound className="mr-2 h-3.5 w-3.5" />
+              {t('attendees.detail.regenerateAccessCode')}
+            </Button>
+            <AlertDialogAction
+              onClick={() => handleRegenerateAccess(true)}
+              disabled={regeneratingAccess}
+              className="bg-primary text-primary-foreground"
+            >
+              <Mail className="mr-2 h-3.5 w-3.5" />
+              {t('attendees.detail.sendByEmailNow')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={!!newAccessCode} onOpenChange={(o) => !o && setNewAccessCode(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('attendees.detail.newAccessCodeTitle')}</DialogTitle>
+            <DialogDescription>{t('attendees.detail.newAccessCodeDescription')}</DialogDescription>
+          </DialogHeader>
+          <div className="my-4 rounded-lg border-2 border-dashed border-primary bg-muted p-6 text-center">
+            <div className="font-mono text-3xl font-bold tracking-widest text-primary">
+              {newAccessCode}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCopyAccessCode}>
+              <Copy className="mr-2 h-4 w-4" />
+              {t('attendees.detail.copyCode')}
+            </Button>
+            <Button onClick={() => setNewAccessCode(null)}>
+              {t('attendees.deleteConfirm.cancel')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
