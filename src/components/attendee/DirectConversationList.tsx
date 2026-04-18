@@ -66,11 +66,6 @@ export default function DirectConversationList({ onSelectConversation }: Props) 
         },
         invalidate
       )
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'chat_messages' },
-        invalidate
-      )
       .subscribe();
 
     return () => {
