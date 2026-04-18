@@ -45,10 +45,23 @@ export const contactsService = {
     return (data ?? []) as ContactRow[];
   },
 
-  async sendRequest(eventId: string, userId: string, contactId: string): Promise<void> {
+  async sendRequest(eventId: string, _userId: string, contactId: string): Promise<{ action: string; status: string }> {
+    // Uses RPC accept_or_create_contact: auto-matches if reciprocal pending exists.
+    const { data, error } = await (supabase as any).rpc('accept_or_create_contact', {
+      _event_id: eventId,
+      _target_attendee_id: contactId,
+    });
+
+    if (error) throw new Error(error.message);
+    if (!data?.success) throw new Error(data?.error ?? 'Unknown error');
+    return { action: data.action as string, status: data.status as string };
+  },
+
+  async cancelRequest(contactRowId: string): Promise<void> {
     const { error } = await supabase
       .from('contacts')
-      .insert({ event_id: eventId, user_id: userId, contact_id: contactId, status: 'pending' });
+      .delete()
+      .eq('id', contactRowId);
 
     if (error) throw new Error(error.message);
   },

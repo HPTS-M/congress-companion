@@ -1820,6 +1820,10 @@ export type Database = {
       }
     }
     Functions: {
+      accept_or_create_contact: {
+        Args: { _event_id: string; _target_attendee_id: string }
+        Returns: Json
+      }
       cleanup_old_attempts: { Args: never; Returns: undefined }
       create_attendee_credential: {
         Args: { _attendee_id: string }
