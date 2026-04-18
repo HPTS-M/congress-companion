@@ -91,6 +91,7 @@ export default function Contacts() {
   const sendRequest = useSendContactRequest();
   const acceptContact = useAcceptContact();
   const rejectContact = useRejectContact();
+  const cancelRequest = useCancelContactRequest();
 
   const myId = attendee?.id;
 
