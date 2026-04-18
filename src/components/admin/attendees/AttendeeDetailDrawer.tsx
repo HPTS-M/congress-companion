@@ -54,6 +54,9 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
   const updateAttendeeStatusMutation = useUpdateAttendeeStatus();
   const [showAddService, setShowAddService] = useState(false);
   const [confirmToggleActive, setConfirmToggleActive] = useState(false);
+  const [confirmRegenAccess, setConfirmRegenAccess] = useState(false);
+  const [regeneratingAccess, setRegeneratingAccess] = useState(false);
+  const [newAccessCode, setNewAccessCode] = useState<string | null>(null);
 
   const handleRegenerate = async () => {
     if (!attendeeId) return;
