@@ -1,72 +1,54 @@
 
 
-## Diagnóstico
+## Plan: Mensajería en tiempo real
 
-**Estado de los usuarios** (evento ACQFH-2026):
+### Diagnóstico
 
-| Usuario | Estado |
-|---|---|
-| Mauricio Larrea (`larreamauricio10@gmail.com`) | ✅ confirmed, user_id activo |
-| DAVID SANGUINO (`sanguino.david@gmail.com`) | ✅ confirmed, user_id activo |
+Confirmado por inspección de DB y código:
 
-⚠️ Nota: existe un registro duplicado adicional con el email de Mauricio asignado a "Alberto Gonzalez" (deleted, pending) — no afecta la conexión pero es ruido en la BD.
+1. **`chat_messages` SÍ está en `supabase_realtime`** (publicación correcta) y tiene `REPLICA IDENTITY FULL` (`relreplident = f`). El INSERT debería propagarse.
+2. **`chat_conversations` está en la publicación pero con `REPLICA IDENTITY DEFAULT`** (`relreplident = d`) — los UPDATEs (last_message_at, status pending→active) no envían `OLD` completo, lo que limita el realtime de la lista.
+3. **Suscripción realtime sólo se activa si `conversation.status === 'active'`** (línea 78 de `DirectChatView.tsx`). Si la conversación está `pending`, los mensajes nunca llegan en vivo — pero como el input está bloqueado en pending, no es el bug actual.
+4. **La lista de conversaciones (`DirectConversationList`) NO tiene realtime**. Las invitaciones nuevas, aceptaciones y nuevos mensajes no aparecen sin recargar.
+5. **El mensaje propio recién enviado** se inserta en BD pero no se agrega optimistamente a la cache → solo se ve cuando el evento realtime regresa el INSERT. Si realtime tarda o falla, el usuario ve el campo limpiarse y nada más.
+6. **No hay invalidación de la lista** cuando llega un mensaje → el preview "última actividad" en la lista de conversaciones queda obsoleto.
 
-**Solicitudes de contacto existentes** — hay DOS registros pendientes:
-1. Mauricio → David · `pending` · creada 17-abr 23:58
-2. David → Mauricio · `pending` · creada 18-abr 00:22
+### Causa raíz más probable del síntoma reportado
+El realtime de `chat_messages` funciona, pero:
+- **El receptor** sólo recibe el mensaje si tiene la conversación abierta (la suscripción está dentro de `DirectChatView`). Si está en la lista, no se entera.
+- **El emisor** no ve su propio mensaje al instante (no hay update optimista) — depende del round-trip realtime.
+- Cuando un usuario abre la conversación por primera vez tras aceptar, los mensajes previos no aparecen porque la query estuvo `enabled: false` mientras estaba pending.
 
-Las dos solicitudes existen en la BD. El problema NO es de datos, es de **visibilidad UI**.
+### Cambios
 
-## Causa raíz
+**1. `src/components/attendee/DirectChatView.tsx`**
+- Update optimista en `handleSend`: agregar el mensaje a la cache antes de enviarlo (con id temporal). Si falla, removerlo. El INSERT realtime confirmará/reemplazará gracias al dedupe por `id`.
+- Quitar el filtro `conversation.status === 'active'` de la suscripción realtime (suscribir siempre que haya `conversation.id`), para que llegue el primer mensaje tras aceptar sin recargar.
+- Al recibir un INSERT realtime, también invalidar `['direct-conversations']` para refrescar la lista (preview + orden).
 
-`Contacts.tsx` separa las solicitudes pendientes en dos buckets, pero solo muestra al usuario un único bucket. Revisando el patrón típico:
+**2. `src/components/attendee/DirectConversationList.tsx`**
+- Agregar `useEffect` con suscripción realtime a `chat_conversations` filtrada por `event_id` para detectar:
+  - Nuevas invitaciones recibidas (INSERT con `participant_id = miId`)
+  - Aceptación de mis invitaciones enviadas (UPDATE status pending→active)
+  - Nuevos mensajes que actualicen `last_message_at`
+- También suscribirse a INSERT de `chat_messages` del evento para refrescar el preview de la lista.
+- Invalidar `['direct-conversations', eventId, attendeeId]` en cada cambio. Cleanup con `removeChannel` en unmount.
 
-- **"Recibidas"** (`contact_id = miAttendeeId`) → se muestran con botones Aceptar/Rechazar
-- **"Enviadas"** (`user_id = miAttendeeId`) → frecuentemente NO se renderizan en ninguna pestaña → "no las veo en ningún lado"
+**3. Migración Supabase**
+- `ALTER TABLE chat_conversations REPLICA IDENTITY FULL;` — necesario para que los UPDATEs propaguen correctamente vía realtime y la lista se actualice en vivo cuando otro usuario acepta una invitación.
 
-Resultado: cada usuario ve la solicitud que recibió del otro (o ninguna si la lógica de filtrado las excluye), pero no la que ÉL envió. Y como ambos enviaron solicitud cruzada antes de aceptar, el sistema queda en limbo: dos solicitudes pendientes opuestas que nunca se auto-resuelven.
-
-Además, la política RLS `Authenticated update contacts` solo permite actualizar a `contact_id IN get_my_attendee_ids()` → solo el **receptor** puede aceptar, no el emisor. Entonces aunque vieran la solicitud enviada, no podrían "auto-aceptarla".
-
-## Plan
-
-**1. Fix de datos inmediato** (resuelve el caso actual de Mauricio ↔ David)
-
-Auto-aceptar ambas solicitudes ya que hay intención mutua confirmada (ambos enviaron):
-
-```sql
-UPDATE contacts
-SET status = 'accepted', connected_at = now()
-WHERE id IN ('9fe55e03-8a90-4471-9808-40054814337e',
-             '5a847b20-c262-4e0c-af9e-82f5431b1f95');
-```
-
-**2. Fix de UI en `src/pages/attendee/Contacts.tsx`**
-
-Dentro de la pestaña "Mis Contactos", agregar tres secciones claras:
-- **Solicitudes recibidas** (`pending` donde `contact_id = miId`) — con botones Aceptar / Rechazar
-- **Solicitudes enviadas** (`pending` donde `user_id = miId`) — con badge "Enviado" + botón Cancelar (delete)
-- **Conexiones** (`accepted`)
-
-Hoy probablemente solo existe la primera y la tercera.
-
-**3. Fix de lógica en el servicio / hook de envío de solicitudes**
-
-En `useSendContactRequest` (o `contactsService.sendRequest`), antes de insertar:
-- Verificar si ya existe una solicitud `pending` del otro lado (`user_id = targetId AND contact_id = miId`)
-- Si existe → en lugar de crear una nueva, **aceptarla automáticamente** (auto-match cuando ambos quisieron conectar). Esto requiere ampliar la política RLS o usar un RPC `SECURITY DEFINER` `accept_or_create_contact(_target_id)` ya que el emisor original es quien debe ejecutar el UPDATE en la fila opuesta.
-
-**4. RPC nuevo recomendado** (para el punto 3)
-
-```sql
-CREATE FUNCTION accept_or_create_contact(_event_id uuid, _target_attendee_id uuid)
-RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER ...
--- Si hay pending inverso → UPDATE a accepted
--- Si no → INSERT pending
-```
+**4. `src/hooks/useMessaging.ts`** (verificación)
+- `useDirectMessages`: ya usa `refetchInterval: false`. Mantener — el realtime cubrirá la actualización.
+- `useCreateDirectConversation` / `useAcceptConversation`: ya invalidan correctamente.
 
 ### Resultado esperado
-- Mauricio y David quedan conectados ahora mismo.
-- En el futuro, si dos asistentes se mandan solicitud cruzada, se conectan automáticamente.
-- Los usuarios siempre ven el estado de sus solicitudes enviadas (badge "Enviado") y pueden cancelarlas.
+- El emisor ve su mensaje aparecer instantáneamente al pulsar Enviar.
+- El receptor ve el mensaje llegar en menos de 1 s sin recargar.
+- La lista de conversaciones se actualiza en vivo: nuevas invitaciones aparecen solas, aceptaciones se reflejan, último mensaje y orden se actualizan.
+- Tras aceptar una invitación pendiente, los mensajes futuros llegan sin necesidad de cerrar y reabrir el chat.
+
+### Notas técnicas
+- Cumple `realtime-cleanup-pattern` (siempre `supabase.removeChannel` en cleanup).
+- Cumple regla offline: la suscripción se activa sólo cuando `isOnline === true`.
+- El update optimista usa un id temporal `temp-${uuid}` y el dedupe por `id` ya existente filtra el real cuando llega del servidor.
 
