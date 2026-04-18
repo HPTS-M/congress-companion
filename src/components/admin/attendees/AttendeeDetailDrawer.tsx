@@ -85,6 +85,36 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
     }
   };
 
+  const handleRegenerateAccess = async (sendEmail: boolean) => {
+    if (!attendeeId) return;
+    setRegeneratingAccess(true);
+    try {
+      const { access_code, email_sent } = await adminAttendeesService.regenerateAccessCode(attendeeId, sendEmail);
+      queryClient.invalidateQueries({ queryKey: ['admin-attendee-detail', attendeeId] });
+      queryClient.invalidateQueries({ queryKey: ['admin-attendees'] });
+      setNewAccessCode(access_code);
+      setConfirmRegenAccess(false);
+      toast({
+        title: t('attendees.detail.regenerateAccessSuccess'),
+        description: sendEmail && email_sent ? t('attendees.invitationSent') : undefined,
+      });
+    } catch {
+      toast({ title: t('attendees.detail.regenerateAccessError'), variant: 'destructive' });
+    } finally {
+      setRegeneratingAccess(false);
+    }
+  };
+
+  const handleCopyAccessCode = async () => {
+    if (!newAccessCode) return;
+    try {
+      await navigator.clipboard.writeText(newAccessCode);
+      toast({ title: t('attendees.detail.codeCopied') });
+    } catch {
+      // ignore clipboard error
+    }
+  };
+
   const handleStatusChange = async (serviceId: string, status: string) => {
     try {
       await updateStatusMutation.mutateAsync({ serviceId, status });
