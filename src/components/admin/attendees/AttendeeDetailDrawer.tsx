@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
-import { Calendar, RefreshCw, Mail, Bus, UtensilsCrossed, Sparkles, Map, Plus, Trash2, Ban, RotateCcw } from 'lucide-react';
+import { Calendar, RefreshCw, Mail, Bus, UtensilsCrossed, Sparkles, Map, Plus, Trash2, Ban, RotateCcw, KeyRound, Copy } from 'lucide-react';
 import { format } from 'date-fns';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
@@ -10,6 +10,10 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
