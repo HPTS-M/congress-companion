@@ -73,9 +73,9 @@ export default function DirectChatView({ conversation, onBack }: Props) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
 
-  // Realtime for direct messages
+  // Realtime for direct messages — subscribe whenever conversation exists
   useEffect(() => {
-    if (!conversation.id || conversation.status !== 'active' || !isOnline) return;
+    if (!conversation.id || !isOnline) return;
 
     const channel = supabase
       .channel(`dm-${conversation.id}`)
@@ -92,10 +92,16 @@ export default function DirectChatView({ conversation, onBack }: Props) {
           queryClient.setQueryData<ChatMessage[]>(
             ['direct-messages', conversation.id],
             (old = []) => {
-              if (old.some(m => m.id === newMsg.id)) return old;
-              return [...old, newMsg];
+              // Replace optimistic temp message with real one (match by sender+content)
+              const withoutTemp = old.filter(
+                m => !(m.id.startsWith('temp-') && m.sender_id === newMsg.sender_id && m.content === newMsg.content)
+              );
+              if (withoutTemp.some(m => m.id === newMsg.id)) return withoutTemp;
+              return [...withoutTemp, newMsg];
             }
           );
+          // Refresh conversation list (preview + ordering)
+          queryClient.invalidateQueries({ queryKey: ['direct-conversations'] });
         }
       )
       .subscribe();
@@ -103,21 +109,41 @@ export default function DirectChatView({ conversation, onBack }: Props) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [conversation.id, conversation.status, queryClient, isOnline]);
+  }, [conversation.id, queryClient, isOnline]);
 
   const handleSend = useCallback(async () => {
     if (!input.trim() || sending || isPending) return;
     const content = input.trim();
     setInput('');
     setSending(true);
+
+    // Optimistic update
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const optimisticMsg: ChatMessage = {
+      id: tempId,
+      conversation_id: conversation.id,
+      sender_id: attendeeId,
+      content,
+      created_at: new Date().toISOString(),
+    };
+    queryClient.setQueryData<ChatMessage[]>(
+      ['direct-messages', conversation.id],
+      (old = []) => [...old, optimisticMsg]
+    );
+
     try {
       await messagingService.sendMessage(conversation.id, attendeeId, content);
     } catch {
+      // Rollback optimistic message
+      queryClient.setQueryData<ChatMessage[]>(
+        ['direct-messages', conversation.id],
+        (old = []) => old.filter(m => m.id !== tempId)
+      );
       setInput(content);
     } finally {
       setSending(false);
     }
-  }, [input, sending, isPending, conversation.id, attendeeId]);
+  }, [input, sending, isPending, conversation.id, attendeeId, queryClient]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
