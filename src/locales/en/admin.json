@@ -597,8 +597,15 @@
       "importButton": "Import {{count}} sponsors",
       "importing": "Importing...",
       "resultImported": "{{count}} imported successfully",
+      "resultUpdated": "{{count}} updated",
       "resultErrors": "{{count}} errors",
-      "close": "Close"
+      "close": "Close",
+      "statusNew": "New",
+      "statusDuplicate": "Duplicate",
+      "statusInvalid": "Invalid",
+      "duplicateStrategyLabel": "When duplicates are found:",
+      "duplicateStrategySkip": "Skip duplicates",
+      "duplicateStrategyUpdate": "Update existing"
     },
     "leads": {
       "count": "{{count}} interested attendees",
@@ -606,7 +613,45 @@
       "exportSuccess": "Leads exported successfully",
       "exportError": "Error exporting leads",
       "loading": "Loading...",
-      "noLeads": "No attendees have shown interest yet"
+      "noLeads": "No attendees have shown interest yet",
+      "search": "Search leads by name, specialty or institution...",
+      "contactEmail": "Contact by email",
+      "contactWhatsapp": "Contact by WhatsApp",
+      "markContacted": "Mark as contacted",
+      "alreadyContacted": "Contacted",
+      "markedContacted": "Lead marked as contacted",
+      "markError": "Failed to mark lead",
+      "noWhatsapp": "No WhatsApp",
+      "noEmail": "No email"
+    },
+    "validation": {
+      "nameRequired": "Name is required",
+      "nameMin": "Name must be at least 2 characters",
+      "nameMax": "Name cannot exceed 100 characters",
+      "whatsappFormat": "WhatsApp must use international format (e.g. 573001234567), 8-15 digits",
+      "emailFormat": "Invalid email",
+      "urlFormat": "Invalid URL (must start with http:// or https://)",
+      "descriptionMax": "Description cannot exceed 500 characters",
+      "fixErrors": "Fix the errors before saving"
+    },
+    "duplicate": {
+      "foundTitle": "Duplicate sponsor",
+      "foundMessage": "A sponsor named \"{{name}}\" already exists. What would you like to do?",
+      "continueAnyway": "Create anyway",
+      "editExisting": "Edit existing",
+      "cancel": "Cancel"
+    },
+    "preview": {
+      "title": "Material preview",
+      "notSupported": "This format cannot be previewed",
+      "useDownload": "Download the file to view it",
+      "download": "Download",
+      "error": "Could not load file",
+      "open": "Preview",
+      "currentLogo": "Current logo",
+      "currentMaterial": "Current material",
+      "replace": "Replace",
+      "remove": "Remove"
     }
   },
   "logistics": {

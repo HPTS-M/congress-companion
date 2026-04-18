@@ -46,7 +46,12 @@ export interface ValidatedSponsorRow extends SponsorImportRow {
   errors: string[];
   mappedLevel?: string;
   mappedCategory?: string;
+  isDuplicate?: boolean;
+  existingId?: string;
 }
+
+const WHATSAPP_REGEX = /^\+?[1-9]\d{7,14}$/;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function exportSponsorsToExcel(sponsors: SponsorRow[], eventName: string): Promise<void> {
   await writeExcelFile({
@@ -128,10 +133,14 @@ export async function parseSponsorFile(file: File): Promise<SponsorImportRow[]> 
   }));
 }
 
-export function validateSponsorRows(rows: SponsorImportRow[]): ValidatedSponsorRow[] {
+export function validateSponsorRows(
+  rows: SponsorImportRow[],
+  existingByName?: Map<string, string>,
+): ValidatedSponsorRow[] {
   return rows.map(row => {
     const errors: string[] = [];
     if (!row.nombre) errors.push('Nombre requerido');
+    if (row.nombre.length > 100) errors.push('Nombre demasiado largo');
     if (!row.nivel) errors.push('Nivel requerido');
 
     const mappedLevel = LEVEL_MAP[row.nivel];
@@ -140,12 +149,26 @@ export function validateSponsorRows(rows: SponsorImportRow[]): ValidatedSponsorR
     const mappedCategory = row.categoria ? CATEGORY_MAP[row.categoria] : 'other';
     if (row.categoria && !CATEGORY_MAP[row.categoria]) errors.push(`Categoría inválida: ${row.categoria}`);
 
+    if (row.whatsapp) {
+      const cleaned = row.whatsapp.replace(/[\s\-()]/g, '');
+      if (!WHATSAPP_REGEX.test(cleaned)) errors.push(`WhatsApp inválido: ${row.whatsapp}`);
+    }
+    if (row.email_contacto && !EMAIL_REGEX.test(row.email_contacto)) {
+      errors.push(`Email inválido: ${row.email_contacto}`);
+    }
+
+    const key = row.nombre.trim().toLowerCase();
+    const existingId = existingByName?.get(key);
+    const isDuplicate = !!existingId;
+
     return {
       ...row,
       isValid: errors.length === 0,
       errors,
       mappedLevel,
       mappedCategory: mappedCategory || 'other',
+      isDuplicate,
+      existingId,
     };
   });
 }

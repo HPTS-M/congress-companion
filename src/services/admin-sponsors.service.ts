@@ -55,6 +55,17 @@ export const adminSponsorsService = {
     return (data ?? []) as SponsorRow[];
   },
 
+  async findByName(eventId: string, name: string): Promise<SponsorRow | null> {
+    const { data, error } = await supabase
+      .from('sponsors')
+      .select('*')
+      .eq('event_id', eventId)
+      .ilike('name', name.trim())
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return (data as SponsorRow | null) ?? null;
+  },
+
   async create(eventId: string, form: SponsorFormData): Promise<SponsorRow> {
     const { data, error } = await supabase
       .from('sponsors')

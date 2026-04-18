@@ -597,8 +597,15 @@
       "importButton": "Importar {{count}} patrocinadores",
       "importing": "Importando...",
       "resultImported": "{{count}} importados exitosamente",
+      "resultUpdated": "{{count}} actualizados",
       "resultErrors": "{{count}} errores",
-      "close": "Cerrar"
+      "close": "Cerrar",
+      "statusNew": "Nuevo",
+      "statusDuplicate": "Duplicado",
+      "statusInvalid": "Inválido",
+      "duplicateStrategyLabel": "Si encuentro duplicados:",
+      "duplicateStrategySkip": "Saltar duplicados",
+      "duplicateStrategyUpdate": "Actualizar existentes"
     },
     "leads": {
       "count": "{{count}} asistentes interesados",
@@ -606,7 +613,45 @@
       "exportSuccess": "Leads exportados exitosamente",
       "exportError": "Error al exportar leads",
       "loading": "Cargando...",
-      "noLeads": "Ningún asistente ha mostrado interés aún"
+      "noLeads": "Ningún asistente ha mostrado interés aún",
+      "search": "Buscar lead por nombre, especialidad o institución...",
+      "contactEmail": "Contactar por email",
+      "contactWhatsapp": "Contactar por WhatsApp",
+      "markContacted": "Marcar como contactado",
+      "alreadyContacted": "Contactado",
+      "markedContacted": "Lead marcado como contactado",
+      "markError": "Error al marcar el lead",
+      "noWhatsapp": "Sin WhatsApp",
+      "noEmail": "Sin email"
+    },
+    "validation": {
+      "nameRequired": "El nombre es obligatorio",
+      "nameMin": "El nombre debe tener al menos 2 caracteres",
+      "nameMax": "El nombre no puede superar los 100 caracteres",
+      "whatsappFormat": "WhatsApp debe tener formato internacional (ej: 573001234567), 8-15 dígitos",
+      "emailFormat": "Email inválido",
+      "urlFormat": "URL inválida (debe iniciar con http:// o https://)",
+      "descriptionMax": "La descripción no puede superar los 500 caracteres",
+      "fixErrors": "Corrige los errores antes de guardar"
+    },
+    "duplicate": {
+      "foundTitle": "Patrocinador duplicado",
+      "foundMessage": "Ya existe un patrocinador con el nombre \"{{name}}\". ¿Qué deseas hacer?",
+      "continueAnyway": "Crear de todos modos",
+      "editExisting": "Editar el existente",
+      "cancel": "Cancelar"
+    },
+    "preview": {
+      "title": "Vista previa del material",
+      "notSupported": "Este formato no se puede previsualizar",
+      "useDownload": "Descarga el archivo para verlo",
+      "download": "Descargar",
+      "error": "No se pudo cargar el archivo",
+      "open": "Vista previa",
+      "currentLogo": "Logo actual",
+      "currentMaterial": "Material actual",
+      "replace": "Reemplazar",
+      "remove": "Quitar"
     }
   },
   "logistics": {
