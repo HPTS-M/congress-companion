@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useEvent } from '@/hooks/useEvent';
-import { useEventAttendees, useMyContacts, useSendContactRequest, useAcceptContact, useRejectContact } from '@/hooks/useContacts';
+import { useEventAttendees, useMyContacts, useSendContactRequest, useAcceptContact, useRejectContact, useCancelContactRequest } from '@/hooks/useContacts';
 import type { ContactRow, DirectoryAttendee } from '@/services/contacts.service';
 
 function getInitials(name: string) {
@@ -91,6 +91,7 @@ export default function Contacts() {
   const sendRequest = useSendContactRequest();
   const acceptContact = useAcceptContact();
   const rejectContact = useRejectContact();
+  const cancelRequest = useCancelContactRequest();
 
   const myId = attendee?.id;
 
@@ -127,6 +128,17 @@ export default function Contacts() {
       .filter(c => c.status === 'pending' && c.contact_id === myId)
       .map(c => {
         const other = attendees?.find(a => a.id === c.user_id);
+        return { contact: c, attendee: other };
+      })
+      .filter(r => r.attendee);
+  }, [contacts, myId, attendees]);
+
+  const sentRequests = useMemo(() => {
+    if (!contacts || !myId || !attendees) return [];
+    return contacts
+      .filter(c => c.status === 'pending' && c.user_id === myId)
+      .map(c => {
+        const other = attendees?.find(a => a.id === c.contact_id);
         return { contact: c, attendee: other };
       })
       .filter(r => r.attendee);
@@ -241,7 +253,36 @@ export default function Contacts() {
                 </div>
               )}
 
-              {/* Accepted contacts */}
+              {/* Sent requests */}
+              {sentRequests.length > 0 && (
+                <div className="mb-4">
+                  <h3 className="text-sm font-semibold text-foreground mb-2">
+                    {t('sentRequests', { count: sentRequests.length })}
+                  </h3>
+                  <div className="rounded-lg border border-border bg-card overflow-hidden">
+                    {sentRequests.map(({ contact, attendee: a }) => (
+                      <div key={contact.id} className="flex items-center gap-3 p-4 border-b border-border last:border-b-0">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1A56A0] text-white text-sm font-semibold">
+                          {getInitials(a!.full_name)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[15px] font-bold text-foreground truncate">{a!.full_name}</p>
+                          {a!.specialty && (
+                            <p className="text-[13px] text-muted-foreground truncate">{a!.specialty}</p>
+                          )}
+                          <span className="inline-block mt-1 text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
+                            {t('sent')}
+                          </span>
+                        </div>
+                        <Button variant="ghost" size="sm" onClick={() => cancelRequest.mutate(contact.id)} disabled={cancelRequest.isPending}>
+                          {t('cancel')}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {acceptedContacts.length === 0 ? (
                 <div className="p-8 text-center text-muted-foreground text-sm">
                   <UserCheck className="h-12 w-12 mx-auto mb-3 text-muted-foreground/50" />

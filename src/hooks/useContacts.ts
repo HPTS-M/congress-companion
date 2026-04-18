@@ -28,12 +28,27 @@ export function useSendContactRequest() {
   return useMutation({
     mutationFn: ({ eventId, userId, contactId }: { eventId: string; userId: string; contactId: string }) =>
       contactsService.sendRequest(eventId, userId, contactId),
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['myContacts'] });
-      toast({ title: t('requestSentToast') });
+      const isAutoMatch = result.action === 'auto_accepted';
+      toast({ title: isAutoMatch ? t('connectedToast') : t('requestSentToast') });
     },
     onError: () => {
       toast({ title: t('errorSending'), variant: 'destructive' });
+    },
+  });
+}
+
+export function useCancelContactRequest() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { t } = useTranslation('contacts');
+
+  return useMutation({
+    mutationFn: (contactRowId: string) => contactsService.cancelRequest(contactRowId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['myContacts'] });
+      toast({ title: t('requestCancelled') });
     },
   });
 }
