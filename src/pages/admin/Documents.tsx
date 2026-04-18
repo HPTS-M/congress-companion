@@ -230,8 +230,6 @@ export default function AdminDocuments() {
     try {
       const zip = new JSZip();
 
-      // Add metadata XLS
-      const tempName = '__metadata.xlsx';
       // Build XLSX into the zip via ExcelJS buffer
       const ExcelJS = (await import('exceljs')).default;
       const wb = new ExcelJS.Workbook();
@@ -285,8 +283,6 @@ export default function AdminDocuments() {
       toast.error(t('documents.bulkExportError'));
     } finally {
       setBulkExportProgress(null);
-      // unused var to satisfy linter intent
-      void tempName;
     }
   }, [documents, selected, event, t]);
 
@@ -303,9 +299,6 @@ export default function AdminDocuments() {
   const invalidate = useCallback(() => {
     qc.invalidateQueries({ queryKey: ['admin-documents', eventId] });
   }, [qc, eventId]);
-
-  // Local stub to avoid temp variable warning
-  const tempName = '';
 
   return (
     <TooltipProvider delayDuration={200}>
