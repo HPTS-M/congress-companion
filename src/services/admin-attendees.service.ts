@@ -236,6 +236,19 @@ export const adminAttendeesService = {
     return data as string;
   },
 
+  regenerateAccessCode: async (
+    attendeeId: string,
+    sendEmail: boolean = false,
+  ): Promise<{ access_code: string; email_sent: boolean }> => {
+    const { data, error } = await supabase.functions.invoke('regenerate-access-code', {
+      body: { attendee_id: attendeeId, send_email: sendEmail },
+    });
+    if (error) throw new Error(error.message);
+    const result = data as { success: boolean; access_code: string; email_sent: boolean; error?: string };
+    if (!result?.success) throw new Error(result?.error ?? 'Failed to regenerate access code');
+    return { access_code: result.access_code, email_sent: result.email_sent };
+  },
+
   // --- Service management ---
 
   addServiceToAttendee: async (

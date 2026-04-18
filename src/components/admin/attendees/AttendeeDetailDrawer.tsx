@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
-import { Calendar, RefreshCw, Mail, Bus, UtensilsCrossed, Sparkles, Map, Plus, Trash2, Ban, RotateCcw } from 'lucide-react';
+import { Calendar, RefreshCw, Mail, Bus, UtensilsCrossed, Sparkles, Map, Plus, Trash2, Ban, RotateCcw, KeyRound, Copy } from 'lucide-react';
 import { format } from 'date-fns';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
@@ -10,6 +10,10 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
@@ -50,6 +54,9 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
   const updateAttendeeStatusMutation = useUpdateAttendeeStatus();
   const [showAddService, setShowAddService] = useState(false);
   const [confirmToggleActive, setConfirmToggleActive] = useState(false);
+  const [confirmRegenAccess, setConfirmRegenAccess] = useState(false);
+  const [regeneratingAccess, setRegeneratingAccess] = useState(false);
+  const [newAccessCode, setNewAccessCode] = useState<string | null>(null);
 
   const handleRegenerate = async () => {
     if (!attendeeId) return;
@@ -75,6 +82,36 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
       }
     } catch {
       toast({ title: t('attendees.invitationFailed'), variant: 'destructive' });
+    }
+  };
+
+  const handleRegenerateAccess = async (sendEmail: boolean) => {
+    if (!attendeeId) return;
+    setRegeneratingAccess(true);
+    try {
+      const { access_code, email_sent } = await adminAttendeesService.regenerateAccessCode(attendeeId, sendEmail);
+      queryClient.invalidateQueries({ queryKey: ['admin-attendee-detail', attendeeId] });
+      queryClient.invalidateQueries({ queryKey: ['admin-attendees'] });
+      setNewAccessCode(access_code);
+      setConfirmRegenAccess(false);
+      toast({
+        title: t('attendees.detail.regenerateAccessSuccess'),
+        description: sendEmail && email_sent ? t('attendees.invitationSent') : undefined,
+      });
+    } catch {
+      toast({ title: t('attendees.detail.regenerateAccessError'), variant: 'destructive' });
+    } finally {
+      setRegeneratingAccess(false);
+    }
+  };
+
+  const handleCopyAccessCode = async () => {
+    if (!newAccessCode) return;
+    try {
+      await navigator.clipboard.writeText(newAccessCode);
+      toast({ title: t('attendees.detail.codeCopied') });
+    } catch {
+      // ignore clipboard error
     }
   };
 
@@ -222,36 +259,74 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
 
               <Separator />
 
-              {/* Credential + QR */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-foreground">{t('attendees.detail.credentialCode')}</h3>
-                <div className="font-mono text-lg text-primary font-bold text-center">
-                  {data.attendee.credential_code}
+              {/* Credential Code (Display + QR) */}
+              <TooltipProvider delayDuration={200}>
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-foreground">{t('attendees.detail.credentialDisplay')}</h3>
+                  <div className="font-mono text-lg text-primary font-bold text-center">
+                    {data.attendee.credential_code}
+                  </div>
+                  <div className="flex justify-center">
+                    <QRCodeSVG value={data.attendee.credential_code} size={120} />
+                  </div>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="outline" size="sm" className="w-full" onClick={handleRegenerate}>
+                        <RefreshCw className="mr-2 h-3 w-3" />
+                        {t('attendees.detail.regenerateCode')}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{t('attendees.detail.regenerateCodeTooltip')}</TooltipContent>
+                  </Tooltip>
                 </div>
-                <div className="flex justify-center">
-                  <QRCodeSVG value={data.attendee.credential_code} size={120} />
+
+                <Separator />
+
+                {/* Access Code (Login) */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <KeyRound className="h-4 w-4 text-accent" />
+                    {t('attendees.detail.accessCodeSection')}
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    {t('attendees.detail.accessCodeDescription')}
+                  </p>
+                  <p className="text-xs text-muted-foreground italic">
+                    {t('attendees.detail.accessCodeHidden')}
+                  </p>
+                  <div className="flex gap-2">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => setConfirmRegenAccess(true)}
+                          disabled={regeneratingAccess}
+                        >
+                          <KeyRound className="mr-2 h-3 w-3" />
+                          {t('attendees.detail.regenerateAccessCode')}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>{t('attendees.detail.regenerateAccessCodeTooltip')}</TooltipContent>
+                    </Tooltip>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={handleSendCredentials}
+                      disabled={sendInvitationsMutation.isPending}
+                    >
+                      <Mail className="mr-2 h-3 w-3" />
+                      {sendInvitationsMutation.isPending
+                        ? t('attendees.sendingInvitation')
+                        : hasBeenSent
+                          ? t('attendees.resendCredentials')
+                          : t('attendees.sendCredentials')}
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="flex-1" onClick={handleRegenerate}>
-                    <RefreshCw className="mr-2 h-3 w-3" />
-                    {t('attendees.detail.regenerateCode')}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={handleSendCredentials}
-                    disabled={sendInvitationsMutation.isPending}
-                  >
-                    <Mail className="mr-2 h-3 w-3" />
-                    {sendInvitationsMutation.isPending
-                      ? t('attendees.sendingInvitation')
-                      : hasBeenSent
-                        ? t('attendees.resendCredentials')
-                        : t('attendees.sendCredentials')}
-                  </Button>
-                </div>
-              </div>
+              </TooltipProvider>
 
               <Separator />
 
@@ -387,6 +462,59 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={confirmRegenAccess} onOpenChange={setConfirmRegenAccess}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('attendees.detail.regenerateAccessCode')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('attendees.detail.regenerateAccessConfirm')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={regeneratingAccess}>
+              {t('attendees.deleteConfirm.cancel')}
+            </AlertDialogCancel>
+            <Button
+              variant="outline"
+              onClick={() => handleRegenerateAccess(false)}
+              disabled={regeneratingAccess}
+            >
+              <KeyRound className="mr-2 h-3.5 w-3.5" />
+              {t('attendees.detail.regenerateAccessCode')}
+            </Button>
+            <AlertDialogAction
+              onClick={() => handleRegenerateAccess(true)}
+              disabled={regeneratingAccess}
+              className="bg-primary text-primary-foreground"
+            >
+              <Mail className="mr-2 h-3.5 w-3.5" />
+              {t('attendees.detail.sendByEmailNow')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={!!newAccessCode} onOpenChange={(o) => !o && setNewAccessCode(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('attendees.detail.newAccessCodeTitle')}</DialogTitle>
+            <DialogDescription>{t('attendees.detail.newAccessCodeDescription')}</DialogDescription>
+          </DialogHeader>
+          <div className="my-4 rounded-lg border-2 border-dashed border-primary bg-muted p-6 text-center">
+            <div className="font-mono text-3xl font-bold tracking-widest text-primary">
+              {newAccessCode}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCopyAccessCode}>
+              <Copy className="mr-2 h-4 w-4" />
+              {t('attendees.detail.copyCode')}
+            </Button>
+            <Button onClick={() => setNewAccessCode(null)}>
+              {t('attendees.deleteConfirm.cancel')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
