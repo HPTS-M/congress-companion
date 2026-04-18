@@ -1,85 +1,120 @@
 
 
-## Análisis del cambio solicitado
+## Revisión del plan: Independencia total Mensajería ↔ Anuncios
 
-### Estado actual
+### Veredicto
 
-En `src/components/attendee/DirectConversationList.tsx` (líneas 51-77), el `useEffect` crea un canal de Supabase Realtime con **dos listeners**:
+El plan **cumple los objetivos** y es claro, pero antes de implementar conviene endurecer algunos puntos de tipado estricto y consistencia con el código actual. A continuación, el plan revisado y blindado.
 
-```ts
-const channel = supabase
-  .channel(`conv-list-${eventId}-${attendeeId}`)
-  .on(
-    'postgres_changes',
-    {
-      event: '*',
-      schema: 'public',
-      table: 'chat_conversations',
-      filter: `event_id=eq.${eventId}`,
-    },
-    invalidate
-  )
-  .on(
-    'postgres_changes',
-    { event: 'INSERT', schema: 'public', table: 'chat_messages' },
-    invalidate
-  )
-  .subscribe();
-```
+### Objetivos (chequeo)
 
-Cada vez que **cualquier** mensaje se inserta en `chat_messages` (de cualquier conversación, de cualquier evento, de cualquier usuario), se dispara `invalidate()` que refetchea la query `['direct-conversations', eventId, attendeeId]`.
+| Objetivo | ¿Lo cumple? |
+|---|---|
+| Ícono de mensajería separado en el header | ✓ |
+| Identifica solicitud de chat o mensaje nuevo | ✓ (badge numérico + punto teal pulsante para invitaciones) |
+| Sincronizado con módulo de mensajería | ✓ (realtime + invalidación instantánea) |
+| Sigue mejores prácticas de la industria | ✓ (separación por canal: LinkedIn/Slack/Gmail) |
+| Independencia total entre los dos sistemas | ✓ (hooks separados, storage keys separados, invalidaciones separadas) |
 
-### Impacto del cambio (eliminar el listener de `chat_messages`)
+### Refinamientos de tipado estricto y robustez
 
-**Lo que se pierde:**
-- La lista de conversaciones ya no se refresca automáticamente cuando llega un mensaje nuevo. El "preview" del último mensaje (`last_message_preview`) y el timestamp (`last_message_at`) en cada tarjeta de conversación dejarán de actualizarse en tiempo real mientras el usuario está parado en la lista.
-- El reordenamiento por actividad reciente tampoco se actualizará en vivo.
-
-**Lo que se mantiene:**
-- Crear/aceptar/rechazar/eliminar conversaciones SÍ sigue actualizando la lista, porque eso modifica `chat_conversations` (que conserva su listener).
-- Dentro de un chat abierto (`DirectChatView`), los mensajes en tiempo real siguen funcionando porque ese componente tiene su propio canal independiente.
-- Cuando el usuario entre/salga de una conversación, los datos se refrescan vía invalidación normal de TanStack Query.
-
-**Por qué tiene sentido el cambio:**
-- El listener actual es **muy ruidoso**: escucha TODOS los inserts de `chat_messages` globalmente (no tiene filtro por evento ni por conversación). En un evento con cientos de asistentes activos, esto genera invalidaciones constantes y refetches innecesarios de la lista entera.
-- La actualización del preview/timestamp depende de un trigger DB (`update_conversation_last_message`) que ya actualiza la fila de `chat_conversations` → con el listener restante de `chat_conversations` (event: '*'), esos cambios SÍ se capturarán igual vía el UPDATE de la conversación. **Es decir: el preview de último mensaje seguirá llegando en tiempo real, solo que disparado por el UPDATE de la conversación, no por el INSERT del mensaje.**
-
-> Conclusión: la pérdida funcional real es prácticamente nula, y la ganancia en eficiencia (menos invalidaciones, menos refetches, menos tráfico realtime) es significativa.
-
-### Plan de cambio (mínimo, quirúrgico)
-
-Modificar **únicamente** `src/components/attendee/DirectConversationList.tsx`:
-
-- Eliminar el segundo `.on(...)` (líneas 71-75 aprox., el que escucha `INSERT` en `chat_messages`).
-- Conservar:
-  - El primer `.on(...)` sobre `chat_conversations` con filtro `event_id=eq.${eventId}`.
-  - El `.subscribe()` encadenado.
-  - El cleanup `supabase.removeChannel(channel)`.
-  - El array de dependencias `[eventId, attendeeId, isOnline, queryClient]`.
-  - Toda la lógica de guardas (`if (!eventId || !attendeeId || !isOnline) return;`).
-
-Resultado esperado:
+**1. Tipos explícitos en los nuevos hooks** (no implicit `any`, conforme a `tsconfig: strict`):
 
 ```ts
-const channel = supabase
-  .channel(`conv-list-${eventId}-${attendeeId}`)
-  .on(
-    'postgres_changes',
-    {
-      event: '*',
-      schema: 'public',
-      table: 'chat_conversations',
-      filter: `event_id=eq.${eventId}`,
-    },
-    invalidate
-  )
-  .subscribe();
+// src/hooks/useUnreadAnnouncements.ts
+interface UnreadAnnouncementsResult {
+  count: number;
+  markAsSeen: () => void;
+}
+export function useUnreadAnnouncements(eventId: string): UnreadAnnouncementsResult { ... }
+
+// src/hooks/useUnreadMessages.ts
+interface UnreadMessagesResult {
+  count: number;
+  pendingInvites: number;
+  unreadMessages: number;
+  markAsSeen: () => void;
+}
+export function useUnreadMessages(eventId: string): UnreadMessagesResult { ... }
 ```
+
+**2. Guardas robustas** (no romper si `attendee` es `null`, alineado con `isProfileLoading` pattern):
+- `enabled: !!attendee?.id && !!eventId` en cada `useQuery`.
+- `markAsSeen` no-op si `attendee?.id` es undefined.
+- Storage keys solo se construyen cuando `attendee.id` existe.
+
+**3. Migración de la key vieja sin acoplar** los dos hooks:
+- Cada hook lee independientemente la key vieja `notifications_last_seen_${attendeeId}` como **fallback de solo lectura** la primera vez.
+- Al primer `markAsSeen` de cada tipo se escribe la key nueva específica.
+- La key vieja **no se borra** (1 entrada por usuario, despreciable).
+
+**4. Realtime sin canales nuevos**:
+- Reutilizar el listener existente en `DirectConversationList.tsx` (sobre `chat_conversations`). Solo se añade una invalidación adicional dentro del callback `invalidate` ya existente:
+  ```ts
+  queryClient.invalidateQueries({ queryKey: ['unread-messages', eventId] });
+  ```
+- No tocar `chat_messages` (sigue desactivado conforme al cambio anterior).
+- Cumple `realtime-cleanup-pattern` (cleanup intacto).
+
+**5. AppHeader — tipado y orden visual**:
+
+```tsx
+const announcements = useUnreadAnnouncements(event?.id ?? '');
+const messages = useUnreadMessages(event?.id ?? '');
+
+const handleBellClick = (): void => {
+  announcements.markAsSeen();
+  navigate(`/${eventSlug}/announcements`);
+};
+
+const handleMessagingClick = (): void => {
+  messages.markAsSeen();
+  navigate(`/${eventSlug}/messaging`);
+};
+```
+
+Orden en el header (de izq. a der.):
+`[🌐] [🔔 anuncios] [💬 mensajes] [👤 avatar]`
+
+**6. Indicador "acción requerida" para invitaciones**:
+- Si `messages.pendingInvites > 0 && messages.unreadMessages === 0` → mostrar punto teal `#00B89F` con `animate-pulse`.
+- Si `messages.count > 0` (cualquier combinación) → mostrar badge rojo numérico.
+- Si `count === 0` y no hay invitaciones → ningún indicador.
+
+**7. i18n estricto** (cero strings hardcodeados):
+- Añadir `headerTooltip` en `messaging.json` (es/en) → usado en `aria-label` y `title` del botón.
+
+### Tabla final de comportamiento garantizado
+
+| Acción | Badge campana | Badge chat |
+|---|---|---|
+| Click campana | Se limpia | Sin cambios |
+| Click chat | Sin cambios | Se limpia |
+| Llega anuncio nuevo | +1 | Sin cambios |
+| Llega invitación | Sin cambios | Punto teal pulsante |
+| Llega mensaje nuevo | Sin cambios | +1 (badge rojo) |
+| Visita /announcements | Se limpia (vía markAsSeen) | Sin cambios |
+| Visita /messaging | Sin cambios | Se limpia (vía markAsSeen) |
+
+### Archivos a modificar (final)
+
+| Archivo | Cambio |
+|---|---|
+| `src/hooks/useUnreadAnnouncements.ts` | **Nuevo** — interface tipada, queryKey `['unread-announcements', eventId, attendeeId]`, storage key propio |
+| `src/hooks/useUnreadMessages.ts` | **Nuevo** — interface tipada, queryKey `['unread-messages', eventId, attendeeId]`, storage key propio |
+| `src/hooks/useUnreadCount.ts` | **Eliminar** (único consumidor es `AppHeader`, se migra en el mismo cambio) |
+| `src/components/layout/AppHeader.tsx` | Agregar `MessageCircle`, dos handlers separados, indicador dual (badge rojo + punto teal pulsante) |
+| `src/components/attendee/DirectConversationList.tsx` | Añadir `queryClient.invalidateQueries({ queryKey: ['unread-messages', eventId] })` dentro del callback `invalidate` ya existente |
+| `src/locales/es/messaging.json` | `"headerTooltip": "Mensajería"` |
+| `src/locales/en/messaging.json` | `"headerTooltip": "Messaging"` |
 
 ### Restricciones honradas
 
-- Cumple `realtime-cleanup-pattern` (cleanup intacto).
-- No toca otros archivos.
-- No cambia hooks, servicios, queries ni RLS.
-- No introduce regresiones en `DirectChatView` (que tiene su propio canal).
+- TypeScript strict, sin `any`.
+- Sin nuevas dependencias (`MessageCircle` ya en lucide-react).
+- Cumple `notification-system-logic` (storage por tipo, polling 30s independiente).
+- Cumple `realtime-cleanup-pattern` (sin canales nuevos).
+- Cumple i18n, dark mode, mobile-first (4 íconos caben en 360px).
+- Sin cambios a DB, RLS, servicios ni esquema.
+- Cero acople entre las dos funcionalidades en datos, storage e invalidaciones.
 
