@@ -1,9 +1,10 @@
-import { Menu, Globe, Bell } from 'lucide-react';
+import { Menu, Globe, Bell, MessageCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useEvent, useEventSlug, useEventSettings } from '@/hooks/useEvent';
 import { useAuth } from '@/hooks/useAuth';
-import { useUnreadCount } from '@/hooks/useUnreadCount';
+import { useUnreadAnnouncements } from '@/hooks/useUnreadAnnouncements';
+import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 import { Button } from '@/components/ui/button';
 
 interface AppHeaderProps {
@@ -12,25 +13,31 @@ interface AppHeaderProps {
 
 export function AppHeader({ onMenuOpen }: AppHeaderProps) {
   const { t, i18n } = useTranslation();
+  const { t: tMessaging } = useTranslation('messaging');
   const { event } = useEvent();
   const { attendee } = useAuth();
   const navigate = useNavigate();
   const eventSlug = useEventSlug();
-  const { unreadCount, pendingInvites, markAsSeen } = useUnreadCount(event?.id ?? '');
+  const announcements = useUnreadAnnouncements(event?.id ?? '');
+  const messages = useUnreadMessages(event?.id ?? '');
   const { headerLogoUrl } = useEventSettings();
 
-  const toggleLanguage = () => {
+  const toggleLanguage = (): void => {
     i18n.changeLanguage(i18n.language.startsWith('es') ? 'en' : 'es');
   };
 
-  const handleBellClick = () => {
-    markAsSeen();
-    if (pendingInvites > 0) {
-      navigate(`/${eventSlug}/messaging`);
-    } else {
-      navigate(`/${eventSlug}/announcements`);
-    }
+  const handleBellClick = (): void => {
+    announcements.markAsSeen();
+    navigate(`/${eventSlug}/announcements`);
   };
+
+  const handleMessagingClick = (): void => {
+    messages.markAsSeen();
+    navigate(`/${eventSlug}/messaging`);
+  };
+
+  const showMessagingDot =
+    messages.pendingInvites > 0 && messages.unreadMessages === 0;
 
   const logoSrc = headerLogoUrl || '/logo-acqfh-v2.jpg';
 
@@ -60,12 +67,30 @@ export function AppHeader({ onMenuOpen }: AppHeaderProps) {
         <Button variant="ghost" size="icon" onClick={toggleLanguage} className="text-white hover:bg-white/10">
           <Globe className="h-4 w-4" />
         </Button>
-        <Button variant="ghost" size="icon" className="relative text-white hover:bg-white/10" onClick={handleBellClick}>
+        <Button variant="ghost" size="icon" className="relative text-white hover:bg-white/10" onClick={handleBellClick} aria-label="Announcements">
           <Bell className="h-4 w-4" />
-          {unreadCount > 0 && (
+          {announcements.count > 0 && (
             <span className="absolute right-0.5 top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
-              {unreadCount > 99 ? '99+' : unreadCount}
+              {announcements.count > 99 ? '99+' : announcements.count}
             </span>
+          )}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative text-white hover:bg-white/10"
+          onClick={handleMessagingClick}
+          aria-label={tMessaging('headerTooltip')}
+          title={tMessaging('headerTooltip')}
+        >
+          <MessageCircle className="h-4 w-4" />
+          {messages.count > 0 && (
+            <span className="absolute right-0.5 top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
+              {messages.count > 99 ? '99+' : messages.count}
+            </span>
+          )}
+          {messages.count === 0 && showMessagingDot && (
+            <span className="absolute right-1 top-1 flex h-2 w-2 items-center justify-center rounded-full bg-accent animate-pulse" />
           )}
         </Button>
         <Button variant="ghost" size="icon" className="relative text-white hover:bg-white/10 md:w-auto md:px-2" onClick={() => navigate(`/${eventSlug}/profile`)}>

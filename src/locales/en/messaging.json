@@ -23,5 +23,6 @@
   "noMessages": "No messages yet. Send the first one!",
   "selectAttendee": "Select an attendee",
   "alreadyExists": "You already have a conversation with this attendee",
-  "waitingAccept": "Waiting for acceptance"
+  "waitingAccept": "Waiting for acceptance",
+  "headerTooltip": "Messaging"
 }
