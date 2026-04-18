@@ -133,7 +133,16 @@ export default function Contacts() {
       .filter(r => r.attendee);
   }, [contacts, myId, attendees]);
 
-  const acceptedContacts = useMemo(() => {
+  const sentRequests = useMemo(() => {
+    if (!contacts || !myId || !attendees) return [];
+    return contacts
+      .filter(c => c.status === 'pending' && c.user_id === myId)
+      .map(c => {
+        const other = attendees?.find(a => a.id === c.contact_id);
+        return { contact: c, attendee: other };
+      })
+      .filter(r => r.attendee);
+  }, [contacts, myId, attendees]);
     if (!contacts || !myId || !attendees) return [];
     return contacts
       .filter(c => c.status === 'accepted')
