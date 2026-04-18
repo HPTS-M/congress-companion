@@ -30,6 +30,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
+import { usePagination } from '@/hooks/usePagination';
+import { DataTablePagination } from '@/components/ui/data-table-pagination';
 
 const TYPE_COLORS: Record<string, string> = {
   pdf: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300',
@@ -287,78 +289,17 @@ export default function AdminDocuments() {
       ) : filtered.length === 0 ? (
         <p className="text-center text-muted-foreground py-12">{t('documents.noDocuments')}</p>
       ) : (
-        <div className="rounded-lg border border-border overflow-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10">
-                  <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
-                </TableHead>
-                <TableHead>{t('documents.colDocument')}</TableHead>
-                <TableHead className="hidden sm:table-cell">{t('documents.colType')}</TableHead>
-                <TableHead className="hidden md:table-cell">{t('documents.colSession')}</TableHead>
-                <TableHead className="hidden lg:table-cell">{t('documents.colSize')}</TableHead>
-                <TableHead className="hidden lg:table-cell">{t('documents.colDate')}</TableHead>
-                <TableHead className="hidden lg:table-cell">{t('documents.colDownloads')}</TableHead>
-                <TableHead className="text-right">{t('documents.colActions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((doc) => {
-                const typeClass = TYPE_COLORS[doc.file_type ?? ''] ?? 'bg-muted text-muted-foreground';
-                const iconClass = TYPE_ICON_COLORS[doc.file_type ?? ''] ?? 'bg-muted-foreground';
-
-                return (
-                  <TableRow key={doc.id}>
-                    <TableCell>
-                      <Checkbox checked={selected.has(doc.id)} onCheckedChange={() => toggleOne(doc.id)} />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className={`flex h-8 w-8 items-center justify-center rounded-full ${iconClass}`}>
-                          <FileText className="h-4 w-4 text-white" />
-                        </div>
-                        <span className="font-medium text-sm truncate max-w-[200px]">{doc.title}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      <Badge className={typeClass}>{(doc.file_type ?? '').toUpperCase()}</Badge>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      {doc.session_title ? (
-                        <span className="text-xs text-muted-foreground truncate max-w-[150px] block">{doc.session_title}</span>
-                      ) : (
-                        <Badge variant="secondary">{t('documents.generalBadge')}</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
-                      {formatSize(doc.file_size)}
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
-                      {doc.created_at ? new Date(doc.created_at).toLocaleDateString('es-ES') : '—'}
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
-                      {doc.download_count ?? 0}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDownload(doc)}>
-                          <Download className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditDoc(doc)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteTarget(doc)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
+        <DocumentsTable
+          filtered={filtered}
+          selected={selected}
+          allSelected={allSelected}
+          toggleAll={toggleAll}
+          toggleOne={toggleOne}
+          onEdit={setEditDoc}
+          onDelete={setDeleteTarget}
+          onDownload={handleDownload}
+          t={t}
+        />
       )}
 
       {/* Upload Modal */}
