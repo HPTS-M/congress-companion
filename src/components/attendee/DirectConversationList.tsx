@@ -52,6 +52,7 @@ export default function DirectConversationList({ onSelectConversation }: Props) 
 
     const invalidate = () => {
       queryClient.invalidateQueries({ queryKey: ['direct-conversations', eventId, attendeeId] });
+      queryClient.invalidateQueries({ queryKey: ['unread-messages', eventId] });
     };
 
     const channel = supabase

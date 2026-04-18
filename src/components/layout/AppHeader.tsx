@@ -1,9 +1,10 @@
-import { Menu, Globe, Bell } from 'lucide-react';
+import { Menu, Globe, Bell, MessageCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useEvent, useEventSlug, useEventSettings } from '@/hooks/useEvent';
 import { useAuth } from '@/hooks/useAuth';
-import { useUnreadCount } from '@/hooks/useUnreadCount';
+import { useUnreadAnnouncements } from '@/hooks/useUnreadAnnouncements';
+import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 import { Button } from '@/components/ui/button';
 
 interface AppHeaderProps {
@@ -12,25 +13,31 @@ interface AppHeaderProps {
 
 export function AppHeader({ onMenuOpen }: AppHeaderProps) {
   const { t, i18n } = useTranslation();
+  const { t: tMessaging } = useTranslation('messaging');
   const { event } = useEvent();
   const { attendee } = useAuth();
   const navigate = useNavigate();
   const eventSlug = useEventSlug();
-  const { unreadCount, pendingInvites, markAsSeen } = useUnreadCount(event?.id ?? '');
+  const announcements = useUnreadAnnouncements(event?.id ?? '');
+  const messages = useUnreadMessages(event?.id ?? '');
   const { headerLogoUrl } = useEventSettings();
 
-  const toggleLanguage = () => {
+  const toggleLanguage = (): void => {
     i18n.changeLanguage(i18n.language.startsWith('es') ? 'en' : 'es');
   };
 
-  const handleBellClick = () => {
-    markAsSeen();
-    if (pendingInvites > 0) {
-      navigate(`/${eventSlug}/messaging`);
-    } else {
-      navigate(`/${eventSlug}/announcements`);
-    }
+  const handleBellClick = (): void => {
+    announcements.markAsSeen();
+    navigate(`/${eventSlug}/announcements`);
   };
+
+  const handleMessagingClick = (): void => {
+    messages.markAsSeen();
+    navigate(`/${eventSlug}/messaging`);
+  };
+
+  const showMessagingDot =
+    messages.pendingInvites > 0 && messages.unreadMessages === 0;
 
   const logoSrc = headerLogoUrl || '/logo-acqfh-v2.jpg';
 

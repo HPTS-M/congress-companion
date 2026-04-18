@@ -23,5 +23,6 @@
   "noMessages": "No hay mensajes aún. ¡Envía el primero!",
   "selectAttendee": "Selecciona un asistente",
   "alreadyExists": "Ya tienes una conversación con este asistente",
-  "waitingAccept": "Esperando aceptación"
+  "waitingAccept": "Esperando aceptación",
+  "headerTooltip": "Mensajería"
 }
