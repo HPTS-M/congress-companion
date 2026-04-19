@@ -218,10 +218,20 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
     if (file) handleFile(file);
   }, [handleFile]);
 
-  const handleImport = async () => {
+  const handleImportClick = () => {
+    if (validRows.length === 0) return;
+    if (warningRows.length > 0) {
+      setConfirmWarningsOpen(true);
+      return;
+    }
+    void runImport();
+  };
+
+  const runImport = async () => {
     if (validRows.length === 0) return;
 
     try {
+      setConfirmWarningsOpen(false);
       setProgress(10);
 
       // Apply NO APLICA substitution to permissive-error rows
@@ -260,7 +270,9 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
         imported: result.inserted,
         blocked: blockedRows.length,
         permissiveFixed: rowsWithPermissiveErrors.length,
+        warnings: warningRows.length,
         blockedRows,
+        warningRows,
       });
 
       toast({ title: t('attendees.importModal.success', { count: result.inserted }) });
