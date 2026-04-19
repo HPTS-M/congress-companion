@@ -24,5 +24,11 @@
   "selectAttendee": "Select an attendee",
   "alreadyExists": "You already have a conversation with this attendee",
   "waitingAccept": "Waiting for acceptance",
-  "headerTooltip": "Messaging"
+  "headerTooltip": "Messaging",
+  "pendingMessage": "Pending to send",
+  "sendingMessage": "Sending...",
+  "messageError": "Send error",
+  "tapToRetry": "Tap to retry",
+  "pendingCount_one": "{{count}} pending",
+  "pendingCount_other": "{{count}} pending"
 }

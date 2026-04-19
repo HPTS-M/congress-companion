@@ -12,7 +12,7 @@ import {
   useRejectConversation,
 } from '@/hooks/useMessaging';
 import { supabase } from '@/integrations/supabase/client';
-import { Search, Plus } from 'lucide-react';
+import { Search, Plus, Clock } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -23,6 +23,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { usePendingMessages } from '@/hooks/usePendingMessages';
 import type { DirectConversation } from '@/services/messaging.service';
 
 interface Props {
@@ -45,6 +46,13 @@ export default function DirectConversationList({ onSelectConversation }: Props) 
   const { data: conversations = [], isLoading } = useDirectConversations(eventId, attendeeId);
   const acceptMutation = useAcceptConversation();
   const rejectMutation = useRejectConversation();
+  const { pending: allPending } = usePendingMessages();
+
+  // Count pending messages by conversation id
+  const pendingByConv: Record<string, number> = {};
+  for (const p of allPending) {
+    pendingByConv[p.conversationId] = (pendingByConv[p.conversationId] ?? 0) + 1;
+  }
 
   // Realtime: refresh list on conversation/message changes for this event
   useEffect(() => {
@@ -187,35 +195,46 @@ export default function DirectConversationList({ onSelectConversation }: Props) 
               {t('myConversations')}
             </h3>
             <div className="space-y-2">
-              {activeConvos.map(c => (
-                <button
-                  key={c.id}
-                  onClick={() => onSelectConversation(c)}
-                  className="w-full flex items-center gap-3 rounded-lg border border-border bg-card p-3 text-left hover:bg-muted/50 transition-colors"
-                >
-                  <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center shrink-0">
-                    <span className="text-sm font-semibold text-muted-foreground">
-                      {getInitials(c.other_name)}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold text-foreground truncate">{c.other_name}</p>
-                      {c.last_message_at && (
-                        <span className="text-[11px] text-muted-foreground shrink-0">
-                          {new Date(c.last_message_at).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </span>
-                      )}
+              {activeConvos.map(c => {
+                const pendingCount = pendingByConv[c.id] ?? 0;
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => onSelectConversation(c)}
+                    className="w-full flex items-center gap-3 rounded-lg border border-border bg-card p-3 text-left hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center shrink-0">
+                      <span className="text-sm font-semibold text-muted-foreground">
+                        {getInitials(c.other_name)}
+                      </span>
                     </div>
-                    {c.last_message_preview && (
-                      <p className="text-xs text-muted-foreground truncate">{c.last_message_preview}</p>
-                    )}
-                  </div>
-                </button>
-              ))}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-foreground truncate">{c.other_name}</p>
+                        {c.last_message_at && (
+                          <span className="text-[11px] text-muted-foreground shrink-0">
+                            {new Date(c.last_message_at).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        {c.last_message_preview ? (
+                          <p className="text-xs text-muted-foreground truncate">{c.last_message_preview}</p>
+                        ) : <span className="flex-1" />}
+                        {pendingCount > 0 && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 shrink-0">
+                            <Clock className="h-2.5 w-2.5" />
+                            {t('pendingCount', { count: pendingCount })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

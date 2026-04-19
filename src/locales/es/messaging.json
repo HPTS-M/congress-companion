@@ -24,5 +24,11 @@
   "selectAttendee": "Selecciona un asistente",
   "alreadyExists": "Ya tienes una conversación con este asistente",
   "waitingAccept": "Esperando aceptación",
-  "headerTooltip": "Mensajería"
+  "headerTooltip": "Mensajería",
+  "pendingMessage": "Pendiente de envío",
+  "sendingMessage": "Enviando...",
+  "messageError": "Error al enviar",
+  "tapToRetry": "Tocar para reintentar",
+  "pendingCount_one": "{{count}} pendiente",
+  "pendingCount_other": "{{count}} pendientes"
 }

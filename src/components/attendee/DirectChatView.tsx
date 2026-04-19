@@ -4,11 +4,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { useEvent } from '@/hooks/useEvent';
 import { useDirectMessages, useAttendeeNames, useDeleteConversation } from '@/hooks/useMessaging';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { usePendingMessages } from '@/hooks/usePendingMessages';
 import { messagingService, type ChatMessage, type DirectConversation } from '@/services/messaging.service';
 import { supabase } from '@/integrations/supabase/client';
 import { format, isToday, isYesterday } from 'date-fns';
 import { es, enUS } from 'date-fns/locale';
-import { ArrowLeft, Send, Trash2, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Send, Trash2, MessageSquare, Clock, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -24,6 +25,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import type { PendingMessage } from '@/lib/pending-messages';
 
 interface Props {
   conversation: DirectConversation;
@@ -60,6 +62,7 @@ export default function DirectChatView({ conversation, onBack }: Props) {
   );
   const { data: nameMap = {} } = useAttendeeNames(eventId);
   const deleteMutation = useDeleteConversation();
+  const { pending, enqueue, retry, remove: removePending } = usePendingMessages(conversation.id);
 
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -126,33 +129,49 @@ export default function DirectChatView({ conversation, onBack }: Props) {
     setInput('');
     setSending(true);
 
-    // Optimistic update
-    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const optimisticMsg: ChatMessage = {
-      id: tempId,
-      conversation_id: conversation.id,
-      sender_id: attendeeId,
-      content,
-      created_at: new Date().toISOString(),
-    };
-    queryClient.setQueryData<ChatMessage[]>(
-      ['direct-messages', conversation.id],
-      (old = []) => [...old, optimisticMsg]
-    );
-
     try {
-      await messagingService.sendMessage(conversation.id, attendeeId, content);
-    } catch {
-      // Rollback optimistic message
+      // OFFLINE → enqueue immediately. Worker will flush when reconnected.
+      if (!isOnline) {
+        enqueue({
+          conversationId: conversation.id,
+          senderId: attendeeId,
+          content,
+        });
+        return;
+      }
+
+      // ONLINE → try direct send with optimistic update.
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const optimisticMsg: ChatMessage = {
+        id: tempId,
+        conversation_id: conversation.id,
+        sender_id: attendeeId,
+        content,
+        created_at: new Date().toISOString(),
+      };
       queryClient.setQueryData<ChatMessage[]>(
         ['direct-messages', conversation.id],
-        (old = []) => old.filter(m => m.id !== tempId)
+        (old = []) => [...old, optimisticMsg]
       );
-      setInput(content);
+
+      try {
+        await messagingService.sendMessage(conversation.id, attendeeId, content);
+      } catch {
+        // Network/server error → rollback optimistic + enqueue for retry
+        queryClient.setQueryData<ChatMessage[]>(
+          ['direct-messages', conversation.id],
+          (old = []) => old.filter(m => m.id !== tempId)
+        );
+        enqueue({
+          conversationId: conversation.id,
+          senderId: attendeeId,
+          content,
+        });
+      }
     } finally {
       setSending(false);
     }
-  }, [input, sending, isPending, conversation.id, attendeeId, queryClient]);
+  }, [input, sending, isPending, isOnline, conversation.id, attendeeId, queryClient, enqueue]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -168,9 +187,40 @@ export default function DirectChatView({ conversation, onBack }: Props) {
     );
   };
 
-  // Group messages by date
-  const groupedMessages: { date: string; msgs: ChatMessage[] }[] = [];
-  messages.forEach(msg => {
+  // Pending msgs converted to ChatMessage shape (with kind tag) for unified rendering.
+  type DisplayMessage = ChatMessage & { __pending?: PendingMessage };
+  const pendingAsMessages: DisplayMessage[] = pending.map(p => ({
+    id: p.id,
+    conversation_id: p.conversationId,
+    sender_id: p.senderId,
+    content: p.content,
+    created_at: p.createdAt,
+    __pending: p,
+  }));
+
+  // Merge real + pending, dedupe by content+sender (in case realtime already delivered),
+  // sort by created_at.
+  const merged: DisplayMessage[] = [...messages.map(m => m as DisplayMessage), ...pendingAsMessages]
+    .reduce<DisplayMessage[]>((acc, m) => {
+      // If this is a pending msg and a real one with same sender+content already exists, drop it
+      if (m.__pending) {
+        const realExists = messages.some(
+          r => r.sender_id === m.sender_id && r.content === m.content
+        );
+        if (realExists) {
+          // Real arrived → clean up the pending entry async (don't block render)
+          setTimeout(() => removePending(m.__pending!.id), 0);
+          return acc;
+        }
+      }
+      acc.push(m);
+      return acc;
+    }, [])
+    .sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''));
+
+  // Group merged messages by date
+  const groupedMessages: { date: string; msgs: DisplayMessage[] }[] = [];
+  merged.forEach(msg => {
     const dateKey = msg.created_at ? format(new Date(msg.created_at), 'yyyy-MM-dd') : '';
     const last = groupedMessages[groupedMessages.length - 1];
     if (last?.date === dateKey) {
@@ -241,7 +291,7 @@ export default function DirectChatView({ conversation, onBack }: Props) {
             </div>
           ))}
         </div>
-      ) : messages.length === 0 ? (
+      ) : merged.length === 0 ? (
         <div className="flex-1 flex items-center justify-center px-4">
           <div className="text-center">
             <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
@@ -262,6 +312,10 @@ export default function DirectChatView({ conversation, onBack }: Props) {
               {group.msgs.map(msg => {
                 const isOwn = msg.sender_id === attendeeId;
                 const senderName = nameMap[msg.sender_id] || conversation.other_name;
+                const pendingInfo = msg.__pending;
+                const isFailed = pendingInfo?.status === 'failed';
+                const isSending = pendingInfo?.status === 'sending';
+                const isQueued = pendingInfo?.status === 'pending';
                 return (
                   <div key={msg.id} className={`flex gap-2 mb-3 ${isOwn ? 'flex-row-reverse' : ''}`}>
                     {!isOwn && (
@@ -277,12 +331,37 @@ export default function DirectChatView({ conversation, onBack }: Props) {
                           isOwn
                             ? 'bg-[hsl(213,72%,37%)] text-white rounded-br-md'
                             : 'bg-muted text-foreground rounded-bl-md'
-                        }`}
+                        } ${pendingInfo ? 'opacity-80' : ''}`}
                       >
                         {msg.content}
                       </div>
-                      <span className={`text-[11px] text-muted-foreground mt-0.5 px-1 ${isOwn ? 'text-right' : ''}`}>
-                        {msg.created_at ? formatMessageTime(msg.created_at) : ''}
+                      <span
+                        className={`text-[11px] mt-0.5 px-1 flex items-center gap-1 ${
+                          isOwn ? 'text-right justify-end' : ''
+                        } ${isFailed ? 'text-destructive' : 'text-muted-foreground'}`}
+                      >
+                        {isFailed ? (
+                          <button
+                            type="button"
+                            onClick={() => retry(pendingInfo!.id)}
+                            className="flex items-center gap-1 hover:underline"
+                          >
+                            <AlertTriangle className="h-3 w-3" />
+                            {t('tapToRetry')}
+                          </button>
+                        ) : isSending ? (
+                          <>
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            {t('sendingMessage')}
+                          </>
+                        ) : isQueued ? (
+                          <>
+                            <Clock className="h-3 w-3" />
+                            {t('pendingMessage')}
+                          </>
+                        ) : (
+                          msg.created_at ? formatMessageTime(msg.created_at) : ''
+                        )}
                       </span>
                     </div>
                   </div>
