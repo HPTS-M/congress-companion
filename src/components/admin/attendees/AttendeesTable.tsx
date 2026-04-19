@@ -147,6 +147,9 @@ export function AttendeesTable({
   attendees, isLoading, isRefetching, onView, onEdit, onDelete, onToggleActive, selectedIds, onSelectionChange,
 }: Props) {
   const { t } = useTranslation('admin');
+  const { event } = useEvent();
+  const externalCredentialsEnabled =
+    ((event?.settings ?? {}) as Record<string, unknown>).external_credentials_enabled === true;
 
   const toggleSelect = useCallback((id: string) => {
     const next = new Set(selectedIds);
@@ -224,6 +227,7 @@ export function AttendeesTable({
                   onEdit={onEdit}
                   onDelete={onDelete}
                   onToggleActive={onToggleActive}
+                  externalCredentialsEnabled={externalCredentialsEnabled}
                 />
               ))}
             </TableBody>
@@ -254,7 +258,11 @@ export function AttendeesTable({
                   <div className="text-xs text-muted-foreground truncate">{a.email}</div>
                   <div className="mt-1 flex items-center gap-2">
                     <StatusBadge status={a.registration_status} />
-                    <span className="font-mono text-[10px] text-muted-foreground">{a.credential_code}</span>
+                    <span className="font-mono text-[10px] text-muted-foreground">
+                      {externalCredentialsEnabled
+                        ? ((a as AttendeeWithServices & { external_credential_code?: string | null }).external_credential_code || a.credential_code)
+                        : a.credential_code}
+                    </span>
                   </div>
                 </div>
                 <div className="flex flex-col gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
