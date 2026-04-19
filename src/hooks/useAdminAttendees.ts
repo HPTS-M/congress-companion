@@ -86,6 +86,7 @@ export function useCreateAttendee() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['admin-attendees'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-attendees-counts'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-attendee-filter-options'] }),
       ]);
     },
   });
@@ -103,6 +104,7 @@ export function useBulkCreateAttendees() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['admin-attendees'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-attendees-counts'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-attendee-filter-options'] }),
       ]);
     },
   });
@@ -120,6 +122,7 @@ export function useUpdateAttendee() {
         queryClient.invalidateQueries({ queryKey: ['admin-attendees'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-attendees-counts'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-attendee-detail', variables.id] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-attendee-filter-options'] }),
       ]);
     },
   });
