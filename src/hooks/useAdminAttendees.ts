@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { adminAttendeesService, type CreateAttendeeData, type AddServiceData } from '@/services/admin-attendees.service';
+import { adminAttendeesService, type CreateAttendeeData, type AddServiceData, type AttendeeFilters } from '@/services/admin-attendees.service';
 import { useEvent } from '@/hooks/useEvent';
 
 async function clearAttendeesSWCache() {
@@ -24,30 +24,54 @@ async function clearAttendeesSWCache() {
   }
 }
 
-export function useAdminAttendees(search?: string, statusFilter?: string) {
+export function useAdminAttendees(search?: string, statusFilter?: string, filters?: AttendeeFilters) {
   const { event } = useEvent();
   const eventId = event?.id ?? '';
 
+  // Stable serialization of filters for queryKey
+  const filtersKey = filters
+    ? JSON.stringify({
+        s: filters.specialties?.slice().sort() ?? [],
+        i: filters.institutions?.slice().sort() ?? [],
+        h: filters.hasServices ?? null,
+      })
+    : '';
+
   const attendeesQuery = useQuery({
-    queryKey: ['admin-attendees', eventId, search, statusFilter],
-    queryFn: () => adminAttendeesService.getAttendees(eventId, search, statusFilter),
+    queryKey: ['admin-attendees', eventId, search, statusFilter, filtersKey],
+    queryFn: () => adminAttendeesService.getAttendees(eventId, search, statusFilter, filters),
     enabled: !!eventId,
+    staleTime: 30_000,
   });
 
   const countsQuery = useQuery({
     queryKey: ['admin-attendees-counts', eventId],
     queryFn: () => adminAttendeesService.getCounts(eventId),
     enabled: !!eventId,
+    staleTime: 60_000,
   });
 
   return {
     attendees: attendeesQuery.data ?? [],
     isLoading: attendeesQuery.isLoading,
+    isFetching: attendeesQuery.isFetching,
     isRefetching: attendeesQuery.isFetching && !attendeesQuery.isLoading,
     counts: countsQuery.data ?? { total: 0, confirmed: 0, pending: 0 },
     isCountsLoading: countsQuery.isLoading,
     refetch: attendeesQuery.refetch,
   };
+}
+
+export function useAttendeeFilterOptions() {
+  const { event } = useEvent();
+  const eventId = event?.id ?? '';
+
+  return useQuery({
+    queryKey: ['admin-attendee-filter-options', eventId],
+    queryFn: () => adminAttendeesService.getFilterOptions(eventId),
+    enabled: !!eventId,
+    staleTime: 5 * 60_000,
+  });
 }
 
 export function useCreateAttendee() {

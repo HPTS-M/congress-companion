@@ -8,6 +8,13 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@/components/ui/pagination';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface DataTablePaginationProps {
   currentPage: number;
@@ -16,6 +23,9 @@ interface DataTablePaginationProps {
   startIndex: number;
   endIndex: number;
   onPageChange: (page: number) => void;
+  pageSize?: number;
+  onPageSizeChange?: (size: number) => void;
+  pageSizeOptions?: number[];
 }
 
 /**
@@ -43,6 +53,9 @@ export function DataTablePagination({
   startIndex,
   endIndex,
   onPageChange,
+  pageSize,
+  onPageSizeChange,
+  pageSizeOptions = [10, 25, 50, 100],
 }: DataTablePaginationProps) {
   const { t } = useTranslation('common');
 
@@ -59,13 +72,37 @@ export function DataTablePagination({
 
   return (
     <div className="flex flex-col items-center justify-between gap-3 py-3 sm:flex-row">
-      <div className="text-xs text-muted-foreground">
-        {t('pagination.showing', {
-          start: startIndex,
-          end: endIndex,
-          total: totalItems,
-          defaultValue: 'Showing {{start}}-{{end}} of {{total}}',
-        })}
+      <div className="flex flex-col items-center gap-2 sm:flex-row sm:gap-4">
+        <div className="text-xs text-muted-foreground" aria-live="polite">
+          {t('pagination.showing', {
+            start: startIndex,
+            end: endIndex,
+            total: totalItems,
+            defaultValue: 'Showing {{start}}-{{end}} of {{total}}',
+          })}
+        </div>
+        {onPageSizeChange && pageSize && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="hidden sm:inline">
+              {t('pagination.rowsPerPage', { defaultValue: 'Rows per page' })}
+            </span>
+            <Select
+              value={String(pageSize)}
+              onValueChange={(v) => onPageSizeChange(Number(v))}
+            >
+              <SelectTrigger className="h-8 w-[70px]" aria-label={t('pagination.rowsPerPage', { defaultValue: 'Rows per page' })}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {pageSizeOptions.map((size) => (
+                  <SelectItem key={size} value={String(size)}>
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       {totalPages > 1 && (
