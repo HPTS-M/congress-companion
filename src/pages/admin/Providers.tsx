@@ -15,13 +15,14 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  Plus, Search, Pencil, Trash2, Link2, Mail, RefreshCw,
+  Plus, Search, Pencil, Trash2, Link2, Mail, RefreshCw, Activity,
   Bus, UtensilsCrossed, Map, Sparkles,
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { ProviderModal } from '@/components/admin/providers/ProviderModal';
 import { AssignServicesModal } from '@/components/admin/providers/AssignServicesModal';
+import { ProviderActivityDrawer } from '@/components/admin/providers/ProviderActivityDrawer';
 import { adminProvidersService } from '@/services/admin-providers.service';
 import type { ProviderRow, ProviderForm } from '@/services/admin-providers.service';
 import { usePagination } from '@/hooks/usePagination';
