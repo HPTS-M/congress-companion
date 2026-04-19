@@ -1205,6 +1205,8 @@
     "qrEnabledDescription": "When enabled, QR scanning, personal QR in profile and tickets, and the Check-in tab are available. Disabling hides all QR-related features.",
     "documentsDownload": "Document downloads",
     "documentsDownloadDescription": "When enabled, attendees can download event documents. When disabled, they can see the list but not download the files.",
+    "externalCredentials": "External credential codes",
+    "externalCredentialsDescription": "Allows uploading custom credential codes from CSV (e.g., professional ID, corporate ID). Uniquely identifies each attendee and can never be duplicated.",
     "saved": "Settings saved",
     "error": "Failed to save settings",
     "branding": {
