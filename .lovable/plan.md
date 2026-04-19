@@ -1,108 +1,105 @@
 
 
-El usuario pide dos cosas conectadas para el lado **asistente**:
+El usuario pide la cola de mensajes offline (Parte B2 del plan anterior, que se había dejado fuera). En la implementación actual `DirectChatView.handleSend`:
 
-1. **Concurrencia** — manejo cuando hay muchos usuarios simultáneos
-2. **Offline UX** — banner visible cuando se cae la conexión + recuperación inmediata de mensajes y anuncios al reconectar
+- Si está offline, el optimistic message se agrega a la lista
+- Pero `messagingService.sendMessage` falla → se hace rollback → el mensaje desaparece
+- El usuario pierde lo que escribió y no hay reintento al reconectar
 
-Reviso el estado actual:
+Hay que implementar comportamiento tipo WhatsApp: el mensaje queda visible con estado "Pendiente", se persiste y se envía automáticamente al reconectar.
 
-- ✅ Existe `useOnlineStatus` hook
-- ✅ Existe `OfflineBanner` en `App.tsx` que invalida queries y muestra toast al reconectar
-- ✅ i18n tiene `offlineBanner.offline / reconnected / syncingTitle / syncingDescription`
-- ✅ React Query con `refetchOnReconnect: true`
-- ⚠️ Falta forzar re-suscripción Realtime tras reconexión (mensajes/anuncios usan Supabase Realtime, los channels mueren cuando hay desconexión larga)
-- ⚠️ El banner actual solo aparece cuando `navigator.onLine = false`, no cuando hay errores de red con conexión activa
-- ⚠️ No hay diferenciación visual entre "offline total" y "reconectando/sincronizando"
-- ⚠️ Concurrencia: no hay debounce/throttle en mutaciones críticas (votos en polls, contactos, mensajes), lo que puede causar duplicados bajo carga
+## Plan · Cola de mensajes offline (tipo WhatsApp)
 
-## Plan · Resiliencia offline + concurrencia para asistentes
+### 1 · Almacén persistente de pendientes
 
-### Parte A · Offline UX mejorado (asistente únicamente)
+Crear `src/lib/pending-messages.ts`:
+- `localStorage` key: `pending_messages_v1`
+- Estructura: `{ id, conversationId, senderId, content, createdAt, status: 'pending' | 'sending' | 'failed', attempts }`
+- API: `enqueue()`, `markSending()`, `markFailed()`, `remove()`, `getByConversation()`, `getAll()`
 
-**A1 · Banner offline persistente y visible**
-- Mover `OfflineBanner` de `App.tsx` global → wrapper exclusivo en `AttendeeLayout.tsx` (admins/staff/providers no lo ven)
-- Estados visuales:
-  - 🔴 **Offline**: banner rojo fijo bajo el header, no se puede cerrar, texto `offlineBanner.offline`
-  - 🟡 **Reconectando**: banner ámbar con spinner, mientras refresca queries
-  - 🟢 **Sincronizado**: toast verde 2s, luego desaparece
-- Indicador permanente en el header (puntito junto al icono de mensajería) cuando offline
+Persistencia local sobrevive a reload, cierre de pestaña y reinicio del navegador.
 
-**A2 · Force-refresh agresivo al reconectar**
-En el handler `online`:
-1. Invalidar TODAS las queries de mensajería + anuncios + polls + contactos:
-   ```ts
-   queryClient.invalidateQueries({ queryKey: ['unread-messages'] })
-   queryClient.invalidateQueries({ queryKey: ['announcements'] })
-   queryClient.invalidateQueries({ queryKey: ['direct-conversations'] })
-   queryClient.invalidateQueries({ queryKey: ['direct-messages'] })
-   queryClient.invalidateQueries({ queryKey: ['polls'] })
-   ```
-2. Disparar re-suscripción de Realtime channels (ver A3)
+### 2 · Hook `usePendingMessages(conversationId)`
 
-**A3 · Realtime con auto-reconexión**
-- Crear hook `useRealtimeChannel(channelName, config)` que centralice el patrón
-- Internamente escucha `online` event y llama `supabase.removeChannel()` + re-`subscribe()`
-- Refactorizar `DirectChatView` y donde sea relevante para usarlo
-- Garantiza que al volver la conexión los mensajes nuevos llegan en tiempo real sin requerir reload
+`src/hooks/usePendingMessages.ts`:
+- Lee la cola desde localStorage
+- Suscribe a evento custom `pending-messages:changed` para re-render cuando cambia
+- Retorna: `{ pending, enqueue, retry, remove }`
 
-**A4 · Detección de "online pero sin red real"**
-- `navigator.onLine` puede ser `true` aunque Supabase esté caído
-- Agregar healthcheck pasivo: si una query falla 2 veces seguidas con error de red → tratar como offline temporalmente
-- Hook `useNetworkHealth` que combina `navigator.onLine` + tasa de error de queries
+### 3 · Worker de envío `useMessageQueueWorker()`
 
-### Parte B · Concurrencia en acciones críticas
+`src/hooks/useMessageQueueWorker.ts` montado una sola vez en `AttendeeLayout`:
+- Escucha `online` event y `attendee:reconnected`
+- También corre un check al montar (por si quedaron mensajes de sesión anterior)
+- Itera la cola: marca `sending` → llama `messagingService.sendMessage` → en éxito quita de cola e invalida queries; en error incrementa `attempts`
+- Retroceso exponencial (1s, 3s, 9s) hasta 3 intentos → marca `failed`
+- Procesa secuencial por conversación para preservar orden
 
-**B1 · Idempotencia en mutaciones que pueden duplicar**
-Identificar y proteger:
-- **Polls** (`usePolls` → `submitResponse`): doble tap = doble voto. Solución: deshabilitar botón mientras `isPending`, además de check server-side existente
-- **Mensajes directos** (`DirectChatView` → `handleSend`): ya tiene optimistic update, pero falta dedupe por `client_id` (UUID generado en cliente) si el send se reintenta tras reconexión
-- **Contactos** (`useContacts` → `sendRequest/accept`): doble click = doble request. Solución: lock optimista + key única por par de IDs
-- **Check-in QR**: ya existe protección server-side (`UNIQUE(user_id, session_id)`), agregar feedback visual claro si se intenta de nuevo
+### 4 · Modificar `DirectChatView.handleSend`
 
-**B2 · Cola de envío para mensajes offline**
-- Si el usuario manda un mensaje sin conexión:
-  - Guardar en `localStorage` bajo `pending_messages_${attendeeId}`
-  - Mostrar el mensaje en UI con estado "🕐 Pendiente de envío"
-  - Al reconectar, vaciar la cola en orden con reintentos exponenciales
-  - Si falla 3 veces → marcar como "❌ Error, tocar para reintentar"
-
-**B3 · Throttle en queries pesadas**
-- `useUnreadMessages` y `useUnreadAnnouncements` ya tienen `refetchInterval: 30s` — bien
-- Agregar `refetchOnWindowFocus: true` para refrescar cuando el usuario vuelve a la pestaña
-- Pausar polling cuando `isOffline` para no acumular requests fallidos
-
-### Parte C · i18n
-
-Agregar a `src/locales/{es,en}/common.json` bajo `offlineBanner`:
-```json
-{
-  "syncingMessages": "Sincronizando mensajes…",
-  "syncingAnnouncements": "Buscando nuevos anuncios…",
-  "pendingMessage": "Pendiente de envío",
-  "messageError": "Error al enviar. Tocar para reintentar",
-  "headerDot": "Sin conexión"
-}
+Lógica nueva:
+```
+1. Si offline o si la conversación está activa pero el usuario quiere garantía:
+   → enqueue local + render optimista con badge "Pendiente"
+   → no llamar sendMessage directamente
+2. Si online:
+   → intento normal; si falla por red → enqueue + badge "Pendiente"
+3. Bloquear envío si la conversación está pending (igual que hoy)
 ```
 
-### Parte D · Verificación end-to-end
+### 5 · Render de mensajes pendientes en el chat
 
-1. Login como asistente en `/ACQFH-2026`
-2. DevTools → Network → "Offline" → ver banner rojo persistente bajo header + puntito en icono de mensajería
-3. Intentar enviar un mensaje → aparece con estado "Pendiente"
-4. Volver a "Online" → banner cambia a ámbar "Reconectando" → mensaje se envía → banner verde 2s → desaparece
-5. Abrir 2 pestañas como mismo asistente, votar en una encuesta → la otra recibe update vía Realtime sin reload
-6. En segundo dispositivo enviar anuncio admin → asistente offline lo recibe al reconectar sin reload
+En el bucle de mensajes:
+- Mezclar `messages` (servidor) + `pending` (local) ordenados por `created_at`
+- Mensaje con `status: 'pending'` → reloj 🕐 + texto `t('pendingMessage')`
+- Mensaje con `status: 'sending'` → reloj animado
+- Mensaje con `status: 'failed'` → ícono ⚠️ + tap para `retry()` (texto `t('messageError')`)
+- Cuando el real llega vía Realtime → el worker ya lo removió de la cola
 
-### Notas técnicas
+### 6 · Indicador en lista de conversaciones
 
-- Solo afecta rutas bajo `/{event-slug}/*` con `AttendeeLayout` — no toca admin/staff/provider
-- No requiere cambios en BD ni RLS
-- Compatible con PWA + Service Worker existente (Workbox ya cachea assets, esto cubre data en vivo)
-- Sin nuevas dependencias
+En `DirectConversationList`:
+- Si una conversación tiene mensajes pendientes → mostrar badge ámbar "🕐 N pendiente(s)" junto a la última preview
+- Hook `usePendingMessages()` sin filtro → contar por conversación
 
-### Preguntas antes de implementar
+### 7 · i18n
 
-1. ¿Implementamos las 4 partes (A+B+C+D) o priorizamos solo A (banner + auto-refresh) que es el dolor más visible?
-2. La cola de mensajes offline (B2) suma complejidad. ¿La incluimos ya o la dejamos para una iteración posterior?
+Las claves ya existen en `common.json`:
+- `offlineBanner.pendingMessage` → "Pendiente de envío"
+- `offlineBanner.messageError` → "Error al enviar. Tocar para reintentar"
+
+Agregar a `messaging.json` (es/en):
+- `pendingCount_one` / `pendingCount_other` → "{{count}} mensaje pendiente"
+- `tapToRetry` → "Tocar para reintentar"
+- `sendingMessage` → "Enviando..."
+
+### 8 · Edge cases manejados
+
+- **Reload mientras offline**: la cola persiste en localStorage, al volver online se procesa
+- **Cambiar de chat con mensaje pendiente**: el pendiente sigue en cola, se muestra al volver
+- **Conversación rechazada/borrada**: el worker detecta error específico y descarta sin reintentar
+- **Reintentos infinitos**: máx 3, luego estado `failed` con acción manual
+- **Duplicación**: `id` cliente único + el worker remueve de cola en `onSuccess`; si el realtime trae el mismo contenido, ya hay deduplicación por temp-id en `DirectChatView`
+
+### 9 · Verificación end-to-end
+
+1. Login asistente, abrir un chat existente
+2. DevTools → Network → Offline
+3. Escribir 3 mensajes y enviar → aparecen con 🕐 "Pendiente"
+4. Recargar la página estando offline → los mensajes siguen ahí
+5. Network → Online → banner ámbar "Reconectando" → los 3 mensajes se envían en orden, badges desaparecen
+6. Verificar en BD que llegaron los 3
+7. Probar caso de error: enviar offline, simular fallo del servicio → mensaje queda en `failed` con botón reintentar
+
+### Archivos tocados
+
+- ➕ `src/lib/pending-messages.ts`
+- ➕ `src/hooks/usePendingMessages.ts`
+- ➕ `src/hooks/useMessageQueueWorker.ts`
+- ✏️ `src/components/attendee/DirectChatView.tsx` (handleSend + render)
+- ✏️ `src/components/attendee/DirectConversationList.tsx` (badge pendientes)
+- ✏️ `src/components/layout/AttendeeLayout.tsx` (montar worker)
+- ✏️ `src/locales/es/messaging.json` + `en/messaging.json`
+
+Sin cambios en BD ni en RLS. Sin nuevas dependencias.
 
