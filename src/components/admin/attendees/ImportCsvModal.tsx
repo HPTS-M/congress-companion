@@ -298,13 +298,32 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
     if (file) handleFile(file);
   }, [handleFile]);
 
+  const upsertEnabled = updateExisting && (updatableCount > 0 || ambiguousCount > 0);
+
   const handleImportClick = () => {
     if (validRows.length === 0) return;
-    if (warningRows.length > 0) {
+    if (upsertEnabled && !allAmbiguousResolved) return;
+    if (warningRows.length > 0 && !upsertEnabled) {
       setConfirmWarningsOpen(true);
       return;
     }
     void runImport();
+  };
+
+  const buildRowPayload = (r: ProcessedRow) => {
+    const finalRow = r.permissiveErrors.length > 0
+      ? applyNoAplica(r.validated, r.permissiveErrors)
+      : r.validated;
+    return {
+      full_name: finalRow.full_name,
+      email: finalRow.email,
+      specialty: finalRow.specialty || undefined,
+      institution: finalRow.institution || undefined,
+      external_credential_code: externalCredentialsEnabled
+        ? (finalRow.external_credential_code || null)
+        : null,
+      registration_status: finalRow.registration_status,
+    };
   };
 
   const runImport = async () => {
@@ -314,22 +333,77 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
       setConfirmWarningsOpen(false);
       setProgress(10);
 
-      // Apply NO APLICA substitution to permissive-error rows
-      const rowsToInsert = validRows.map((r) => {
-        const finalRow = r.permissiveErrors.length > 0
-          ? applyNoAplica(r.validated, r.permissiveErrors)
-          : r.validated;
-        return {
-          full_name: finalRow.full_name,
-          email: finalRow.email,
-          specialty: finalRow.specialty || undefined,
-          institution: finalRow.institution || undefined,
-          external_credential_code: externalCredentialsEnabled
-            ? (finalRow.external_credential_code || null)
-            : null,
-          registration_status: finalRow.registration_status,
-        };
-      });
+      if (upsertEnabled) {
+        // Build resolutions for ALL valid rows (auto-create for new, auto-update
+        // for single-match, manual resolution for ambiguous).
+        const allRows = validRows.map(buildRowPayload);
+        const resolutions = classifiedValidRows.map((c) => {
+          const rowIndex = c.processed.rowNumber - 2;
+          if (c.kind === 'new') {
+            return { rowIndex, action: 'create' as const };
+          }
+          if (c.kind === 'updatable') {
+            return {
+              rowIndex,
+              action: 'update' as const,
+              targetAttendeeId: c.matches[0].id,
+            };
+          }
+          // ambiguous → use manual resolution
+          const manual = resolutionsByRow[rowIndex];
+          if (!manual || manual.action === 'skip') {
+            return { rowIndex, action: 'skip' as const };
+          }
+          if (manual.action === 'create') {
+            return { rowIndex, action: 'create' as const };
+          }
+          return {
+            rowIndex,
+            action: 'update' as const,
+            targetAttendeeId: manual.targetAttendeeId,
+          };
+        });
+
+        const upsertResult = await upsertMutation.mutateAsync({
+          rows: allRows,
+          resolutions,
+          registrationStatus: importStatus,
+        });
+        setProgress(80);
+
+        if (importStatus === 'confirmed' && upsertResult.insertedIds.length > 0) {
+          try {
+            await sendInvitationsMutation.mutateAsync(upsertResult.insertedIds);
+          } catch (invErr) {
+            console.error('Failed to send invitations:', invErr);
+          }
+        }
+        setProgress(100);
+
+        setImportResult({
+          imported: upsertResult.inserted,
+          updated: upsertResult.updated,
+          skipped: upsertResult.skipped,
+          upsertErrors: upsertResult.errors.length,
+          blocked: blockedRows.length,
+          permissiveFixed: rowsWithPermissiveErrors.length,
+          warnings: warningRows.length,
+          blockedRows,
+          warningRows,
+        });
+
+        toast({
+          title: t('attendees.importModal.upsertSuccess', {
+            inserted: upsertResult.inserted,
+            updated: upsertResult.updated,
+            skipped: upsertResult.skipped,
+          }),
+        });
+        return;
+      }
+
+      // Default insert-only path
+      const rowsToInsert = validRows.map(buildRowPayload);
 
       const result = await bulkMutation.mutateAsync({
         rows: rowsToInsert,
