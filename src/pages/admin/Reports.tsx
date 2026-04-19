@@ -364,15 +364,36 @@ export default function Reports() {
   const { t } = useTranslation('admin');
   const { event } = useEvent();
   const eventId = event?.id;
-  const { summary, attendance, ratings, logistics, sponsorEngagement } = useAdminReports(eventId);
+  const { summary, attendance, ratings, logistics, sponsorEngagement, pollResponses } = useAdminReports(eventId);
 
   const logisticsPagination = usePagination(logistics.data ?? [], 10);
   const sponsorsPagination = usePagination(sponsorEngagement.data ?? [], 10);
 
+  // Polls filter + pagination
+  const [pollFilter, setPollFilter] = useState<string>('all');
+  const filteredPollResponses = useMemo(() => {
+    const all = pollResponses.data ?? [];
+    return pollFilter === 'all' ? all : all.filter((r) => r.poll_id === pollFilter);
+  }, [pollResponses.data, pollFilter]);
+  const pollsPagination = usePagination(filteredPollResponses, 10);
+
+  const uniquePolls = useMemo(() => {
+    const map = new Map<string, string>();
+    (pollResponses.data ?? []).forEach((r) => map.set(r.poll_id, r.question));
+    return Array.from(map, ([id, question]) => ({ id, question }));
+  }, [pollResponses.data]);
+
   const handleExportAll = async () => {
     if (!attendance.data || !ratings.data || !logistics.data || !sponsorEngagement.data) return;
     try {
-      await exportAll(attendance.data, ratings.data, logistics.data, sponsorEngagement.data, t);
+      await exportAll(
+        attendance.data,
+        ratings.data,
+        logistics.data,
+        sponsorEngagement.data,
+        pollResponses.data ?? [],
+        t,
+      );
       toast({ title: t('reports.exportSuccess') });
     } catch {
       toast({ title: t('reports.exportError'), variant: 'destructive' });
