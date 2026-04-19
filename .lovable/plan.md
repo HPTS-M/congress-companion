@@ -1,74 +1,210 @@
 
 
-El usuario dice que la info del evento (fechas, dirección, número de asistentes) en Home se ve "quemada" (hardcoded) y debería ser configurable por el admin.
+Reviso el contexto. El usuario pide planificar features para Logística y Proveedores. Necesito entender qué está implementado hoy antes de proponer.
 
-Reviso lo que ya tengo: leí `src/pages/attendee/Home.tsx` antes — los datos vienen de `useEvent()` que lee de la tabla `events`: `start_date`, `end_date`, `venue_name`, `venue_address`, `max_attendees`. **No están hardcoded — vienen de la BD.**
+Tengo del contexto:
+- `admin-logistics.service.ts`: getAll/create/update/remove servicios, assignees, status updates con valores `'completed'`. El status del ticket se actualiza a `'completed'` cuando se valida.
+- `admin-providers.service.ts`: CRUD providers, invite/resend/reinvite vía edge function, accessCode generator. Email se envía vía Resend.
+- `attendee_services.status` default `'scheduled'`. Service tickets tienen `is_used`/`used_at`.
+- `service_catalog` (no veo el schema aquí, pero se infiere de getAll) tiene name, service_type, valid_day, valid_from, valid_until, location, description.
+- Providers tabla tiene: company_name, category, contact_email, access_code, last_login, login_count, password_changed, access_expires_at.
+- `email-invitation-links` memoria: APP_URL strip trailing slash, formato `${APP_URL}/${event_code}`.
 
-Pero el admin **no tiene UI** para editar estos campos. Reviso qué cards existen en `EventConfig.tsx`:
-- `EventBrandingCard` → banner + logo
-- `EventSettingsCard` → toggles QR / docs
-- `EventVisibilityCard` → toggles módulos
+No veo en schema:
+- Constraint UNIQUE en `service_catalog (event_id, name)` — confirma duplicidad no validada en BD.
+- Constraint UNIQUE en `providers (event_id, contact_email)` o `(event_id, company_name)`.
+- Tabla `provider_access_log` para historial.
+- Estado nuevo en `service_catalog` (programado/cancelado/cumplido) — hoy solo hay status en `attendee_services` (scheduled/completed).
 
-❌ Falta una card para editar **datos básicos del evento**: nombre, descripción, fechas, venue, dirección, aforo.
+Confirmado: el plan abarca cambios DB + servicios + UI. Lo presento conciso.
 
-Eso es lo que el usuario necesita. Plan corto y directo.
+---
 
-## Plan: Card de datos básicos del evento en configuración admin
+# Plan: Logística + Proveedores — features V2
 
-### Diagnóstico
-Los datos en Home (fechas, venue, aforo) **sí vienen de BD** (`events.start_date`, `venue_name`, `venue_address`, `max_attendees`), pero el admin **no tiene formulario para editarlos**. Hoy solo se pueden cambiar manualmente vía SQL o al crear el evento.
+## MÓDULO LOGÍSTICA
 
-### Solución: nueva card `EventDetailsCard`
+### 1. Validar duplicidad en creación de servicios
 
-Crear `src/components/admin/EventDetailsCard.tsx` con formulario editable de:
-- Nombre del evento (`name`)
-- Descripción (`description`)
-- Fecha inicio / fin (`start_date`, `end_date`) — date pickers
-- Nombre del venue (`venue_name`)
-- Dirección del venue (`venue_address`)
-- Aforo máximo (`max_attendees`) — number input
-- Coordenadas opcionales (`venue_coordinates` lat/lng) para mejor link a Google Maps
+**DB**: añadir UNIQUE constraint `service_catalog (event_id, lower(name))` (case-insensitive). Devuelve error 23505 que el frontend traduce.
 
-### Cambios concretos
+**UI**: en `ServiceModal.tsx`, en `onSubmit` validar previamente con query `select id from service_catalog where event_id = ? and lower(name) = lower(?)` y mostrar error inline en el campo `name`. Si pasa la validación previa pero falla por race condition, capturar 23505 y mostrar toast.
 
-1. **`src/components/admin/EventDetailsCard.tsx`** (NUEVO)
-   - React Hook Form + Zod para validación (fechas coherentes, aforo > 0)
-   - `useMutation` que actualiza `events` table e invalida `['event', eventSlug]`
-   - Botón "Guardar cambios" deshabilitado hasta que haya cambios (`formState.isDirty`)
-   - Toast de éxito/error
-   - Skeleton mientras carga
-   - Dark mode + i18n
+### 2. Estados del servicio (catálogo) — programado / cancelado / cumplido
 
-2. **`src/pages/admin/EventConfig.tsx`**
-   - Insertar `<EventDetailsCard />` como **primera card** (antes de Branding)
+**Concepto**: hoy `service_catalog` no tiene estado propio (solo lo tienen los `attendee_services`). Agregar:
+- Columna `status text default 'scheduled'` con valores: `scheduled`, `cancelled`, `completed`.
+- Columna calculada/derivada: `completed` se infiere comparando `valid_day + valid_until` vs `now()`. NO se almacena — se calcula en frontend o en una `view`.
 
-3. **`src/locales/{es,en}/admin.json`**
-   - Nuevas claves bajo `settings.details.*`: title, description, fields (name, description, dates, venue, address, capacity, coordinates), validations, save button, success/error toasts
+**Decisión**: usar **vista derivada** `service_catalog_with_status` que devuelve `effective_status`:
+- `cancelled` si admin lo marcó manualmente
+- `completed` si la fecha/hora ya pasó
+- `scheduled` por defecto
 
-4. **(Opcional) Mejora en Home**: si `venue_coordinates` está presente, usar `https://www.google.com/maps/search/?api=1&query=lat,lng` en lugar de buscar por texto — link más preciso.
+Esto evita un cron job que actualice. El badge se calcula en tiempo de lectura.
 
-### Buenas prácticas aplicadas
-- **Backend-first**: la tabla `events` ya tiene todas las columnas (verificado en schema). Solo se añade UI.
-- **RLS intacto**: política existente "Admins can manage events in organization" cubre los UPDATE.
-- **Validación con Zod**: fechas coherentes (`end_date >= start_date`), aforo entero positivo.
-- **i18n completo**: cero strings hardcoded.
-- **TanStack Query**: invalidar `['event', eventSlug]` para que Home y dashboard reflejen cambios al instante.
-- **Dark mode**: todas las clases con `dark:` variants.
-- **Mobile-first**: form responsivo, inputs con touch targets ≥44px.
-- **Accesibilidad**: labels asociados a inputs, mensajes de error con `aria-describedby`.
-- **UX**: botón guardar deshabilitado sin cambios; confirmación al cambiar fechas si hay sesiones de agenda fuera del nuevo rango (warning, no bloqueo).
+**UI**:
+- Badge en tabla `Logistics.tsx` con color: scheduled=azul, cancelled=rojo, completed=gris.
+- Botón "Cancelar servicio" en menú de acciones (no borra, marca status='cancelled').
+- Filtro por estado en tabs.
 
-### Verificación post-cambios
+### 3. Flujo de estados de tickets: Pendiente → Confirmado → En curso → Completado
+
+**Hoy**: `attendee_services.status` usa solo `scheduled` y `completed`. Falta `confirmed` y `in_progress`.
+
+**Cambios**:
+- Migrar `attendee_services.status` a enum/check constraint con valores: `pending`, `confirmed`, `in_progress`, `completed`, `cancelled`.
+- Backfill: `scheduled` → `pending`.
+- Actualizar `LogisticsAssign.tsx` para mostrar 5 estados con badges y permitir transiciones controladas (ej: no se puede pasar de `completed` a `pending`).
+- Validador en service: función helper `getNextValidStatuses(current)` que devuelve los estados válidos siguientes.
+
+**i18n**: claves `logistics.statusPending|Confirmed|InProgress|Completed|Cancelled` en es/en.
+
+### 4. Optimizar actualización de rejilla
+
+**Diagnóstico**: hoy `useAdminLogistics` invalida toda la query con `qc.invalidateQueries({ queryKey: key })` tras cada mutación → re-fetch completo.
+
+**Optimizaciones**:
+- **Optimistic updates** en `updateMutation` y `toggleMutation`: usar `qc.setQueryData()` para actualizar la fila localmente antes de la respuesta del server.
+- **onError rollback**: snapshot previo + restore en caso de fallo.
+- **Realtime subscription**: añadir channel a `service_catalog` y `attendee_services` para que cambios de otros admins se reflejen sin recargar (con cleanup en useEffect según memoria `realtime-cleanup-pattern`).
+- **Debounce** en búsqueda de la tabla (actualmente filtra en cada keystroke).
+
+### 5. Consistencia entre asignación masiva e individual
+
+**Hoy**: 
+- `assignAttendee` (individual) inserta una fila → trigger crea ticket.
+- `bulkAssign` (masivo) itera y reporta `{assigned, errors}` → comportamiento diferente ante errores.
+
+**Unificación**:
+- Refactor `bulkAssign` para usar transacción con savepoint por attendee — si uno falla, los demás siguen, pero se loguea el motivo (no solo conteo).
+- Devolver `{assigned, skipped: [{attendee_id, reason}], errors: [...]}`.
+- En UI, mostrar modal con resumen detallado tras bulk assign.
+- Validación previa común para ambos flujos: helper `canAssign(attendeeId, serviceCatalogId)` que verifica:
+  - Attendee no esté ya asignado al mismo service
+  - Attendee no esté `deleted_at`
+  - Service no esté `cancelled`
+
+---
+
+## MÓDULO PROVEEDORES
+
+### 1. Validar duplicidad en creación y edición
+
+**DB**: 
+- UNIQUE `providers (event_id, lower(contact_email)) where deleted` — email no puede repetirse en el mismo evento.
+- UNIQUE `providers (event_id, lower(company_name))` opcional (con confirm en UI si coincide).
+
+**UI** (`ProviderModal.tsx`):
+- Validación previa en `onSubmit`: query a providers filtrando por evento + email.
+- Si edita y email no cambió, omitir validación.
+- Mensaje inline en el campo `contact_email`.
+- Capturar 23505 como fallback.
+
+### 2. Enlaces funcionales en correos de invitación y reenvío
+
+**Diagnóstico**: la edge function `create-provider-user` ya construye `redirectTo = ${APP_URL}/${eventSlug}/provider`. Validar que:
+- APP_URL no tenga trailing slash (memoria `email-invitation-links`).
+- El link incluya un token o magic link válido (Supabase invite link ya lo hace).
+- El email HTML tenga botón CTA + URL plana para clientes que bloquean botones.
+
+**Cambios**:
+- Auditar `supabase/functions/create-provider-user/index.ts` y verificar template HTML del email.
+- Si el email actual solo manda link inválido, reescribir HTML con:
+  - Botón "Acceder al portal"
+  - URL plana debajo
+  - Datos del evento
+  - Código de acceso de 6 caracteres (el `access_code` de la tabla)
+  - Fecha de expiración del acceso
+- Para "resend": validar que se reutilice el mismo flow y no genere nuevo user.
+- Edge function debe stripear trailing slash de APP_URL.
+
+### 3. Historial de accesos y actividades del proveedor
+
+**DB nueva tabla**:
+```sql
+provider_activity_log (
+  id uuid pk,
+  provider_id uuid fk,
+  event_id uuid fk,
+  activity_type text,  -- login | logout | service_view | ticket_validate | password_change
+  metadata jsonb,      -- { service_id, attendee_id, ticket_code, ip, user_agent }
+  created_at timestamptz
+)
+```
+RLS: solo admin de la organización del evento puede leer. Provider NO ve su propio log.
+
+**Triggers/Hooks**:
+- En `providerPortalService.getProviderSession` (tras login exitoso): insertar activity `login`.
+- En `provider_validate_ticket` RPC: insertar activity `ticket_validate` con metadata.
+- En `getServiceAttendees`: insertar activity `service_view`.
+- En cambio de password: activity `password_change`.
+
+**UI Admin**:
+- En `Providers.tsx` añadir columna/acción "Ver historial" → abre `ProviderActivityDrawer`.
+- Drawer con timeline filtrable por tipo de actividad y rango de fechas.
+- Export CSV del historial.
+
+---
+
+## ORDEN DE EJECUCIÓN (backend-first)
+
+1. **Migración DB** (única, agrupada):
+   - UNIQUE constraints (services + providers)
+   - Columna `service_catalog.status`
+   - Vista `service_catalog_with_status`
+   - Migración de valores `attendee_services.status`
+   - Tabla `provider_activity_log` + RLS + grants
+2. Regenerar `types.ts` (automático)
+3. Actualizar servicios: `admin-logistics.service.ts`, `admin-providers.service.ts`, `provider-portal.service.ts`
+4. Actualizar edge functions: `create-provider-user` (email HTML)
+5. Crear hook `useProviderActivityLog`
+6. Actualizar UI: `ServiceModal`, `Logistics.tsx`, `LogisticsAssign.tsx`, `ProviderModal`, `Providers.tsx`, nuevo `ProviderActivityDrawer.tsx`
+7. i18n es/en
+8. QA
+
+## ARCHIVOS A TOCAR
+
+| Tipo | Archivo |
+|---|---|
+| Migración | 1 SQL nueva |
+| Service | admin-logistics, admin-providers, provider-portal |
+| Edge fn | create-provider-user (email HTML) |
+| Hook | useAdminLogistics, useAdminProviders, **useProviderActivityLog (nuevo)** |
+| UI Logística | ServiceModal, Logistics.tsx, LogisticsAssign.tsx |
+| UI Providers | ProviderModal, Providers.tsx, **ProviderActivityDrawer.tsx (nuevo)** |
+| i18n | locales/{es,en}/admin.json |
+
+## PREGUNTAS BLOQUEANTES
+
+1. **Estado `cancelled` en service_catalog**: cuando un admin cancela un servicio del catálogo, ¿qué pasa con los `attendee_services` ya asignados? Opciones:
+   - (a) Cancelar todos los tickets en cascada
+   - (b) Bloquear la cancelación si hay attendees asignados
+   - (c) Solo marcar el catálogo, dejar tickets activos (admin decide manualmente)
+
+2. **Historial de proveedor**: ¿qué retención de datos? ¿90 días, 1 año, indefinido? Afecta políticas de purga.
+
+3. **Email de proveedor**: ¿el código de acceso de 6 caracteres debe verse en el email? Hoy se usa para login alterno además del magic link.
+
+4. **Flujo de estados de ticket**: ¿quién puede cambiar a `in_progress`? ¿Solo el provider al iniciar el servicio (ej: bus arrancando) o también el admin?
+
+## VERIFICACIÓN POST-CAMBIOS
+
 | # | Prueba | Criterio |
 |---|---|---|
-| 1 | Cambiar nombre del evento + guardar | Home y header reflejan nuevo nombre tras invalidar query |
-| 2 | Cambiar fechas | Home muestra el nuevo rango formateado |
-| 3 | Cambiar aforo a 750 | Home muestra "750 asistentes" |
-| 4 | Cambiar venue + dirección | Home actualiza, "Abrir en Maps" usa nueva dirección |
-| 5 | Validación: end_date < start_date | Form muestra error, no permite guardar |
-| 6 | Validación: aforo = 0 o negativo | Form muestra error |
-| 7 | Mobile 360px | Form usable, sin overflow |
-| 8 | Dark mode | Inputs y labels con contraste correcto |
-| 9 | Cambios sin guardar + navegar fuera | (opcional) prompt "tienes cambios sin guardar" |
-| 10 | i18n: cambiar a inglés | Todas las etiquetas cambian |
+| 1 | Crear servicio con nombre duplicado | Error inline en campo name |
+| 2 | Crear proveedor con email duplicado en mismo evento | Error inline |
+| 3 | Cambiar status ticket pending→confirmed→in_progress→completed | Transiciones permitidas, badges actualizados |
+| 4 | Intentar ir de completed→pending | Bloqueado |
+| 5 | Cancelar servicio del catálogo | Badge "Cancelado", según decisión Q1 |
+| 6 | Servicio con valid_until ya pasado | Badge automático "Cumplido" en lectura |
+| 7 | Editar fila + ver actualización en tabla | Sin re-fetch completo (optimistic) |
+| 8 | Bulk assign 50 attendees, 3 ya asignados | Reporta 47 ok + 3 skipped con motivo |
+| 9 | Invitar proveedor + abrir email | Botón funcional, redirige al portal |
+| 10 | Login proveedor + validar ticket | Activity log registra ambos eventos |
+| 11 | Admin ve historial de proveedor | Timeline con filtros funciona |
+| 12 | Mobile 360px todos los modales | Sin overflow |
+| 13 | Dark mode badges nuevos | Contraste correcto |
+| 14 | i18n es/en | Todas las claves presentes |
+| 15 | `supabase--linter` post-migración | 0 nuevos warnings |
 
