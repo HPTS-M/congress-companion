@@ -347,6 +347,21 @@ export default function AdminPolls() {
   const [showNew, setShowNew] = useState(false);
   const [resultsId, setResultsId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [isExportingAll, setIsExportingAll] = useState(false);
+  const { toast } = useToast();
+
+  const handleExportAll = async () => {
+    if (!event?.id) return;
+    setIsExportingAll(true);
+    try {
+      await adminPollsExcelService.exportAllResponses(event.id, event.event_code ?? 'evento');
+      toast({ title: t('polls.exportSuccess') });
+    } catch (e) {
+      toast({ title: t('polls.exportError'), variant: 'destructive' });
+    } finally {
+      setIsExportingAll(false);
+    }
+  };
 
   const pagination = usePagination(polls, 10);
 
@@ -391,7 +406,11 @@ export default function AdminPolls() {
           <h1 className="text-2xl font-bold">{t('polls.title')}</h1>
           <p className="text-sm text-muted-foreground">{t('polls.subtitle')}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={handleExportAll} disabled={isExportingAll || polls.length === 0}>
+            {isExportingAll ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Download className="mr-1 h-4 w-4" />}
+            {t('polls.exportAll')}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
             <Upload className="mr-1 h-4 w-4" />{t('polls.importButton')}
           </Button>
@@ -507,6 +526,8 @@ export default function AdminPolls() {
         pollId={resultsId}
         open={!!resultsId}
         onOpenChange={v => { if (!v) setResultsId(null); }}
+        eventId={event?.id ?? ''}
+        eventCode={event?.event_code ?? 'evento'}
       />
 
       <ImportPollsModal
