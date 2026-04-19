@@ -262,6 +262,45 @@ export function NewAttendeeModal({ open, onOpenChange, attendee }: Props) {
                 )}
               />
 
+              {externalCredentialsEnabled && (
+                <FormField
+                  control={form.control}
+                  name="external_credential_code"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('attendees.newAttendeeModal.externalCode')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t('attendees.newAttendeeModal.externalCodePlaceholder')}
+                          {...field}
+                          onBlur={(e) => {
+                            field.onBlur();
+                            const v = e.target.value.trim();
+                            if (!v) return;
+                            if (!EXTERNAL_CODE_REGEX.test(v)) {
+                              form.setError('external_credential_code', {
+                                message: t('attendees.newAttendeeModal.externalCodeInvalid'),
+                              });
+                              return;
+                            }
+                            const codes = (existingExternalCodes ?? []).map((c) => c.toUpperCase());
+                            const isSelf = isEditMode && (attendee?.external_credential_code ?? '').toUpperCase() === v.toUpperCase();
+                            if (codes.includes(v.toUpperCase()) && !isSelf) {
+                              form.setError('external_credential_code', {
+                                message: t('attendees.newAttendeeModal.externalCodeDuplicate'),
+                              });
+                            } else {
+                              form.clearErrors('external_credential_code');
+                            }
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
               <FormField
                 control={form.control}
                 name="registration_status"
