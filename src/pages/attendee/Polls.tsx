@@ -1,13 +1,13 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BarChart3, Send, CheckCircle2, Star, MessageSquareText } from 'lucide-react';
+import { BarChart3, Send, CheckCircle2, MessageSquareText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
-import { usePolls, usePollRealtime } from '@/hooks/usePolls';
-import { pollsService, type AttendeePoll, type PollResultOption } from '@/services/polls.service';
+import { usePolls } from '@/hooks/usePolls';
+import { type AttendeePoll } from '@/services/polls.service';
 import { cn } from '@/lib/utils';
 
 const POLL_TYPE_KEYS: Record<string, string> = {
@@ -26,98 +26,6 @@ const RATING_LABELS: Record<number, string> = {
 };
 
 const MAX_TEXT_LENGTH = 500;
-
-/* ───────────── Results View ───────────── */
-
-function ChoiceResults({ pollId, myOptionId }: { pollId: string; myOptionId: string | null }) {
-  const { t } = useTranslation('common');
-  const [results, setResults] = useState<PollResultOption[]>([]);
-  const [loaded, setLoaded] = useState(false);
-
-  const loadResults = useCallback(async () => {
-    const data = await pollsService.getPollResults(pollId);
-    setResults(data);
-    setLoaded(true);
-  }, [pollId]);
-
-  useEffect(() => { loadResults(); }, [loadResults]);
-  usePollRealtime(pollId, loadResults);
-
-  if (!loaded) return <Skeleton className="h-24" />;
-
-  return (
-    <div className="space-y-3 mt-3">
-      {results.map(opt => {
-        const isMyChoice = opt.id === myOptionId;
-        return (
-          <div key={opt.id} className="space-y-1">
-            <div className="flex justify-between text-sm">
-              <span className={cn('flex items-center gap-1.5', isMyChoice && 'font-semibold text-primary')}>
-                {isMyChoice && <CheckCircle2 className="h-3.5 w-3.5" />}
-                {opt.option_text}
-              </span>
-              <span className="font-medium text-muted-foreground">{opt.count} ({opt.percentage}%)</span>
-            </div>
-            <div className="h-5 w-full rounded bg-muted overflow-hidden">
-              <div
-                className={cn(
-                  'h-full rounded transition-all duration-500',
-                  isMyChoice ? 'bg-primary' : 'bg-primary/50'
-                )}
-                style={{ width: `${opt.percentage}%` }}
-              />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function RatingResults({ pollId }: { pollId: string }) {
-  const { t } = useTranslation('common');
-  const [results, setResults] = useState<PollResultOption[]>([]);
-  const [loaded, setLoaded] = useState(false);
-
-  const loadResults = useCallback(async () => {
-    const data = await pollsService.getPollResults(pollId);
-    setResults(data);
-    setLoaded(true);
-  }, [pollId]);
-
-  useEffect(() => { loadResults(); }, [loadResults]);
-  usePollRealtime(pollId, loadResults);
-
-  if (!loaded) return <Skeleton className="h-24" />;
-
-  const totalResponses = results.reduce((s, r) => s + r.count, 0);
-  const weightedSum = results.reduce((s, r) => {
-    const val = parseInt(r.option_text, 10);
-    return s + (isNaN(val) ? 0 : val * r.count);
-  }, 0);
-  const avg = totalResponses > 0 ? (weightedSum / totalResponses).toFixed(1) : '0.0';
-
-  return (
-    <div className="mt-3 space-y-3">
-      <div className="flex items-center justify-center gap-2 text-2xl font-bold">
-        <Star className="h-6 w-6 fill-amber-400 text-amber-400" />
-        <span>{avg}</span>
-        <span className="text-base font-normal text-muted-foreground">/ 5</span>
-      </div>
-      <div className="space-y-1.5">
-        {results.map(opt => (
-          <div key={opt.id} className="flex items-center gap-2 text-sm">
-            <span className="w-5 text-right font-medium">{opt.option_text}</span>
-            <div className="flex-1 h-4 rounded bg-muted overflow-hidden">
-              <div className="h-full rounded bg-amber-400 transition-all duration-500" style={{ width: `${opt.percentage}%` }} />
-            </div>
-            <span className="w-12 text-right text-muted-foreground text-xs">{opt.count} ({opt.percentage}%)</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 /* ───────────── Answer Forms ───────────── */
 
@@ -270,7 +178,6 @@ function PollCard({ poll, onSubmit, isSubmitting }: {
   const { t } = useTranslation('common');
   const [showAnswer, setShowAnswer] = useState(false);
   const [justSubmitted, setJustSubmitted] = useState(false);
-  const [submittedOptionId, setSubmittedOptionId] = useState<string | null>(null);
   const hasResponded = !!poll.my_response || justSubmitted;
 
   const isChoice = poll.poll_type === 'multiple_choice' || poll.poll_type === 'single_choice';
@@ -281,7 +188,6 @@ function PollCard({ poll, onSubmit, isSubmitting }: {
 
   const handleSubmit = async (optionIds: string[] | null, text: string | null) => {
     try {
-      setSubmittedOptionId(optionIds && optionIds.length > 0 ? optionIds[0] : null);
       await onSubmit(poll.id, optionIds, text);
       setJustSubmitted(true);
       setShowAnswer(false);
@@ -289,8 +195,6 @@ function PollCard({ poll, onSubmit, isSubmitting }: {
       // error handled by mutation
     }
   };
-
-  const myOptionId = poll.my_response?.option_id ?? submittedOptionId;
 
   return (
     <Card className="overflow-hidden">
@@ -304,30 +208,24 @@ function PollCard({ poll, onSubmit, isSubmitting }: {
             )}
             <span className="text-xs text-muted-foreground">{t(typeKey)}</span>
           </div>
-          <p className="text-xs text-muted-foreground">
-            {poll.response_count} {t('polls.responseCount')}
-          </p>
         </div>
 
-        {/* Already answered → Results */}
+        {/* Already answered → confirmation only (results are admin-only) */}
         {hasResponded && !showAnswer ? (
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-sm text-accent">
+          <div className="rounded-lg border border-accent/30 bg-accent/5 p-3 space-y-1">
+            <div className="flex items-center gap-2 text-sm text-accent font-medium">
               <CheckCircle2 className="h-4 w-4" />
-              <span className="font-medium">{t('polls.answered')}</span>
+              <span>{t('polls.responseSent')}</span>
             </div>
-
-            {isChoice && <ChoiceResults pollId={poll.id} myOptionId={myOptionId} />}
-            {isRating && <RatingResults pollId={poll.id} />}
-            {isOpen && (poll.my_response?.text_response) && (
-              <div className="mt-2 rounded-lg bg-muted p-3">
-                <p className="text-xs font-medium text-muted-foreground mb-1">{t('polls.yourResponse')}</p>
+            <p className="text-xs text-muted-foreground">{t('polls.resultsPrivate')}</p>
+            {isOpen && poll.my_response?.text_response && (
+              <div className="mt-2 rounded-md bg-background p-2 border border-border">
+                <p className="text-xs font-medium text-muted-foreground mb-0.5">{t('polls.yourResponse')}</p>
                 <p className="text-sm">{poll.my_response.text_response}</p>
               </div>
             )}
           </div>
         ) : showAnswer ? (
-          /* Answer Form */
           <div>
             {isChoice && (
               <ChoiceForm
@@ -351,7 +249,6 @@ function PollCard({ poll, onSubmit, isSubmitting }: {
             )}
           </div>
         ) : (
-          /* CTA buttons */
           <Button onClick={() => setShowAnswer(true)} className="w-full">
             <MessageSquareText className="mr-2 h-4 w-4" />
             {t('polls.answerCta')}

@@ -1,18 +1,20 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Plus, Mail, Pencil, Trash2, Users, Search,
+  Plus, Mail, Pencil, Trash2, Users, Search, CheckCircle2,
 } from 'lucide-react';
 import { useEvent } from '@/hooks/useEvent';
 import {
   useStaffMembers, useCreateStaffMember, useUpdateStaffMember,
-  useDeleteStaffMember, useInviteStaffUser,
+  useDeleteStaffMember, useInviteStaffUser, useSetStaffInvitationStatus,
+  useToggleStaffActive,
 } from '@/hooks/useAdminStaff';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
 import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
 } from '@/components/ui/table';
@@ -46,13 +48,14 @@ export default function StaffPage() {
   const updateStaff = useUpdateStaffMember();
   const deleteStaff = useDeleteStaffMember();
   const inviteStaff = useInviteStaffUser();
+  const setStatus = useSetStaffInvitationStatus();
+  const toggleActive = useToggleStaffActive();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<StaffMember | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Form state
   const [formName, setFormName] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [formRoom, setFormRoom] = useState('');
@@ -109,20 +112,7 @@ export default function StaffPage() {
           assigned_room: formRoom || undefined,
           access_expires_at: expiresAt,
         });
-
-        // Send invitation
-        try {
-          await inviteStaff.mutateAsync({
-            email: formEmail,
-            full_name: formName,
-            event_id: eventId,
-            assigned_room: formRoom || undefined,
-            access_expires_at: expiresAt,
-          });
-          toast({ title: t('staff.createSuccess') });
-        } catch {
-          toast({ title: t('staff.createSuccessNoInvite'), variant: 'destructive' });
-        }
+        toast({ title: t('staff.createSuccessPending') });
       }
       setModalOpen(false);
     } catch {
@@ -138,6 +128,22 @@ export default function StaffPage() {
       setDeleteTarget(null);
     } catch {
       toast({ title: t('staff.deleteError'), variant: 'destructive' });
+    }
+  };
+
+  const handleActivate = async (s: StaffMember) => {
+    if (!eventId) return;
+    try {
+      await inviteStaff.mutateAsync({
+        email: s.contact_email,
+        full_name: s.full_name,
+        event_id: eventId,
+        assigned_room: s.assigned_room || undefined,
+        access_expires_at: s.access_expires_at || undefined,
+      });
+      toast({ title: t('staff.activateSuccess', { name: s.full_name }) });
+    } catch {
+      toast({ title: t('staff.inviteError'), variant: 'destructive' });
     }
   };
 
@@ -157,20 +163,24 @@ export default function StaffPage() {
     }
   };
 
-  const statusBadge = (status: string | null) => {
-    switch (status) {
-      case 'active':
-        return <Badge className="bg-accent/10 text-accent border-accent/30">{t('staff.statusActive')}</Badge>;
-      case 'expired':
-        return <Badge variant="secondary">{t('staff.statusExpired')}</Badge>;
-      default:
-        return <Badge variant="outline" className="border-primary/30 text-primary">{t('staff.statusPending')}</Badge>;
+  const handleToggleAccess = async (s: StaffMember, next: boolean) => {
+    try {
+      await toggleActive.mutateAsync({ id: s.id, isActive: next });
+      toast({ title: t(next ? 'staff.accessRestored' : 'staff.accessSuspended') });
+    } catch {
+      toast({ title: t('staff.saveError'), variant: 'destructive' });
     }
+  };
+
+  const statusBadge = (s: StaffMember) => {
+    if (s.invitation_status === 'active') {
+      return <Badge className="bg-accent/10 text-accent border-accent/30">{t('staff.statusActiveLabel')}</Badge>;
+    }
+    return <Badge variant="outline" className="border-amber-400/40 text-amber-600 dark:text-amber-400">{t('staff.statusPendingLabel')}</Badge>;
   };
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{t('staff.title')}</h1>
@@ -182,7 +192,6 @@ export default function StaffPage() {
         </Button>
       </div>
 
-      {/* Stats */}
       <div className="flex items-center gap-4">
         <Card className="flex-1">
           <CardContent className="flex items-center gap-3 py-3">
@@ -195,7 +204,6 @@ export default function StaffPage() {
         </Card>
       </div>
 
-      {/* Search */}
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -206,7 +214,6 @@ export default function StaffPage() {
         />
       </div>
 
-      {/* Table */}
       {isLoading ? (
         <div className="space-y-2">
           {[1, 2, 3].map(i => <Skeleton key={i} className="h-14 w-full" />)}
@@ -220,6 +227,7 @@ export default function StaffPage() {
         </Card>
       ) : (
         <>
+        <div className="overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -227,12 +235,15 @@ export default function StaffPage() {
               <TableHead>{t('staff.colRoom')}</TableHead>
               <TableHead>{t('staff.colEmail')}</TableHead>
               <TableHead>{t('staff.colInvitation')}</TableHead>
+              <TableHead>{t('staff.colAccess')}</TableHead>
               <TableHead>{t('staff.colLastLogin')}</TableHead>
               <TableHead>{t('staff.colActions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {pagination.paginatedItems.map((s) => (
+            {pagination.paginatedItems.map((s) => {
+              const isActive = s.invitation_status === 'active';
+              return (
               <TableRow key={s.id}>
                 <TableCell>
                   <div className="flex items-center gap-2">
@@ -250,7 +261,23 @@ export default function StaffPage() {
                   )}
                 </TableCell>
                 <TableCell className="text-muted-foreground">{s.contact_email}</TableCell>
-                <TableCell>{statusBadge(s.invitation_status)}</TableCell>
+                <TableCell>{statusBadge(s)}</TableCell>
+                <TableCell>
+                  {isActive ? (
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={s.is_active}
+                        onCheckedChange={(v) => handleToggleAccess(s, v)}
+                        aria-label={t('staff.toggleAccess')}
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        {s.is_active ? t('staff.accessEnabled') : t('staff.accessDisabled')}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
+                </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {s.last_login
                     ? format(new Date(s.last_login), 'dd/MM HH:mm')
@@ -258,15 +285,28 @@ export default function StaffPage() {
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => handleResendInvite(s)}
-                      title={t('staff.resendInvite')}
-                    >
-                      <Mail className="h-4 w-4" />
-                    </Button>
+                    {!isActive && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-accent hover:text-accent"
+                        onClick={() => handleActivate(s)}
+                        title={t('staff.activateAccount')}
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {isActive && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => handleResendInvite(s)}
+                        title={t('staff.resendInvite')}
+                      >
+                        <Mail className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"
@@ -286,9 +326,11 @@ export default function StaffPage() {
                   </div>
                 </TableCell>
               </TableRow>
-            ))}
+              );
+            })}
           </TableBody>
         </Table>
+        </div>
         <DataTablePagination
           currentPage={pagination.currentPage}
           totalPages={pagination.totalPages}
@@ -300,7 +342,6 @@ export default function StaffPage() {
         </>
       )}
 
-      {/* Create/Edit Dialog */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -338,6 +379,11 @@ export default function StaffPage() {
                 </SelectContent>
               </Select>
             </div>
+            {!editingStaff && (
+              <p className="text-xs text-muted-foreground rounded-md bg-muted p-2">
+                {t('staff.createPendingHint')}
+              </p>
+            )}
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setModalOpen(false)}>
                 {t('staff.cancel')}
@@ -353,7 +399,6 @@ export default function StaffPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
