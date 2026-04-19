@@ -35,10 +35,38 @@ export type Database = {
         }
         Relationships: []
       }
+      activity_quiz_answers: {
+        Row: {
+          correct_answer: string
+          created_at: string
+          quiz_id: string
+          updated_at: string
+        }
+        Insert: {
+          correct_answer: string
+          created_at?: string
+          quiz_id: string
+          updated_at?: string
+        }
+        Update: {
+          correct_answer?: string
+          created_at?: string
+          quiz_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_quiz_answers_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: true
+            referencedRelation: "activity_quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       activity_quizzes: {
         Row: {
           activity_id: string
-          correct_answer: string | null
           created_at: string | null
           display_order: number | null
           id: string
@@ -48,7 +76,6 @@ export type Database = {
         }
         Insert: {
           activity_id: string
-          correct_answer?: string | null
           created_at?: string | null
           display_order?: number | null
           id?: string
@@ -58,7 +85,6 @@ export type Database = {
         }
         Update: {
           activity_id?: string
-          correct_answer?: string | null
           created_at?: string | null
           display_order?: number | null
           id?: string
