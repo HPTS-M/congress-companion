@@ -158,6 +158,7 @@ async function exportAll(
   ratings: RatingsReport[],
   logistics: LogisticsReport[],
   sponsors: SponsorEngagementReport[],
+  pollResponses: PollResponseReport[],
   t: (k: string) => string,
 ) {
   const workbook = new ExcelJS.Workbook();
@@ -179,9 +180,29 @@ async function exportAll(
     { header: t('reports.ratings.colSpeaker'), key: 'speaker_name', width: 25 },
     { header: t('reports.ratings.colAvg'), key: 'avg_stars', width: 12 },
     { header: t('reports.ratings.colTotal'), key: 'total_ratings', width: 16 },
-    { header: t('reports.ratings.colComments'), key: 'comments_text', width: 50 },
+    { header: t('reports.ratings.colAuthor'), key: 'author_name', width: 28 },
+    { header: t('reports.ratings.colCredential'), key: 'credential_code', width: 18 },
+    { header: t('reports.ratings.colStars'), key: 'stars', width: 8 },
+    { header: t('reports.ratings.colComments'), key: 'comment', width: 60 },
   ];
-  ratings.forEach((r) => ws2.addRow({ ...r, comments_text: r.comments.join(' | ') }));
+  ratings.forEach((r) => {
+    if (r.comments.length === 0) {
+      ws2.addRow({ title: r.title, speaker_name: r.speaker_name ?? '', avg_stars: r.avg_stars, total_ratings: r.total_ratings });
+    } else {
+      r.comments.forEach((c) => {
+        ws2.addRow({
+          title: r.title,
+          speaker_name: r.speaker_name ?? '',
+          avg_stars: r.avg_stars,
+          total_ratings: r.total_ratings,
+          author_name: c.author_name,
+          credential_code: c.credential_code,
+          stars: c.stars,
+          comment: c.comment,
+        });
+      });
+    }
+  });
 
   const ws3 = workbook.addWorksheet(t('reports.logistics.title'));
   ws3.columns = [
@@ -204,6 +225,24 @@ async function exportAll(
     { header: t('reports.sponsors.colLeads'), key: 'leads_captured', width: 16 },
   ];
   sponsors.forEach((r) => ws4.addRow(r));
+
+  const ws5 = workbook.addWorksheet(t('reports.polls.title'));
+  ws5.columns = [
+    { header: t('reports.polls.colQuestion'), key: 'question', width: 50 },
+    { header: t('reports.polls.colAuthor'), key: 'author_name', width: 28 },
+    { header: t('reports.polls.colCredential'), key: 'credential_code', width: 18 },
+    { header: t('reports.polls.colAnswer'), key: 'answer', width: 40 },
+    { header: t('reports.polls.colDate'), key: 'created_at', width: 22 },
+  ];
+  pollResponses.forEach((r) => {
+    ws5.addRow({
+      question: r.question,
+      author_name: r.author_name,
+      credential_code: r.credential_code,
+      answer: r.option_text ?? r.text_response ?? '',
+      created_at: r.created_at ? new Date(r.created_at).toLocaleString('es-CO') : '',
+    });
+  });
 
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
