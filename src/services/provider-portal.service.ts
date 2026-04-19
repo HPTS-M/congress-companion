@@ -94,6 +94,20 @@ export const providerPortalService = {
       _attendee_service_id: attendeeServiceId,
     });
     if (error) throw new Error(error.message);
-    return data as any;
+    const result = data as any;
+    // Fire-and-forget activity log
+    this.logActivity('ticket_validated', { attendee_service_id: attendeeServiceId, success: !!result?.success }).catch(() => {});
+    return result;
+  },
+
+  async logActivity(activityType: string, metadata: Record<string, any> = {}): Promise<void> {
+    try {
+      await (supabase as any).rpc('log_provider_activity', {
+        _activity_type: activityType,
+        _metadata: metadata,
+      });
+    } catch {
+      // silent
+    }
   },
 };
