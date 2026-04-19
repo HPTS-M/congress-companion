@@ -109,6 +109,7 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
     ((event?.settings ?? {}) as Record<string, unknown>).external_credentials_enabled === true;
 
   const bulkMutation = useBulkCreateAttendees();
+  const upsertMutation = useBulkUpsertAttendees();
   const sendInvitationsMutation = useSendInvitations();
   const { data: existingEmails } = useExistingEmails();
   const { data: existingExternalCodes } = useExistingExternalCodes();
@@ -122,6 +123,14 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
   const [errorsModalOpen, setErrorsModalOpen] = useState(false);
   const [warningsModalOpen, setWarningsModalOpen] = useState(false);
   const [confirmWarningsOpen, setConfirmWarningsOpen] = useState(false);
+  const [updateExisting, setUpdateExisting] = useState(false);
+  const [matchesByEmail, setMatchesByEmail] = useState<Record<string, Array<{
+    id: string; full_name: string; email: string; credential_code: string;
+    external_credential_code: string | null; created_at: string | null;
+  }>>>({});
+  const [matchesLoading, setMatchesLoading] = useState(false);
+  const [resolutionsByRow, setResolutionsByRow] = useState<AmbiguousResolutionMap>({});
+  const [resolveModalOpen, setResolveModalOpen] = useState(false);
 
   const existingEmailSet = useMemo(
     () => new Set((existingEmails ?? []).map((e) => e.toLowerCase())),
