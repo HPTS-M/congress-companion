@@ -1094,6 +1094,44 @@
     "visibility": {
       "title": "Visibilidad de Módulos",
       "description": "Activa o desactiva módulos de la app del asistente. Los módulos desactivados no aparecerán en la navegación."
+    },
+    "details": {
+      "title": "Datos del Evento",
+      "description": "Información básica del evento que se muestra a los asistentes en la pantalla de inicio.",
+      "fields": {
+        "name": "Nombre del evento",
+        "description": "Descripción",
+        "startDate": "Fecha de inicio",
+        "endDate": "Fecha de fin",
+        "venueName": "Nombre de la sede",
+        "venueAddress": "Dirección",
+        "capacity": "Aforo máximo"
+      },
+      "placeholders": {
+        "name": "Ej. Congreso Nacional de Cardiología 2026",
+        "description": "Breve resumen del evento (opcional)",
+        "pickDate": "Selecciona una fecha",
+        "venueName": "Ej. Centro de Convenciones",
+        "venueAddress": "Calle, ciudad, país",
+        "capacity": "Ej. 500"
+      },
+      "hints": {
+        "venueAddress": "Se usa para abrir la ubicación en Google Maps desde la app del asistente.",
+        "capacity": "Número total de asistentes esperados."
+      },
+      "errors": {
+        "nameRequired": "El nombre es obligatorio (mínimo 2 caracteres).",
+        "startRequired": "La fecha de inicio es obligatoria.",
+        "endRequired": "La fecha de fin es obligatoria.",
+        "endBeforeStart": "La fecha de fin no puede ser anterior a la de inicio.",
+        "capacityInvalid": "Ingresa un número válido.",
+        "capacityPositive": "El aforo debe ser mayor a 0."
+      },
+      "save": "Guardar cambios",
+      "savedTitle": "Datos actualizados",
+      "savedDescription": "Los cambios se reflejan en la app del asistente.",
+      "errorTitle": "Error al guardar",
+      "errorDescription": "No se pudieron guardar los cambios. Intenta de nuevo."
     }
   }
 }
