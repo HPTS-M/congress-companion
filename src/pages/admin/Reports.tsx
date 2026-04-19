@@ -53,6 +53,36 @@ function exportAttendanceExcel(data: AttendanceReport[], t: (k: string) => strin
 }
 
 function exportRatingsExcel(data: RatingsReport[], t: (k: string) => string) {
+  // One row per comment so Author + Credential are first-class
+  const rows: Record<string, unknown>[] = [];
+  data.forEach((r) => {
+    if (r.comments.length === 0) {
+      rows.push({
+        title: r.title,
+        speaker_name: r.speaker_name ?? '',
+        avg_stars: r.avg_stars,
+        total_ratings: r.total_ratings,
+        author_name: '',
+        credential_code: '',
+        stars: '',
+        comment: '',
+      });
+    } else {
+      r.comments.forEach((c) => {
+        rows.push({
+          title: r.title,
+          speaker_name: r.speaker_name ?? '',
+          avg_stars: r.avg_stars,
+          total_ratings: r.total_ratings,
+          author_name: c.author_name,
+          credential_code: c.credential_code,
+          stars: c.stars,
+          comment: c.comment,
+        });
+      });
+    }
+  });
+
   writeExcelFile({
     filename: 'reporte_calificaciones.xlsx',
     sheetName: t('reports.ratings.title'),
@@ -61,9 +91,33 @@ function exportRatingsExcel(data: RatingsReport[], t: (k: string) => string) {
       { header: t('reports.ratings.colSpeaker'), key: 'speaker_name', width: 25 },
       { header: t('reports.ratings.colAvg'), key: 'avg_stars', width: 12 },
       { header: t('reports.ratings.colTotal'), key: 'total_ratings', width: 16 },
-      { header: t('reports.ratings.colComments'), key: 'comments_text', width: 50 },
+      { header: t('reports.ratings.colAuthor'), key: 'author_name', width: 28 },
+      { header: t('reports.ratings.colCredential'), key: 'credential_code', width: 18 },
+      { header: t('reports.ratings.colStars'), key: 'stars', width: 8 },
+      { header: t('reports.ratings.colComments'), key: 'comment', width: 60 },
     ],
-    rows: toRows(data.map((r) => ({ ...r, comments_text: r.comments.join(' | ') }))),
+    rows,
+  });
+}
+
+function exportPollsExcel(data: PollResponseReport[], t: (k: string) => string) {
+  writeExcelFile({
+    filename: 'reporte_encuestas.xlsx',
+    sheetName: t('reports.polls.title'),
+    columns: [
+      { header: t('reports.polls.colQuestion'), key: 'question', width: 50 },
+      { header: t('reports.polls.colAuthor'), key: 'author_name', width: 28 },
+      { header: t('reports.polls.colCredential'), key: 'credential_code', width: 18 },
+      { header: t('reports.polls.colAnswer'), key: 'answer', width: 40 },
+      { header: t('reports.polls.colDate'), key: 'created_at', width: 22 },
+    ],
+    rows: data.map((r) => ({
+      question: r.question,
+      author_name: r.author_name,
+      credential_code: r.credential_code,
+      answer: r.option_text ?? r.text_response ?? '',
+      created_at: r.created_at ? new Date(r.created_at).toLocaleString('es-CO') : '',
+    })),
   });
 }
 
