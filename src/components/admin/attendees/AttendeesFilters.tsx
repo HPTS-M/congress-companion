@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Filter, X, Check, ChevronsUpDown } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -43,12 +44,14 @@ function MultiSelect({
   selected,
   onChange,
   emptyLabel,
+  isLoading,
 }: {
   label: string;
   options: string[];
   selected: string[];
   onChange: (next: string[]) => void;
   emptyLabel: string;
+  isLoading?: boolean;
 }) {
   const { t } = useTranslation('admin');
   const [open, setOpen] = useState(false);
@@ -58,6 +61,10 @@ function MultiSelect({
       : selected.length === 1
         ? selected[0]
         : `${label} (${selected.length})`;
+
+  if (isLoading) {
+    return <Skeleton className="h-9 min-w-[140px] rounded-md" />;
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -149,9 +156,20 @@ function HasServicesRadio({
   );
 }
 
-export function AttendeesFilters({ value, onChange, options }: Props) {
+export function AttendeesFilters({ value, onChange, options, isLoading }: Props) {
   const { t } = useTranslation('admin');
   const [sheetOpen, setSheetOpen] = useState(false);
+
+  // Diagnostic: warn if filter options are empty after loading completed.
+  useEffect(() => {
+    if (!isLoading && options.specialties.length === 0 && options.institutions.length === 0) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[AttendeesFilters] Filter options arrived empty (specialties=0, institutions=0). ' +
+          'Check useAttendeeFilterOptions / RLS / event_id.',
+      );
+    }
+  }, [isLoading, options.specialties.length, options.institutions.length]);
 
   const activeCount = useMemo(
     () =>
@@ -216,6 +234,7 @@ export function AttendeesFilters({ value, onChange, options }: Props) {
             selected={value.specialties}
             onChange={(specialties) => onChange({ ...value, specialties })}
             emptyLabel={t('attendees.filters.noSpecialties', { defaultValue: 'No specialties' })}
+            isLoading={isLoading}
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -228,6 +247,7 @@ export function AttendeesFilters({ value, onChange, options }: Props) {
             selected={value.institutions}
             onChange={(institutions) => onChange({ ...value, institutions })}
             emptyLabel={t('attendees.filters.noInstitutions', { defaultValue: 'No institutions' })}
+            isLoading={isLoading}
           />
         </div>
         <div className="flex flex-col gap-1">

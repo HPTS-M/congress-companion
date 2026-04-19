@@ -133,7 +133,7 @@ export default function AdminAttendees() {
   // ---------------- Data ----------------
   const { attendees, isLoading, isFetching, isRefetching, counts, isCountsLoading, refetch } =
     useAdminAttendees(debouncedSearch, statusFilter, serviceFilters);
-  const { data: filterOptions } = useAttendeeFilterOptions();
+  const { data: filterOptions, isLoading: isFilterOptionsLoading } = useAttendeeFilterOptions();
   const sendInvitationsMutation = useSendInvitations();
   const deleteMutation = useDeleteAttendee();
   const updateStatusMutation = useUpdateAttendeeStatus();
@@ -393,6 +393,7 @@ export default function AdminAttendees() {
           value={filters}
           onChange={setFilters}
           options={filterOptions ?? { specialties: [], institutions: [] }}
+          isLoading={isFilterOptionsLoading}
         />
       </div>
 
