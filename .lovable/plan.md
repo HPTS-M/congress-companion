@@ -1,38 +1,63 @@
 
-Reviso el estado del plan original vs lo implementado.
 
-**Implementado ✅**
-- Fase 1.1 Scrollbars branded globales
-- Fase 1.2 Filtros asistentes en grid 4 columnas
-- Fase 2.1 Migración BD (results_visibility, updated_at, poll_options.is_active, staff_members.is_active, RPC get_poll_aggregate)
-- Fase 2.3 updatePoll service + diff de opciones con respuestas
-- Fase 2.4 Attendee solo ve confirmación tras votar
-- Fase 3.1 getRatings y getPollResponses con nombre + credencial
-- Fase 3.2 UI Reports con sección Encuestas + columna Asistente en Ratings
-- Fase 4.1 Edge function create-staff-user con email español branded
-- Fase 4.2 Migración staff_members.is_active
-- Fase 4.3 Login staff con dialogs pending/suspended
-- Fase 4.4 UI Staff con badges estado + Switch acceso + activar cuenta
-- Fase 4.5 i18n staff es/en
-- Hooks useAdminPolls (updatePoll, useAdminPollForEdit) y PollFormModal con modo edición + warning
+Agrego la Fase 3 al plan vigente. Reemplazo la sección "Plan de implementación" para insertarla como nuevo paso explícito.
 
-**Pendiente ⏳**
+## Cambio al plan
 
-1. **Fase 2.2 — Bug de creación de encuestas**
-   - Verificar que el reset de estado en `PollFormModal` esté en el callback `onSuccess` y no antes (para que si falla la mutación los inputs se conserven con feedback de error).
-   - Tooltip con nombre completo en `formatSessionLabel` para sesiones con prefijos similares.
+Inserto **Paso 5-bis · Plantilla descargable** entre el Paso 5 (Modal de importación) y el Paso 6 (Modal de errores). El resto del plan no cambia.
 
-2. **Fase 2.1 (parcial) — RLS de poll_options**
-   - Confirmar que las políticas RLS existentes excluyen options con `is_active = false` para attendees (que no vean opciones desactivadas al votar), pero admin sí las vea en resultados históricos.
-   - Verificar que el RPC `get_poll_aggregate` esté siendo invocado desde el ResultsModal (o documentar que el conteo actual vía `getPollResults` ya cumple el requisito admin-only por RLS).
+### Paso 5-bis · Actualización de la plantilla descargable (OBLIGATORIO)
 
-3. **Fase 5 — Verificación end-to-end**
-   - Casos 3, 4, 5, 6, 11, 12, 13, 14 requieren prueba manual del usuario en el preview real (no preview interno, según LL-005).
+**Ubicación:** función `downloadTemplate()` en `src/components/admin/attendees/ImportCsvModal.tsx`.
 
-**Plan de cierre**
+**Cambio:** reemplazar las 4 columnas actuales (`full_name`, `email`, `specialty`, `institution`) por estas **6 columnas en este orden exacto** (encabezados en español, tal como pide el usuario):
 
-- **Paso A** — Auditar `PollFormModal` en `src/pages/admin/Polls.tsx` y mover el reset al `onSuccess` del callback que pasa `useAdminPolls`. Agregar `title` HTML al `SelectItem` de sesiones para tooltip nativo con nombre completo.
-- **Paso B** — Revisar políticas RLS actuales de `poll_options` con `supabase--read_query` y, si hace falta, añadir filtro `is_active = true` para el rol attendee (manteniendo acceso completo para admin). Documentar decisión.
-- **Paso C** — Entregar checklist de verificación al usuario para los casos manuales (3, 4, 5, 6, 11–14).
+| # | Header (Excel) | Key interno | Tipo | Ejemplo |
+|---|---|---|---|---|
+| 1 | Nombre completo | `full_name` | string | Dr. Juan Pérez |
+| 2 | Email | `email` | string | juan@ejemplo.com |
+| 3 | Código credencial | `external_credential_code` | string | EXT-001234 |
+| 4 | Especialidad | `specialty` | string | Cardiología |
+| 5 | Institución | `institution` | string | Hospital General |
+| 6 | Estado | `registration_status_id` | number (1\|2\|3) | 1 |
 
-Tras tu aprobación cambio a modo default y ejecuto A → B → C.
+**Filas de ejemplo (2):** una con estado 1 (confirmado) y otra con estado 2 (pendiente), para que el admin entienda el mapeo numérico.
+
+**Archivo descargado:** `plantilla-asistentes.xlsx` (se mantiene el nombre).
+
+**Mapeo bidireccional encabezado → key interno** debe quedar centralizado en `src/lib/import-validators.ts` (creado en Paso 3) para que el parser acepte los headers en español de la plantilla nueva pero también tolere los anteriores en inglés (retro-compatibilidad para archivos viejos):
+
+```ts
+const HEADER_ALIASES = {
+  full_name: ['Nombre completo', 'nombre_completo', 'full_name', 'nombre'],
+  email:     ['Email', 'email', 'correo'],
+  external_credential_code: ['Código credencial', 'codigo_credencial', 'credential_code'],
+  specialty: ['Especialidad', 'specialty', 'especialidad'],
+  institution: ['Institución', 'institution', 'institucion'],
+  registration_status_id: ['Estado', 'estado', 'status'],
+};
+```
+
+**Notas operativas:**
+- La columna 3 (`Código credencial`) corresponde al `external_credential_code` introducido en Paso 1. Si el toggle `external_credentials_enabled` está OFF, esa columna se ignora silenciosamente al importar (pero sigue presente en la plantilla para coherencia).
+- La columna 6 (`Estado`) acepta solo `1`, `2`, `3` y se mapea a `confirmed | pending | cancelled` por el validador (Paso 3). Si viene vacío, default = `2` (pendiente).
+- Anchos de columna sugeridos: 30, 30, 22, 20, 25, 10.
+
+---
+
+## Plan completo actualizado (orden de ejecución)
+
+1. Paso 1 · Migración BD (`external_credential_code` + índice único parcial)
+2. Paso 2 · Tipos + toggle en `EventSettingsCard`
+3. Paso 3 · `src/lib/import-validators.ts` (Zod, regex, mapeo estado, header aliases)
+4. Paso 4 · Servicio: `getExistingExternalCodes` + extender `bulkCreateAttendees`
+5. Paso 5 · Reescritura del `ImportCsvModal` (parser tolerante, validación acumulativa)
+6. **Paso 5-bis · Plantilla descargable nueva (6 columnas en español)** ← agregado
+7. Paso 6 · `ImportErrorsModal` (tabla errores + exportar Excel + decisión NO APLICA)
+8. Paso 7 · UI tabla y `NewAttendeeModal` con campo credencial externa
+9. Paso 8 · Edge Function `verify-access-code` acepta credencial externa
+10. Paso 9 · i18n (es/en) — incluir claves para los nuevos headers de la plantilla
+11. Paso 10 · Checklist de verificación end-to-end
+
+Tras tu aprobación cambio a modo default y ejecuto Pasos 1 → 11.
+
