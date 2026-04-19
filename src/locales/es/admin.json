@@ -1221,6 +1221,8 @@
     "qrEnabledDescription": "Cuando está activo, se habilitan las funciones de escaneo QR, visualización del QR personal en el perfil y en tickets, y la pestaña de Check-in. Al desactivarlo se ocultan todas esas funciones.",
     "documentsDownload": "Descarga de documentos",
     "documentsDownloadDescription": "Cuando está activo, los asistentes pueden descargar los documentos del evento. Al desactivarlo, podrán ver la lista pero no descargar los archivos.",
+    "externalCredentials": "Códigos de credencial externos",
+    "externalCredentialsDescription": "Permite cargar códigos de credencial propios desde el CSV (ej. cédula profesional, ID corporativo). Identifica de forma única a cada asistente y nunca puede repetirse.",
     "saved": "Configuración guardada",
     "error": "Error al guardar configuración",
     "branding": {
