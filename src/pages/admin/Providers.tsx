@@ -75,6 +75,7 @@ export default function AdminProviders() {
   // Confirmation dialog states
   const [resendConfirm, setResendConfirm] = useState<ProviderRow | null>(null);
   const [emailChangedConfirm, setEmailChangedConfirm] = useState<{ provider: ProviderRow; newEmail: string } | null>(null);
+  const [activityProvider, setActivityProvider] = useState<ProviderRow | null>(null);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return providers;
@@ -333,6 +334,9 @@ export default function AdminProviders() {
                           <Mail className={`h-4 w-4 ${invitingId === p.id ? 'animate-pulse' : ''}`} />
                         </Button>
                       )}
+                      <Button variant="ghost" size="icon" onClick={() => setActivityProvider(p)} title={t('providers.viewActivity')}>
+                        <Activity className="h-4 w-4" />
+                      </Button>
                       <Button variant="ghost" size="icon" onClick={() => setAssigning(p)} title={t('providers.assignServices')}>
                         <Link2 className="h-4 w-4" />
                       </Button>
