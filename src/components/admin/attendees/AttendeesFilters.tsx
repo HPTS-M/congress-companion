@@ -44,12 +44,14 @@ function MultiSelect({
   selected,
   onChange,
   emptyLabel,
+  isLoading,
 }: {
   label: string;
   options: string[];
   selected: string[];
   onChange: (next: string[]) => void;
   emptyLabel: string;
+  isLoading?: boolean;
 }) {
   const { t } = useTranslation('admin');
   const [open, setOpen] = useState(false);
@@ -59,6 +61,10 @@ function MultiSelect({
       : selected.length === 1
         ? selected[0]
         : `${label} (${selected.length})`;
+
+  if (isLoading) {
+    return <Skeleton className="h-9 min-w-[140px] rounded-md" />;
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
