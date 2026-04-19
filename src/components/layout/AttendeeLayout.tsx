@@ -6,9 +6,12 @@ import { BottomNav } from './BottomNav';
 import { HamburgerMenu } from './HamburgerMenu';
 import { AttendeeSidebar } from './AttendeeSidebar';
 import { AttendeeOfflineBanner } from './AttendeeOfflineBanner';
+import { useMessageQueueWorker } from '@/hooks/useMessageQueueWorker';
 
 export function AttendeeLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
+  // Drain offline message queue (WhatsApp-style) once for the whole attendee app
+  useMessageQueueWorker();
 
   return (
     <SidebarProvider>
