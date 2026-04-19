@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Users, UserPlus, Upload, Download, Search, X, RefreshCw, Mail, Trash2 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Users, UserPlus, Upload, Download, Search, X, RefreshCw, Mail, Trash2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -12,11 +13,12 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
-import { useAdminAttendees, useSendInvitations, useDeleteAttendee, useUpdateAttendeeStatus } from '@/hooks/useAdminAttendees';
-import { adminAttendeesService, type AttendeeWithServices } from '@/services/admin-attendees.service';
+import { useAdminAttendees, useSendInvitations, useDeleteAttendee, useUpdateAttendeeStatus, useAttendeeFilterOptions } from '@/hooks/useAdminAttendees';
+import { adminAttendeesService, type AttendeeWithServices, type AttendeeFilters } from '@/services/admin-attendees.service';
 import { useEvent } from '@/hooks/useEvent';
 import { writeExcelFile } from '@/lib/excel';
 import { AttendeesTable } from '@/components/admin/attendees/AttendeesTable';
+import { AttendeesFilters, type AttendeesFiltersValue } from '@/components/admin/attendees/AttendeesFilters';
 import { NewAttendeeModal } from '@/components/admin/attendees/NewAttendeeModal';
 import { ImportCsvModal } from '@/components/admin/attendees/ImportCsvModal';
 import { DeleteAttendeeDialog } from '@/components/admin/attendees/DeleteAttendeeDialog';
@@ -30,12 +32,92 @@ const AttendeeDetailDrawer = lazy(() =>
   import('@/components/admin/attendees/AttendeeDetailDrawer').then((m) => ({ default: m.AttendeeDetailDrawer })),
 );
 
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+const DEFAULT_PAGE_SIZE = 10;
+
+/** Parse comma-separated query param into a string array. */
+function parseList(v: string | null): string[] {
+  if (!v) return [];
+  return v.split(',').map((s) => s.trim()).filter(Boolean);
+}
+
 export default function AdminAttendees() {
   const { t } = useTranslation('admin');
   const { event } = useEvent();
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // ---------------- URL-driven state ----------------
+  const search = searchParams.get('q') ?? '';
+  const statusFilter = searchParams.get('status') ?? 'all';
+  const currentPage = Math.max(1, Number(searchParams.get('page')) || 1);
+  const pageSize = PAGE_SIZE_OPTIONS.includes(Number(searchParams.get('size')))
+    ? Number(searchParams.get('size'))
+    : DEFAULT_PAGE_SIZE;
+
+  const filters: AttendeesFiltersValue = useMemo(
+    () => ({
+      specialties: parseList(searchParams.get('specialties')),
+      institutions: parseList(searchParams.get('institutions')),
+      hasServices: (searchParams.get('hasServices') as 'yes' | 'no' | null) || null,
+    }),
+    [searchParams],
+  );
+
+  // Convert UI filters → service filters
+  const serviceFilters: AttendeeFilters = useMemo(
+    () => ({
+      specialties: filters.specialties,
+      institutions: filters.institutions,
+      hasServices: filters.hasServices,
+    }),
+    [filters],
+  );
+
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Helper: update URL params (immutable patch)
+  const updateParams = useCallback(
+    (patch: Record<string, string | null>) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          for (const [key, value] of Object.entries(patch)) {
+            if (value === null || value === '') next.delete(key);
+            else next.set(key, value);
+          }
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  const setSearch = useCallback((v: string) => updateParams({ q: v || null, page: null }), [updateParams]);
+  const setStatusFilter = useCallback((v: string) => updateParams({ status: v === 'all' ? null : v, page: null }), [updateParams]);
+  const setPageInUrl = useCallback((p: number) => updateParams({ page: p === 1 ? null : String(p) }), [updateParams]);
+  const setPageSizeInUrl = useCallback(
+    (s: number) => updateParams({ size: s === DEFAULT_PAGE_SIZE ? null : String(s), page: null }),
+    [updateParams],
+  );
+
+  const setFilters = useCallback(
+    (next: AttendeesFiltersValue) => {
+      updateParams({
+        specialties: next.specialties.length ? next.specialties.join(',') : null,
+        institutions: next.institutions.length ? next.institutions.join(',') : null,
+        hasServices: next.hasServices,
+        page: null,
+      });
+    },
+    [updateParams],
+  );
+
+  // ---------------- Local UI state ----------------
   const [showNewModal, setShowNewModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [selectedAttendeeId, setSelectedAttendeeId] = useState<string | null>(null);
@@ -45,17 +127,16 @@ export default function AdminAttendees() {
   const [qualityFilterIds, setQualityFilterIds] = useState<string[] | null>(null);
   const [qualityFilterLabel, setQualityFilterLabel] = useState('');
   const [isExporting, setIsExporting] = useState(false);
+  // Persistent across pages — Set of attendee IDs
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const { attendees, isLoading, isRefetching, counts, isCountsLoading, refetch } = useAdminAttendees(debouncedSearch, statusFilter);
+  // ---------------- Data ----------------
+  const { attendees, isLoading, isFetching, isRefetching, counts, isCountsLoading, refetch } =
+    useAdminAttendees(debouncedSearch, statusFilter, serviceFilters);
+  const { data: filterOptions } = useAttendeeFilterOptions();
   const sendInvitationsMutation = useSendInvitations();
   const deleteMutation = useDeleteAttendee();
   const updateStatusMutation = useUpdateAttendeeStatus();
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search), 300);
-    return () => clearTimeout(timer);
-  }, [search]);
 
   const handleRefresh = useCallback(() => {
     refetch();
@@ -159,16 +240,17 @@ export default function AdminAttendees() {
     [attendees, qualityFilterIds],
   );
 
-  // Pagination over the filtered list (10 per page)
+  // Pagination over the filtered list (URL-driven page + size)
   const {
     paginatedItems,
-    currentPage,
     totalPages,
     totalItems,
     startIndex,
     endIndex,
-    setPage,
-  } = usePagination(displayedAttendees, 10);
+  } = usePagination(displayedAttendees, pageSize, {
+    controlledPage: currentPage,
+    onPageChange: setPageInUrl,
+  });
 
   const statCards = useMemo(() => [
     { label: t('attendees.totalRegistered'), value: counts.total, color: 'text-primary' },
@@ -177,6 +259,29 @@ export default function AdminAttendees() {
   ], [t, counts]);
 
   const isCancelledTarget = toggleActiveTarget?.registration_status === 'cancelled';
+
+  const hasAnyFilter =
+    !!search ||
+    statusFilter !== 'all' ||
+    !!qualityFilterIds ||
+    filters.specialties.length > 0 ||
+    filters.institutions.length > 0 ||
+    !!filters.hasServices;
+
+  const clearAllFilters = () => {
+    setSearch('');
+    setStatusFilter('all');
+    setFilters({ specialties: [], institutions: [], hasServices: null });
+    clearQualityFilter();
+  };
+
+  // Visible vs total selection counters
+  const visibleSelectedCount = paginatedItems.filter((a) => selectedIds.has(a.id)).length;
+
+  // Select all across the *current filtered dataset* (not just visible page)
+  const selectAllFiltered = () => {
+    setSelectedIds(new Set(displayedAttendees.map((a) => a.id)));
+  };
 
   return (
     <div className="space-y-6">
@@ -229,17 +334,18 @@ export default function AdminAttendees() {
         <div className="flex items-center gap-2">
           <Badge variant="secondary" className="gap-1">
             {t('attendees.qualityFilterActive')}: {qualityFilterLabel}
-            <button onClick={clearQualityFilter}>
+            <button onClick={clearQualityFilter} aria-label={t('attendees.clearFilter')}>
               <X className="h-3 w-3" />
             </button>
           </Badge>
         </div>
       )}
 
-      {/* Tabs + Search */}
-      <div className="space-y-3">
+      {/* Filter bar — sticky-ish on mobile via natural top placement */}
+      <div className="space-y-3 rounded-lg border bg-card p-3 sm:p-4">
+        {/* Status tabs (scrollable on mobile) */}
         <Tabs value={statusFilter} onValueChange={setStatusFilter}>
-          <TabsList>
+          <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
             <TabsTrigger value="all">
               {t('attendees.filterAll')} <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5">{counts.total}</Badge>
             </TabsTrigger>
@@ -255,24 +361,68 @@ export default function AdminAttendees() {
           </TabsList>
         </Tabs>
 
+        {/* Search with loading spinner */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t('attendees.searchPlaceholder')}
-            className="pl-9"
+            className="pl-9 pr-9 h-10"
+            aria-label={t('attendees.searchPlaceholder')}
           />
+          {(isFetching || search !== debouncedSearch) && search && (
+            <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+          )}
+          {!isFetching && search && search === debouncedSearch && (
+            <button
+              onClick={() => setSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label={t('attendees.clearFilter')}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
+
+        {/* Advanced filters (specialty / institution / services) */}
+        <AttendeesFilters
+          value={filters}
+          onChange={setFilters}
+          options={filterOptions ?? { specialties: [], institutions: [] }}
+        />
       </div>
 
-      {/* Bulk action bar */}
+      {/* Bulk action bar — persistent across pages */}
       {selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 rounded-lg border bg-muted/50 p-3">
-          <span className="text-sm font-medium">
-            {t('attendees.selectedCount', { count: selectedIds.size })}
-          </span>
-          <div className="flex gap-2 ml-auto">
+        <div
+          className="flex flex-col gap-3 rounded-lg border bg-muted/50 p-3 sm:flex-row sm:items-center"
+          role="region"
+          aria-live="polite"
+        >
+          <div className="flex flex-col">
+            <span className="text-sm font-medium">
+              {t('attendees.selectedCount', { count: selectedIds.size })}
+            </span>
+            {selectedIds.size > visibleSelectedCount && (
+              <span className="text-xs text-muted-foreground">
+                {t('attendees.filters.selectionAcrossPages', {
+                  visible: visibleSelectedCount,
+                  total: selectedIds.size,
+                  defaultValue: '{{visible}} on this page · {{total}} total',
+                })}
+              </span>
+            )}
+          </div>
+          {selectedIds.size < displayedAttendees.length && (
+            <Button size="sm" variant="ghost" onClick={selectAllFiltered}>
+              {t('attendees.filters.selectAllN', {
+                count: displayedAttendees.length,
+                defaultValue: 'Select all {{count}}',
+              })}
+            </Button>
+          )}
+          <div className="flex flex-wrap gap-2 sm:ml-auto">
             <Button
               size="sm"
               variant="outline"
@@ -300,25 +450,48 @@ export default function AdminAttendees() {
 
       {/* Table */}
       <div key={statusFilter} className="animate-fade-in">
-        <AttendeesTable
-          attendees={paginatedItems}
-          isLoading={isLoading}
-          isRefetching={isRefetching}
-          onView={setSelectedAttendeeId}
-          onEdit={handleOpenEditModal}
-          onDelete={(id, name) => setDeleteAttendee({ id, name })}
-          onToggleActive={handleToggleActive}
-          selectedIds={selectedIds}
-          onSelectionChange={setSelectedIds}
-        />
-        <DataTablePagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalItems={totalItems}
-          startIndex={startIndex}
-          endIndex={endIndex}
-          onPageChange={setPage}
-        />
+        {!isLoading && displayedAttendees.length === 0 && hasAnyFilter ? (
+          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-card py-16 text-center">
+            <Search className="mb-3 h-10 w-10 text-muted-foreground/50" />
+            <p className="font-medium text-foreground">
+              {t('attendees.filters.noResultsTitle', { defaultValue: 'No results' })}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {t('attendees.filters.noResultsHint', {
+                defaultValue: 'Try clearing some filters or adjusting your search.',
+              })}
+            </p>
+            <Button variant="outline" size="sm" className="mt-4" onClick={clearAllFilters}>
+              <X className="mr-1.5 h-3.5 w-3.5" />
+              {t('attendees.filters.clearFiltersBtn', { defaultValue: 'Clear filters' })}
+            </Button>
+          </div>
+        ) : (
+          <>
+            <AttendeesTable
+              attendees={paginatedItems}
+              isLoading={isLoading}
+              isRefetching={isRefetching}
+              onView={setSelectedAttendeeId}
+              onEdit={handleOpenEditModal}
+              onDelete={(id, name) => setDeleteAttendee({ id, name })}
+              onToggleActive={handleToggleActive}
+              selectedIds={selectedIds}
+              onSelectionChange={setSelectedIds}
+            />
+            <DataTablePagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              startIndex={startIndex}
+              endIndex={endIndex}
+              onPageChange={setPageInUrl}
+              pageSize={pageSize}
+              onPageSizeChange={setPageSizeInUrl}
+              pageSizeOptions={PAGE_SIZE_OPTIONS}
+            />
+          </>
+        )}
       </div>
 
       {/* Modals */}
