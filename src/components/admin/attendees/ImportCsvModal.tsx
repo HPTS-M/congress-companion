@@ -208,6 +208,68 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
   const warningRows = processedRows.filter((r) => r.hasWarning);
   const rowsWithPermissiveErrors = validRows.filter((r) => r.permissiveErrors.length > 0);
 
+  // Fetch DB matches for valid rows (for upsert classification)
+  const eventId = event?.id;
+  useEffect(() => {
+    if (!eventId || validRows.length === 0) {
+      setMatchesByEmail({});
+      return;
+    }
+    const emails = validRows.map((r) => r.validated.email).filter(Boolean);
+    if (emails.length === 0) return;
+    let cancelled = false;
+    setMatchesLoading(true);
+    adminAttendeesService
+      .lookupAttendeesByEmails(eventId, emails)
+      .then((map) => {
+        if (!cancelled) setMatchesByEmail(map);
+      })
+      .catch(() => {
+        if (!cancelled) setMatchesByEmail({});
+      })
+      .finally(() => {
+        if (!cancelled) setMatchesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId, rawRows]);
+
+  // Classify valid rows for upsert mode
+  const classifiedValidRows = useMemo(() => {
+    return validRows.map((r) => {
+      const email = (r.validated.email ?? '').toLowerCase();
+      const matches = email ? (matchesByEmail[email] ?? []) : [];
+      let kind: 'new' | 'updatable' | 'ambiguous' = 'new';
+      if (matches.length === 1) kind = 'updatable';
+      else if (matches.length > 1) kind = 'ambiguous';
+      return { processed: r, matches, kind };
+    });
+  }, [validRows, matchesByEmail]);
+
+  const newCount = classifiedValidRows.filter((c) => c.kind === 'new').length;
+  const updatableCount = classifiedValidRows.filter((c) => c.kind === 'updatable').length;
+  const ambiguousList = classifiedValidRows.filter((c) => c.kind === 'ambiguous');
+  const ambiguousCount = ambiguousList.length;
+
+  const ambiguousRows: AmbiguousRow[] = useMemo(
+    () =>
+      ambiguousList.map((c) => ({
+        rowIndex: c.processed.rowNumber - 2,
+        rowNumber: c.processed.rowNumber,
+        fullName: c.processed.validated.full_name ?? '',
+        email: c.processed.validated.email ?? '',
+        incomingCongressCode: c.processed.validated.external_credential_code ?? '',
+        candidates: c.matches,
+      })),
+    [ambiguousList],
+  );
+
+  const allAmbiguousResolved =
+    ambiguousCount === 0 ||
+    ambiguousRows.every((r) => resolutionsByRow[r.rowIndex] !== undefined);
+
   const handleFile = useCallback(async (file: File) => {
     const validExts = ['.xlsx', '.xls', '.csv'];
     const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
