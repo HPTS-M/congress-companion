@@ -1,210 +1,95 @@
 
 
-Reviso el contexto. El usuario pide planificar features para Logística y Proveedores. Necesito entender qué está implementado hoy antes de proponer.
+## Plan: Mejoras Proveedores + Comunicaciones
 
-Tengo del contexto:
-- `admin-logistics.service.ts`: getAll/create/update/remove servicios, assignees, status updates con valores `'completed'`. El status del ticket se actualiza a `'completed'` cuando se valida.
-- `admin-providers.service.ts`: CRUD providers, invite/resend/reinvite vía edge function, accessCode generator. Email se envía vía Resend.
-- `attendee_services.status` default `'scheduled'`. Service tickets tienen `is_used`/`used_at`.
-- `service_catalog` (no veo el schema aquí, pero se infiere de getAll) tiene name, service_type, valid_day, valid_from, valid_until, location, description.
-- Providers tabla tiene: company_name, category, contact_email, access_code, last_login, login_count, password_changed, access_expires_at.
-- `email-invitation-links` memoria: APP_URL strip trailing slash, formato `${APP_URL}/${event_code}`.
-
-No veo en schema:
-- Constraint UNIQUE en `service_catalog (event_id, name)` — confirma duplicidad no validada en BD.
-- Constraint UNIQUE en `providers (event_id, contact_email)` o `(event_id, company_name)`.
-- Tabla `provider_access_log` para historial.
-- Estado nuevo en `service_catalog` (programado/cancelado/cumplido) — hoy solo hay status en `attendee_services` (scheduled/completed).
-
-Confirmado: el plan abarca cambios DB + servicios + UI. Lo presento conciso.
+### Decisiones del usuario
+- **Programación**: dentro del modal de "Nuevo anuncio" hay opción "Enviar ahora" o "Programar para fecha/hora". A la hora programada los confirmados reciben push + ven anuncio.
+- **Editar programado**: título, cuerpo y nueva hora. Botón "Reenviar ahora" para envío inmediato.
+- **Editar enviado**: campo `last_edited_at`. Permitir editar/reenviar solo si título o cuerpo cambiaron (validación de cambios reales).
+- **Logs proveedor**: 90 días (sin cambios).
 
 ---
 
-# Plan: Logística + Proveedores — features V2
+### Fase 1 — Migración BD
 
-## MÓDULO LOGÍSTICA
+`announcements`:
+- `ADD COLUMN scheduled_for timestamptz NULL` (null = inmediato).
+- `ADD COLUMN updated_at timestamptz DEFAULT now()` + trigger `update_updated_at`.
+- `ADD COLUMN last_edited_at timestamptz NULL` (se llena solo en ediciones, no en creación).
+- `ADD COLUMN last_resent_at timestamptz NULL` (track de reenvíos).
+- Backfill: `UPDATE announcements SET sent_at = COALESCE(sent_at, created_at)`.
+- `CREATE UNIQUE INDEX announcements_event_title_unique ON announcements (event_id, lower(title))`.
+- Habilitar `pg_cron` + `pg_net`.
+- Cron cada minuto → invoca edge function `dispatch-scheduled-announcements`.
 
-### 1. Validar duplicidad en creación de servicios
+### Fase 2 — Edge Functions
 
-**DB**: añadir UNIQUE constraint `service_catalog (event_id, lower(name))` (case-insensitive). Devuelve error 23505 que el frontend traduce.
+**`dispatch-scheduled-announcements`** (nueva, `verify_jwt: false` con secret guard):
+- Busca anuncios donde `scheduled_for <= now() AND sent_at IS NULL`.
+- Marca `sent_at = now()`, recalcula `reach_count` (asistentes confirmados al momento del envío).
+- (Push notifications quedan fuera de scope si no existen aún; este cron habilita el "momento de visibilidad" para los attendees vía la tabla.)
 
-**UI**: en `ServiceModal.tsx`, en `onSubmit` validar previamente con query `select id from service_catalog where event_id = ? and lower(name) = lower(?)` y mostrar error inline en el campo `name`. Si pasa la validación previa pero falla por race condition, capturar 23505 y mostrar toast.
+**`create-provider-user`** (ajuste):
+- `APP_URL.replace(/\/+$/, '')` antes de construir links.
+- Asegurar template de **resend** idéntico al **invite**: link clickable + access code visible.
+- Confirmar log `invitation_sent` / `invitation_resent`.
 
-### 2. Estados del servicio (catálogo) — programado / cancelado / cumplido
+### Fase 3 — Servicios y hooks
 
-**Concepto**: hoy `service_catalog` no tiene estado propio (solo lo tienen los `attendee_services`). Agregar:
-- Columna `status text default 'scheduled'` con valores: `scheduled`, `cancelled`, `completed`.
-- Columna calculada/derivada: `completed` se infiere comparando `valid_day + valid_until` vs `now()`. NO se almacena — se calcula en frontend o en una `view`.
+**`admin-communications.service.ts`**:
+- `createAnnouncement(eventId, { title, body, scheduledFor? })` → captura 23505 = `DUPLICATE_TITLE`.
+- `updateAnnouncement(id, { title, body, scheduledFor? })` → permitido siempre; si `sent_at IS NOT NULL`, marca `last_edited_at = now()`.
+- `resendAnnouncement(id)` → valida que título/cuerpo cambiaron desde último envío (compara con snapshot guardado o con `last_edited_at > sent_at`); si no cambió, retorna `NO_CHANGES`. Si cambió, marca `sent_at = now(), last_resent_at = now(), reach_count = recalculado`.
+- `cancelScheduled(id)` → delete físico.
+- `getAnnouncements`: incluir nuevos campos; ordenar programados pendientes primero, luego enviados desc.
+- **Eliminar**: `getGroupChatMessages`, `getAttendeeNames`, `deleteMessage` y los hooks `useAdminGroupChat`, `useAdminAttendeeNames`, `useDeleteChatMessage`.
 
-**Decisión**: usar **vista derivada** `service_catalog_with_status` que devuelve `effective_status`:
-- `cancelled` si admin lo marcó manualmente
-- `completed` si la fecha/hora ya pasó
-- `scheduled` por defecto
+**`admin-providers.service.ts`**:
+- `getActivityLog(providerId, { from?, to?, type? })` → lectura de `provider_activity_log` con filtros.
 
-Esto evita un cron job que actualice. El badge se calcula en tiempo de lectura.
+### Fase 4 — UI Admin
 
-**UI**:
-- Badge en tabla `Logistics.tsx` con color: scheduled=azul, cancelled=rojo, completed=gris.
-- Botón "Cancelar servicio" en menú de acciones (no borra, marca status='cancelled').
-- Filtro por estado en tabs.
+**Comunicaciones (`Communications.tsx`)**:
+- Eliminar `<TabsTrigger value="chat">` y todo el panel de chat moderation.
+- `AnnouncementModal` (renombre de NewAnnouncementModal) con modo crear/editar:
+  - Radio "Enviar ahora" vs "Programar".
+  - DateTimePicker (mínimo `now() + 1 min`) cuando elige programar.
+  - Validación inline `DUPLICATE_TITLE`.
+- Lista en dos secciones:
+  - **Programados** (badge ámbar `Programado para …`): acciones Editar / Cancelar.
+  - **Enviados**: badge `Enviado · {fecha}`, si `last_edited_at` muestra `Editado · {fecha}`, botón "Editar" + "Reenviar" (deshabilitado si título y cuerpo iguales al snapshot).
 
-### 3. Flujo de estados de tickets: Pendiente → Confirmado → En curso → Completado
+**Proveedores**:
+- `ProviderModal`: capturar `DUPLICATE_EMAIL` y mostrar error inline en input email (crear y editar).
+- Nuevo `ProviderActivityDrawer.tsx`:
+  - Timeline cronológico (más reciente arriba) con icono por `activity_type`.
+  - Filtros: rango fecha + select tipo.
+  - Botón "Exportar CSV" con ExcelJS.
+- Botón "Ver actividad" en cada fila de `Providers.tsx`.
 
-**Hoy**: `attendee_services.status` usa solo `scheduled` y `completed`. Falta `confirmed` y `in_progress`.
+### Fase 5 — i18n (es/en)
 
-**Cambios**:
-- Migrar `attendee_services.status` a enum/check constraint con valores: `pending`, `confirmed`, `in_progress`, `completed`, `cancelled`.
-- Backfill: `scheduled` → `pending`.
-- Actualizar `LogisticsAssign.tsx` para mostrar 5 estados con badges y permitir transiciones controladas (ej: no se puede pasar de `completed` a `pending`).
-- Validador en service: función helper `getNextValidStatuses(current)` que devuelve los estados válidos siguientes.
+Agregar a `admin.json`:
+- `announcements`: `duplicateTitle`, `scheduleFor`, `sendNow`, `scheduled`, `scheduledFor`, `editTitle`, `cancelScheduled`, `resend`, `noChangesToResend`, `lastEdited`, `lastResent`.
+- `providers`: `viewActivity`, `activityHistory`, `activityLogin`, `activityTicketValidated`, `activityInvitationSent`, `activityInvitationResent`, `filterByDate`, `filterByType`, `exportCsv`, `noActivity`.
+- Eliminar claves chat moderation.
 
-**i18n**: claves `logistics.statusPending|Confirmed|InProgress|Completed|Cancelled` en es/en.
+### Fase 6 — Verificación
 
-### 4. Optimizar actualización de rejilla
-
-**Diagnóstico**: hoy `useAdminLogistics` invalida toda la query con `qc.invalidateQueries({ queryKey: key })` tras cada mutación → re-fetch completo.
-
-**Optimizaciones**:
-- **Optimistic updates** en `updateMutation` y `toggleMutation`: usar `qc.setQueryData()` para actualizar la fila localmente antes de la respuesta del server.
-- **onError rollback**: snapshot previo + restore en caso de fallo.
-- **Realtime subscription**: añadir channel a `service_catalog` y `attendee_services` para que cambios de otros admins se reflejen sin recargar (con cleanup en useEffect según memoria `realtime-cleanup-pattern`).
-- **Debounce** en búsqueda de la tabla (actualmente filtra en cada keystroke).
-
-### 5. Consistencia entre asignación masiva e individual
-
-**Hoy**: 
-- `assignAttendee` (individual) inserta una fila → trigger crea ticket.
-- `bulkAssign` (masivo) itera y reporta `{assigned, errors}` → comportamiento diferente ante errores.
-
-**Unificación**:
-- Refactor `bulkAssign` para usar transacción con savepoint por attendee — si uno falla, los demás siguen, pero se loguea el motivo (no solo conteo).
-- Devolver `{assigned, skipped: [{attendee_id, reason}], errors: [...]}`.
-- En UI, mostrar modal con resumen detallado tras bulk assign.
-- Validación previa común para ambos flujos: helper `canAssign(attendeeId, serviceCatalogId)` que verifica:
-  - Attendee no esté ya asignado al mismo service
-  - Attendee no esté `deleted_at`
-  - Service no esté `cancelled`
-
----
-
-## MÓDULO PROVEEDORES
-
-### 1. Validar duplicidad en creación y edición
-
-**DB**: 
-- UNIQUE `providers (event_id, lower(contact_email)) where deleted` — email no puede repetirse en el mismo evento.
-- UNIQUE `providers (event_id, lower(company_name))` opcional (con confirm en UI si coincide).
-
-**UI** (`ProviderModal.tsx`):
-- Validación previa en `onSubmit`: query a providers filtrando por evento + email.
-- Si edita y email no cambió, omitir validación.
-- Mensaje inline en el campo `contact_email`.
-- Capturar 23505 como fallback.
-
-### 2. Enlaces funcionales en correos de invitación y reenvío
-
-**Diagnóstico**: la edge function `create-provider-user` ya construye `redirectTo = ${APP_URL}/${eventSlug}/provider`. Validar que:
-- APP_URL no tenga trailing slash (memoria `email-invitation-links`).
-- El link incluya un token o magic link válido (Supabase invite link ya lo hace).
-- El email HTML tenga botón CTA + URL plana para clientes que bloquean botones.
-
-**Cambios**:
-- Auditar `supabase/functions/create-provider-user/index.ts` y verificar template HTML del email.
-- Si el email actual solo manda link inválido, reescribir HTML con:
-  - Botón "Acceder al portal"
-  - URL plana debajo
-  - Datos del evento
-  - Código de acceso de 6 caracteres (el `access_code` de la tabla)
-  - Fecha de expiración del acceso
-- Para "resend": validar que se reutilice el mismo flow y no genere nuevo user.
-- Edge function debe stripear trailing slash de APP_URL.
-
-### 3. Historial de accesos y actividades del proveedor
-
-**DB nueva tabla**:
-```sql
-provider_activity_log (
-  id uuid pk,
-  provider_id uuid fk,
-  event_id uuid fk,
-  activity_type text,  -- login | logout | service_view | ticket_validate | password_change
-  metadata jsonb,      -- { service_id, attendee_id, ticket_code, ip, user_agent }
-  created_at timestamptz
-)
-```
-RLS: solo admin de la organización del evento puede leer. Provider NO ve su propio log.
-
-**Triggers/Hooks**:
-- En `providerPortalService.getProviderSession` (tras login exitoso): insertar activity `login`.
-- En `provider_validate_ticket` RPC: insertar activity `ticket_validate` con metadata.
-- En `getServiceAttendees`: insertar activity `service_view`.
-- En cambio de password: activity `password_change`.
-
-**UI Admin**:
-- En `Providers.tsx` añadir columna/acción "Ver historial" → abre `ProviderActivityDrawer`.
-- Drawer con timeline filtrable por tipo de actividad y rango de fechas.
-- Export CSV del historial.
-
----
-
-## ORDEN DE EJECUCIÓN (backend-first)
-
-1. **Migración DB** (única, agrupada):
-   - UNIQUE constraints (services + providers)
-   - Columna `service_catalog.status`
-   - Vista `service_catalog_with_status`
-   - Migración de valores `attendee_services.status`
-   - Tabla `provider_activity_log` + RLS + grants
-2. Regenerar `types.ts` (automático)
-3. Actualizar servicios: `admin-logistics.service.ts`, `admin-providers.service.ts`, `provider-portal.service.ts`
-4. Actualizar edge functions: `create-provider-user` (email HTML)
-5. Crear hook `useProviderActivityLog`
-6. Actualizar UI: `ServiceModal`, `Logistics.tsx`, `LogisticsAssign.tsx`, `ProviderModal`, `Providers.tsx`, nuevo `ProviderActivityDrawer.tsx`
-7. i18n es/en
-8. QA
-
-## ARCHIVOS A TOCAR
-
-| Tipo | Archivo |
-|---|---|
-| Migración | 1 SQL nueva |
-| Service | admin-logistics, admin-providers, provider-portal |
-| Edge fn | create-provider-user (email HTML) |
-| Hook | useAdminLogistics, useAdminProviders, **useProviderActivityLog (nuevo)** |
-| UI Logística | ServiceModal, Logistics.tsx, LogisticsAssign.tsx |
-| UI Providers | ProviderModal, Providers.tsx, **ProviderActivityDrawer.tsx (nuevo)** |
-| i18n | locales/{es,en}/admin.json |
-
-## PREGUNTAS BLOQUEANTES
-
-1. **Estado `cancelled` en service_catalog**: cuando un admin cancela un servicio del catálogo, ¿qué pasa con los `attendee_services` ya asignados? Opciones:
-   - (a) Cancelar todos los tickets en cascada
-   - (b) Bloquear la cancelación si hay attendees asignados
-   - (c) Solo marcar el catálogo, dejar tickets activos (admin decide manualmente)
-
-2. **Historial de proveedor**: ¿qué retención de datos? ¿90 días, 1 año, indefinido? Afecta políticas de purga.
-
-3. **Email de proveedor**: ¿el código de acceso de 6 caracteres debe verse en el email? Hoy se usa para login alterno además del magic link.
-
-4. **Flujo de estados de ticket**: ¿quién puede cambiar a `in_progress`? ¿Solo el provider al iniciar el servicio (ej: bus arrancando) o también el admin?
-
-## VERIFICACIÓN POST-CAMBIOS
-
-| # | Prueba | Criterio |
-|---|---|---|
-| 1 | Crear servicio con nombre duplicado | Error inline en campo name |
-| 2 | Crear proveedor con email duplicado en mismo evento | Error inline |
-| 3 | Cambiar status ticket pending→confirmed→in_progress→completed | Transiciones permitidas, badges actualizados |
-| 4 | Intentar ir de completed→pending | Bloqueado |
-| 5 | Cancelar servicio del catálogo | Badge "Cancelado", según decisión Q1 |
-| 6 | Servicio con valid_until ya pasado | Badge automático "Cumplido" en lectura |
-| 7 | Editar fila + ver actualización en tabla | Sin re-fetch completo (optimistic) |
-| 8 | Bulk assign 50 attendees, 3 ya asignados | Reporta 47 ok + 3 skipped con motivo |
-| 9 | Invitar proveedor + abrir email | Botón funcional, redirige al portal |
-| 10 | Login proveedor + validar ticket | Activity log registra ambos eventos |
-| 11 | Admin ve historial de proveedor | Timeline con filtros funciona |
-| 12 | Mobile 360px todos los modales | Sin overflow |
-| 13 | Dark mode badges nuevos | Contraste correcto |
-| 14 | i18n es/en | Todas las claves presentes |
-| 15 | `supabase--linter` post-migración | 0 nuevos warnings |
+| # | Caso | Esperado |
+|---|------|----------|
+| 1 | Crear anuncio con título existente | Error inline `DUPLICATE_TITLE` |
+| 2 | Programar +5 min | Aparece en sección Programados |
+| 3 | Cron despacha programado | `sent_at` se llena, pasa a Enviados |
+| 4 | Editar programado (título, cuerpo, hora) | Persiste cambios |
+| 5 | Cancelar programado | Eliminado |
+| 6 | Editar enviado y reenviar | Marca `last_edited_at` + `last_resent_at`, `sent_at` actualizado |
+| 7 | Reenviar sin cambios | Bloqueado con `NO_CHANGES` |
+| 8 | Tab "Chat" admin | No existe |
+| 9 | Editar proveedor email duplicado | Error inline |
+| 10 | Resend invite proveedor | Email con link funcional + código |
+| 11 | Drawer actividad proveedor | Timeline + filtros + CSV |
+| 12 | Mobile 360px | Sin overflow |
+| 13 | i18n es/en | Completo |
+| 14 | `supabase--linter` | 0 nuevos warnings |
 
