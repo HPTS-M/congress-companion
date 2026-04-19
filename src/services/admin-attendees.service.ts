@@ -75,7 +75,7 @@ export const adminAttendeesService = {
     let query = supabase
       .from('attendees')
       .select(
-        'id, event_id, full_name, email, credential_code, registration_status, specialty, institution, phone, registration_date, invitation_sent_at, created_at, user_id',
+        'id, event_id, full_name, email, credential_code, external_credential_code, registration_status, specialty, institution, phone, registration_date, invitation_sent_at, created_at, user_id',
       )
       .eq('event_id', eventId)
       .is('deleted_at', null)
@@ -453,6 +453,18 @@ export const adminAttendeesService = {
       .eq('event_id', eventId)
       .is('deleted_at', null);
     return (data ?? []).map((a) => a.email.toLowerCase());
+  },
+
+  getExistingExternalCodes: async (eventId: string): Promise<string[]> => {
+    const { data } = await supabase
+      .from('attendees')
+      .select('external_credential_code')
+      .eq('event_id', eventId)
+      .is('deleted_at', null)
+      .not('external_credential_code', 'is', null);
+    return (data ?? [])
+      .map((a) => (a.external_credential_code ?? '').trim())
+      .filter((c) => c.length > 0);
   },
 
   sendInvitations: async (attendeeIds: string[], eventId: string): Promise<{ sent: number; failed: number }> => {
