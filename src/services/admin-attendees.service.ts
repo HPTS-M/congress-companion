@@ -14,6 +14,16 @@ export interface CreateAttendeeData {
   specialty?: string;
   institution?: string;
   registration_status?: string;
+  external_credential_code?: string | null;
+}
+
+export interface BulkAttendeeRow {
+  full_name: string;
+  email: string;
+  specialty?: string;
+  institution?: string;
+  external_credential_code?: string | null;
+  registration_status?: string;
 }
 
 export interface AttendeeCounts {
