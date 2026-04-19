@@ -977,7 +977,15 @@
     "deleteConfirm": "Delete {{name}}? This action cannot be undone.",
     "deleteButton": "Delete",
     "deleteSuccess": "Staff deleted",
-    "deleteError": "Error deleting"
+    "deleteError": "Error deleting",
+    "statusActiveLabel": "Active",
+    "statusPendingLabel": "Pending",
+    "createSuccessPending": "Staff created in pending status. Activate them when ready to grant access.",
+    "createPendingHint": "The new member will be created in «Pending» status. They won't have access until you activate them manually from the list.",
+    "activateSuccess": "{{name}} successfully activated. They will receive an email with credentials.",
+    "toggleAccess": "Enable or suspend access",
+    "accessRestored": "Access restored",
+    "accessSuspended": "Access suspended"
   },
   "staffPortal": {
     "title": "Staff Portal",
@@ -989,7 +997,12 @@
     "loggingIn": "Logging in...",
     "invalidCredentials": "Invalid credentials",
     "noAccess": "You do not have staff access to this event",
-    "noSessionsForRoom": "No sessions for this room"
+    "noSessionsForRoom": "No sessions for this room",
+    "pendingDialogTitle": "Account pending activation",
+    "pendingDialogBody": "Your account has not yet been activated by the administrator. Please contact the event organizer to enable your access.",
+    "suspendedDialogTitle": "Access suspended",
+    "suspendedDialogBody": "Your access to the Staff portal has been suspended by the administrator. Please contact the organizer for more information.",
+    "understood": "Got it"
   },
   "reports": {
     "title": "Reports",

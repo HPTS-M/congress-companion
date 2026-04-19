@@ -977,7 +977,15 @@
     "deleteConfirm": "¿Eliminar a {{name}}? Esta acción no se puede deshacer.",
     "deleteButton": "Eliminar",
     "deleteSuccess": "Staff eliminado",
-    "deleteError": "Error al eliminar"
+    "deleteError": "Error al eliminar",
+    "statusActiveLabel": "Activo",
+    "statusPendingLabel": "Pendiente",
+    "createSuccessPending": "Staff creado en estado pendiente. Actívalo cuando esté listo para acceder.",
+    "createPendingHint": "El nuevo miembro se creará en estado «Pendiente». No tendrá acceso hasta que lo actives manualmente desde la lista.",
+    "activateSuccess": "{{name}} activado correctamente. Recibirá un email con sus credenciales.",
+    "toggleAccess": "Activar o suspender acceso",
+    "accessRestored": "Acceso restaurado",
+    "accessSuspended": "Acceso suspendido"
   },
   "staffPortal": {
     "title": "Portal Staff",
@@ -989,7 +997,12 @@
     "loggingIn": "Iniciando sesión...",
     "invalidCredentials": "Credenciales inválidas",
     "noAccess": "No tienes acceso como staff a este evento",
-    "noSessionsForRoom": "No hay sesiones para esta sala"
+    "noSessionsForRoom": "No hay sesiones para esta sala",
+    "pendingDialogTitle": "Cuenta pendiente de activación",
+    "pendingDialogBody": "Tu cuenta aún no ha sido activada por el administrador. Comunícate con el organizador del evento para habilitar tu acceso.",
+    "suspendedDialogTitle": "Acceso suspendido",
+    "suspendedDialogBody": "Tu acceso al portal Staff ha sido suspendido por el administrador. Comunícate con el organizador para más información.",
+    "understood": "Entendido"
   },
   "reports": {
     "title": "Reportes",
