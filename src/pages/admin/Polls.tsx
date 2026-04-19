@@ -171,21 +171,49 @@ function ResultsModal({
   pollId,
   open,
   onOpenChange,
+  eventId,
+  eventCode,
 }: {
   pollId: string | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  eventId: string;
+  eventCode: string;
 }) {
   const { t } = useTranslation('admin');
+  const { toast } = useToast();
   const { data: results, isLoading, refetch } = useAdminPollResults(pollId);
+  const [isExporting, setIsExporting] = useState(false);
 
   const handleRealtime = useCallback(() => { refetch(); }, [refetch]);
   usePollRealtime(open ? pollId : null, handleRealtime);
+
+  const isOpenText = results?.poll_type === 'open_text';
+
+  const { data: textResponses, isLoading: textLoading } = useQuery({
+    queryKey: ['admin-poll-text-responses', pollId],
+    queryFn: () => adminPollsService.getTextResponses(pollId!),
+    enabled: !!pollId && open && isOpenText,
+    staleTime: 10_000,
+  });
 
   if (!pollId) return null;
 
   const isChoiceType = results?.poll_type === 'multiple_choice' || results?.poll_type === 'single_choice';
   const isRating = results?.poll_type === 'rating_scale';
+
+  const handleExportSingle = async () => {
+    if (!pollId) return;
+    setIsExporting(true);
+    try {
+      await adminPollsExcelService.exportSinglePoll(pollId, eventId, eventCode);
+      toast({ title: t('polls.exportSuccess') });
+    } catch (e) {
+      toast({ title: t('polls.exportError'), variant: 'destructive' });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -200,10 +228,18 @@ function ResultsModal({
           </div>
         ) : results ? (
           <div className="space-y-4">
-            <p className="text-lg font-semibold">{results.question}</p>
-            <p className="text-sm text-muted-foreground">
-              {t('polls.totalResponses')}: <span className="font-bold text-foreground">{results.total_responses}</span>
-            </p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <p className="text-lg font-semibold">{results.question}</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {t('polls.totalResponses')}: <span className="font-bold text-foreground">{results.total_responses}</span>
+                </p>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleExportSingle} disabled={isExporting}>
+                {isExporting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Download className="mr-1 h-4 w-4" />}
+                {t('polls.exportSingle')}
+              </Button>
+            </div>
 
             {isChoiceType && results.options?.map(opt => (
               <div key={opt.id} className="space-y-1">
@@ -239,8 +275,34 @@ function ResultsModal({
               </div>
             )}
 
-            {results.poll_type === 'open_text' && (
-              <p className="text-sm text-muted-foreground italic">{t('polls.openTextNote')}</p>
+            {isOpenText && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">
+                  {t('polls.openTextResponses', { count: textResponses?.length ?? 0 })}
+                </p>
+                {textLoading ? (
+                  <Skeleton className="h-24 w-full" />
+                ) : !textResponses || textResponses.length === 0 ? (
+                  <p className="text-sm text-muted-foreground italic">{t('polls.openTextEmpty')}</p>
+                ) : (
+                  <ScrollArea className="h-[280px] rounded-md border border-border dark:border-slate-700">
+                    <ul className="divide-y divide-border dark:divide-slate-700">
+                      {textResponses.map((r, idx) => (
+                        <li key={`${r.attendee_id}-${idx}`} className="p-3 space-y-1">
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span className="font-medium text-foreground">{r.attendee_name}</span>
+                            <span>{r.created_at ? new Date(r.created_at).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) : ''}</span>
+                          </div>
+                          <p className="text-sm whitespace-pre-wrap">{r.text_response}</p>
+                          {r.credential_code && (
+                            <p className="text-xs text-muted-foreground">{r.credential_code}</p>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </ScrollArea>
+                )}
+              </div>
             )}
           </div>
         ) : null}
