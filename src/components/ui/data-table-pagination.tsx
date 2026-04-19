@@ -8,6 +8,13 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@/components/ui/pagination';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface DataTablePaginationProps {
   currentPage: number;
@@ -16,6 +23,9 @@ interface DataTablePaginationProps {
   startIndex: number;
   endIndex: number;
   onPageChange: (page: number) => void;
+  pageSize?: number;
+  onPageSizeChange?: (size: number) => void;
+  pageSizeOptions?: number[];
 }
 
 /**
