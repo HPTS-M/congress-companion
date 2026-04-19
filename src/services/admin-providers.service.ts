@@ -82,12 +82,18 @@ export const adminProvidersService = {
       access_code: form.access_code,
       is_active: form.is_active ?? true,
     });
-    if (error) throw new Error(error.message);
+    if (error) {
+      if (error.code === '23505') throw new Error('DUPLICATE_EMAIL');
+      throw new Error(error.message);
+    }
   },
 
   async update(id: string, form: Partial<ProviderForm>): Promise<void> {
     const { error } = await supabase.from('providers').update(form).eq('id', id);
-    if (error) throw new Error(error.message);
+    if (error) {
+      if (error.code === '23505') throw new Error('DUPLICATE_EMAIL');
+      throw new Error(error.message);
+    }
   },
 
   async remove(id: string): Promise<void> {

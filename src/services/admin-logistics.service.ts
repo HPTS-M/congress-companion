@@ -107,12 +107,18 @@ export const adminLogisticsService = {
 
   async create(eventId: string, form: ServiceCatalogForm): Promise<void> {
     const { error } = await supabase.from('service_catalog').insert({ event_id: eventId, ...form });
-    if (error) throw new Error(error.message);
+    if (error) {
+      if (error.code === '23505') throw new Error('DUPLICATE_NAME');
+      throw new Error(error.message);
+    }
   },
 
   async update(id: string, form: Partial<ServiceCatalogForm>): Promise<void> {
     const { error } = await supabase.from('service_catalog').update(form).eq('id', id);
-    if (error) throw new Error(error.message);
+    if (error) {
+      if (error.code === '23505') throw new Error('DUPLICATE_NAME');
+      throw new Error(error.message);
+    }
   },
 
   async remove(id: string): Promise<void> {
