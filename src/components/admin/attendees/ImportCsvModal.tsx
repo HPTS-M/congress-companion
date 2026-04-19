@@ -1,11 +1,12 @@
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Upload, Download, FileText, AlertCircle, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Upload, Download, FileText, AlertCircle, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -13,11 +14,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
 import {
   useBulkCreateAttendees,
+  useBulkUpsertAttendees,
   useExistingEmails,
   useExistingExternalCodes,
   useSendInvitations,
+  type UpsertResolution,
 } from '@/hooks/useAdminAttendees';
 import { useEvent } from '@/hooks/useEvent';
+import { adminAttendeesService } from '@/services/admin-attendees.service';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
@@ -32,6 +36,11 @@ import {
 } from '@/lib/import-validators';
 import { ImportErrorsModal } from './ImportErrorsModal';
 import { ImportWarningsModal } from './ImportWarningsModal';
+import {
+  ResolveAmbiguousImportModal,
+  type AmbiguousRow,
+  type AmbiguousResolutionMap,
+} from './ResolveAmbiguousImportModal';
 
 interface Props {
   open: boolean;
