@@ -31,6 +31,7 @@ import {
   type FieldError,
 } from '@/lib/import-validators';
 import { ImportErrorsModal } from './ImportErrorsModal';
+import { ImportWarningsModal } from './ImportWarningsModal';
 
 interface Props {
   open: boolean;
@@ -43,6 +44,7 @@ export interface ProcessedRow {
   blocked: boolean;
   blockingErrors: FieldError[];
   permissiveErrors: FieldError[];
+  hasWarning?: boolean;
   duplicateInFile?: boolean;
   duplicateInDb?: boolean;
   duplicateExternalInFile?: boolean;
@@ -53,7 +55,9 @@ interface ImportResult {
   imported: number;
   blocked: number;
   permissiveFixed: number;
+  warnings: number;
   blockedRows: ProcessedRow[];
+  warningRows: ProcessedRow[];
 }
 
 async function downloadTemplate() {
@@ -107,6 +111,8 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [importStatus, setImportStatus] = useState<'confirmed' | 'pending'>('confirmed');
   const [errorsModalOpen, setErrorsModalOpen] = useState(false);
+  const [warningsModalOpen, setWarningsModalOpen] = useState(false);
+  const [confirmWarningsOpen, setConfirmWarningsOpen] = useState(false);
 
   const existingEmailSet = useMemo(
     () => new Set((existingEmails ?? []).map((e) => e.toLowerCase())),
@@ -153,10 +159,8 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
         if (existingExternalSet.has(k)) duplicateExternalInDb = true;
       }
 
-      // Duplicates are blocking
+      // Email duplicates → WARNING (admin decides). External code duplicates → BLOCKING.
       const extraBlocking: FieldError[] = [];
-      if (duplicateInFile) extraBlocking.push({ field: 'email', message: 'duplicate_in_file' });
-      if (duplicateInDb) extraBlocking.push({ field: 'email', message: 'duplicate_in_db' });
       if (duplicateExternalInFile)
         extraBlocking.push({ field: 'external_credential_code', message: 'duplicate_in_file' });
       if (duplicateExternalInDb)
@@ -164,6 +168,7 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
 
       const blockingErrors = [...classification.blockingErrors, ...extraBlocking];
       const blocked = blockingErrors.length > 0;
+      const hasWarning = !blocked && (duplicateInFile || duplicateInDb);
 
       return {
         rowNumber: idx + 2, // +2 = header row + 1-based
@@ -171,6 +176,7 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
         blocked,
         blockingErrors,
         permissiveErrors: classification.permissiveErrors,
+        hasWarning,
         duplicateInFile,
         duplicateInDb,
         duplicateExternalInFile,
@@ -181,6 +187,7 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
 
   const validRows = processedRows.filter((r) => !r.blocked);
   const blockedRows = processedRows.filter((r) => r.blocked);
+  const warningRows = processedRows.filter((r) => r.hasWarning);
   const rowsWithPermissiveErrors = validRows.filter((r) => r.permissiveErrors.length > 0);
 
   const handleFile = useCallback(async (file: File) => {
@@ -211,10 +218,20 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
     if (file) handleFile(file);
   }, [handleFile]);
 
-  const handleImport = async () => {
+  const handleImportClick = () => {
+    if (validRows.length === 0) return;
+    if (warningRows.length > 0) {
+      setConfirmWarningsOpen(true);
+      return;
+    }
+    void runImport();
+  };
+
+  const runImport = async () => {
     if (validRows.length === 0) return;
 
     try {
+      setConfirmWarningsOpen(false);
       setProgress(10);
 
       // Apply NO APLICA substitution to permissive-error rows
@@ -253,7 +270,9 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
         imported: result.inserted,
         blocked: blockedRows.length,
         permissiveFixed: rowsWithPermissiveErrors.length,
+        warnings: warningRows.length,
         blockedRows,
+        warningRows,
       });
 
       toast({ title: t('attendees.importModal.success', { count: result.inserted }) });
@@ -297,6 +316,12 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
                       {t('attendees.importModal.summaryPermissive', { count: importResult.permissiveFixed })}
                     </div>
                   )}
+                  {importResult.warnings > 0 && (
+                    <div className="flex items-center gap-2 text-sm text-amber-600">
+                      <AlertTriangle className="h-4 w-4" />
+                      {t('attendees.importModal.summaryWarnings', { count: importResult.warnings })}
+                    </div>
+                  )}
                   {importResult.blocked > 0 && (
                     <div className="flex items-center gap-2 text-sm text-destructive">
                       <AlertCircle className="h-4 w-4" />
@@ -305,6 +330,16 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
                   )}
                 </CardContent>
               </Card>
+              {importResult.warningRows.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setWarningsModalOpen(true)}
+                >
+                  <AlertTriangle className="mr-2 h-4 w-4 text-amber-600" />
+                  {t('attendees.importModal.viewWarningRows', { count: importResult.warningRows.length })}
+                </Button>
+              )}
               {importResult.blockedRows.length > 0 && (
                 <Button
                   variant="outline"
@@ -348,12 +383,18 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
               <div className="flex flex-wrap gap-3 text-xs">
                 <span className="flex items-center gap-1 text-accent">
                   <CheckCircle2 className="h-3 w-3" />
-                  {validRows.length - rowsWithPermissiveErrors.length} {t('attendees.importModal.validRow')}
+                  {validRows.length - rowsWithPermissiveErrors.length - warningRows.length} {t('attendees.importModal.validRow')}
                 </span>
                 {rowsWithPermissiveErrors.length > 0 && (
                   <span className="flex items-center gap-1 text-amber-600">
                     <AlertTriangle className="h-3 w-3" />
                     {rowsWithPermissiveErrors.length} {t('attendees.importModal.permissiveRow')}
+                  </span>
+                )}
+                {warningRows.length > 0 && (
+                  <span className="flex items-center gap-1 text-amber-600">
+                    <AlertTriangle className="h-3 w-3" />
+                    {warningRows.length} {t('attendees.importModal.warningRow')}
                   </span>
                 )}
                 {blockedRows.length > 0 && (
@@ -380,8 +421,8 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
                       <TableRow
                         key={i}
                         className={cn(
-                          !r.blocked && r.permissiveErrors.length === 0 && 'bg-accent/5',
-                          !r.blocked && r.permissiveErrors.length > 0 && 'bg-amber-500/10',
+                          !r.blocked && !r.hasWarning && r.permissiveErrors.length === 0 && 'bg-accent/5',
+                          !r.blocked && (r.hasWarning || r.permissiveErrors.length > 0) && 'bg-amber-500/10',
                           r.blocked && 'bg-destructive/10',
                         )}
                       >
@@ -392,6 +433,10 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
                           {r.blocked ? (
                             <span className="text-xs text-destructive">
                               {t('attendees.importModal.blockedRow')}
+                            </span>
+                          ) : r.hasWarning ? (
+                            <span className="text-xs text-amber-600">
+                              {t('attendees.importModal.warningRow')}
                             </span>
                           ) : r.permissiveErrors.length > 0 ? (
                             <span className="text-xs text-amber-600">
@@ -413,6 +458,18 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
                   </div>
                 )}
               </div>
+
+              {warningRows.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setWarningsModalOpen(true)}
+                >
+                  <AlertTriangle className="mr-2 h-4 w-4 text-amber-600" />
+                  {t('attendees.importModal.viewWarningRows', { count: warningRows.length })}
+                </Button>
+              )}
 
               {blockedRows.length > 0 && (
                 <Button
@@ -448,7 +505,7 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
 
               <Button
                 className="w-full"
-                onClick={handleImport}
+                onClick={handleImportClick}
                 disabled={bulkMutation.isPending || sendInvitationsMutation.isPending || validRows.length === 0}
               >
                 {bulkMutation.isPending || sendInvitationsMutation.isPending
@@ -466,6 +523,20 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
         open={errorsModalOpen}
         onOpenChange={setErrorsModalOpen}
         blockedRows={importResult?.blockedRows ?? blockedRows}
+      />
+
+      <ImportWarningsModal
+        open={warningsModalOpen}
+        onOpenChange={setWarningsModalOpen}
+        warningRows={importResult?.warningRows ?? warningRows}
+        onConfirm={() => setWarningsModalOpen(false)}
+      />
+
+      <ImportWarningsModal
+        open={confirmWarningsOpen}
+        onOpenChange={setConfirmWarningsOpen}
+        warningRows={warningRows}
+        onConfirm={() => void runImport()}
       />
     </>
   );
