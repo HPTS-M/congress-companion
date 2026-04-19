@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -37,6 +37,7 @@ const CATEGORIES = ['transport', 'food', 'tour', 'special'] as const;
 
 export function ProviderModal({ open, onClose, onSave, provider, isSaving }: Props) {
   const { t } = useTranslation('admin');
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   const { register, handleSubmit, setValue, watch, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -51,6 +52,7 @@ export function ProviderModal({ open, onClose, onSave, provider, isSaving }: Pro
   });
 
   useEffect(() => {
+    setEmailError(null);
     if (provider) {
       reset({
         company_name: provider.company_name,
@@ -70,9 +72,10 @@ export function ProviderModal({ open, onClose, onSave, provider, isSaving }: Pro
         access_code: adminProvidersService.generateAccessCode(),
       });
     }
-  }, [provider, reset]);
+  }, [provider, reset, open]);
 
   const onSubmit = async (data: FormData) => {
+    setEmailError(null);
     try {
       await onSave({
         company_name: data.company_name,
@@ -83,8 +86,11 @@ export function ProviderModal({ open, onClose, onSave, provider, isSaving }: Pro
         access_code: data.access_code,
       });
       onClose();
-    } catch {
-      // keep modal open so user can correct (e.g. duplicate email)
+    } catch (err: any) {
+      if (err?.message === 'DUPLICATE_EMAIL') {
+        setEmailError(t('providers.duplicateEmail'));
+      }
+      // keep modal open
     }
   };
 
@@ -123,7 +129,20 @@ export function ProviderModal({ open, onClose, onSave, provider, isSaving }: Pro
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>{t('providers.fieldEmail')}</Label>
-              <Input {...register('contact_email')} type="email" placeholder="email@ejemplo.com" />
+              <Input
+                {...register('contact_email')}
+                type="email"
+                placeholder="email@ejemplo.com"
+                className={emailError ? 'border-destructive' : ''}
+                onChange={(e) => {
+                  setEmailError(null);
+                  register('contact_email').onChange(e);
+                }}
+              />
+              {emailError && <p className="text-xs text-destructive mt-1">{emailError}</p>}
+              {errors.contact_email && !emailError && (
+                <p className="text-xs text-destructive mt-1">{t('providers.duplicateEmail')}</p>
+              )}
             </div>
             <div>
               <Label>{t('providers.fieldPhone')}</Label>

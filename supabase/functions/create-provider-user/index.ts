@@ -102,7 +102,9 @@ Deno.serve(async (req) => {
     }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
-    const redirectUrl = redirect_to || `${supabaseUrl}/provider`;
+    const appUrl = (Deno.env.get("APP_URL") ?? "").replace(/\/+$/, "");
+    const sanitizedRedirect = (redirect_to ?? "").toString().replace(/\/+$/, "");
+    const redirectUrl = sanitizedRedirect || (appUrl ? `${appUrl}/provider` : `${supabaseUrl}/provider`);
 
     const { data: provider } = await adminClient
       .from("providers")
