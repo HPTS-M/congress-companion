@@ -316,6 +316,7 @@ export type Database = {
           document_type: string | null
           email: string
           event_id: string
+          external_credential_code: string | null
           full_name: string
           id: string
           institution: string | null
@@ -340,6 +341,7 @@ export type Database = {
           document_type?: string | null
           email: string
           event_id: string
+          external_credential_code?: string | null
           full_name: string
           id?: string
           institution?: string | null
@@ -364,6 +366,7 @@ export type Database = {
           document_type?: string | null
           email?: string
           event_id?: string
+          external_credential_code?: string | null
           full_name?: string
           id?: string
           institution?: string | null
