@@ -132,28 +132,32 @@ export default function ProviderServiceAttendees() {
             </CardContent>
           </Card>
         ) : (
-          filtered.map((a) => (
-            <Card key={a.attendee_service_id}>
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-foreground">{a.attendee_name}</p>
-                  <p className="text-xs text-muted-foreground font-mono">{a.credential_code}</p>
-                  {a.used_at && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {t('usedAtLabel')}: {new Date(a.used_at).toLocaleString()}
-                    </p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {a.is_used ? (
-                    <Badge className="bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400">
-                      {t('statusUsed')}
-                    </Badge>
-                  ) : (
-                    <>
-                      <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                        {t('statusPending')}
-                      </Badge>
+          filtered.map((a) => {
+            const status = a.status ?? 'pending';
+            const isUsed = a.is_used || status === 'completed';
+            const isCancelled = status === 'cancelled';
+            const statusBadge = (() => {
+              if (isUsed) return <Badge className="bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400">{t('statusUsed')}</Badge>;
+              if (isCancelled) return <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">{t('statusCancelled')}</Badge>;
+              if (status === 'in_progress') return <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">{t('statusInProgress')}</Badge>;
+              if (status === 'confirmed') return <Badge className="bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">{t('statusConfirmed')}</Badge>;
+              return <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">{t('statusPending')}</Badge>;
+            })();
+            return (
+              <Card key={a.attendee_service_id} className={isCancelled ? 'opacity-60' : ''}>
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-foreground">{a.attendee_name}</p>
+                    <p className="text-xs text-muted-foreground font-mono">{a.credential_code}</p>
+                    {a.used_at && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {t('usedAtLabel')}: {new Date(a.used_at).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {statusBadge}
+                    {!isUsed && !isCancelled && (
                       <Button
                         size="sm"
                         onClick={() => validateMut.mutate(a.attendee_service_id)}
@@ -163,12 +167,12 @@ export default function ProviderServiceAttendees() {
                         <CheckCircle2 className="mr-1 h-4 w-4" />
                         {t('markUsed')}
                       </Button>
-                    </>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })
         )}
       </div>
     </div>
