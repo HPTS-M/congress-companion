@@ -16,9 +16,10 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { useCreateAttendee, useUpdateAttendee, useExistingEmails } from '@/hooks/useAdminAttendees';
+import { useCreateAttendee, useUpdateAttendee, useExistingEmails, useExistingExternalCodes } from '@/hooks/useAdminAttendees';
 import { useEvent } from '@/hooks/useEvent';
 import type { AttendeeWithServices } from '@/services/admin-attendees.service';
+import { EXTERNAL_CODE_REGEX } from '@/lib/import-validators';
 
 const schema = z.object({
   full_name: z.string().trim().min(1, 'Required').max(200),
@@ -26,6 +27,7 @@ const schema = z.object({
   specialty: z.string().trim().max(100).optional().or(z.literal('')),
   institution: z.string().trim().max(200).optional().or(z.literal('')),
   registration_status: z.string().default('pending'),
+  external_credential_code: z.string().trim().max(50).optional().or(z.literal('')),
 });
 
 type FormValues = {
@@ -34,6 +36,7 @@ type FormValues = {
   specialty?: string;
   institution?: string;
   registration_status: string;
+  external_credential_code?: string;
 };
 
 interface Props {
@@ -50,6 +53,7 @@ const emptyValues: FormValues = {
   specialty: '',
   institution: '',
   registration_status: 'pending',
+  external_credential_code: '',
 };
 
 export function NewAttendeeModal({ open, onOpenChange, attendee }: Props) {
@@ -59,6 +63,9 @@ export function NewAttendeeModal({ open, onOpenChange, attendee }: Props) {
   const createMutation = useCreateAttendee();
   const updateMutation = useUpdateAttendee();
   const { data: existingEmails } = useExistingEmails();
+  const { data: existingExternalCodes } = useExistingExternalCodes();
+  const externalCredentialsEnabled =
+    ((event?.settings ?? {}) as Record<string, unknown>).external_credentials_enabled === true;
   const isEditMode = !!attendee;
   const eventId = event?.id ?? '';
   const [confirmDiscard, setConfirmDiscard] = useState(false);
