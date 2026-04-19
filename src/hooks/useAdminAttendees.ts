@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { adminAttendeesService, type CreateAttendeeData, type AddServiceData, type AttendeeFilters } from '@/services/admin-attendees.service';
+import { adminAttendeesService, type CreateAttendeeData, type AddServiceData, type AttendeeFilters, type BulkAttendeeRow } from '@/services/admin-attendees.service';
 import { useEvent } from '@/hooks/useEvent';
 
 async function clearAttendeesSWCache() {
@@ -96,7 +96,7 @@ export function useBulkCreateAttendees() {
   const { event } = useEvent();
 
   return useMutation({
-    mutationFn: ({ rows, registrationStatus }: { rows: { full_name: string; email: string; specialty?: string; institution?: string }[]; registrationStatus?: string }) =>
+    mutationFn: ({ rows, registrationStatus }: { rows: BulkAttendeeRow[]; registrationStatus?: string }) =>
       adminAttendeesService.bulkCreateAttendees(event!.id, rows, registrationStatus),
     onSuccess: async () => {
       await clearAttendeesSWCache();
@@ -222,6 +222,17 @@ export function useExistingEmails() {
   return useQuery({
     queryKey: ['admin-existing-emails', eventId],
     queryFn: () => adminAttendeesService.getExistingEmails(eventId),
+    enabled: !!eventId,
+  });
+}
+
+export function useExistingExternalCodes() {
+  const { event } = useEvent();
+  const eventId = event?.id ?? '';
+
+  return useQuery({
+    queryKey: ['admin-existing-external-codes', eventId],
+    queryFn: () => adminAttendeesService.getExistingExternalCodes(eventId),
     enabled: !!eventId,
   });
 }
