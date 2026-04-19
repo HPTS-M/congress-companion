@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
   Plus, Search, Pencil, Trash2, Users, Ticket, Clock, CheckCircle2, XCircle,
-  Bus, UtensilsCrossed, Map, Sparkles,
+  Bus, UtensilsCrossed, Map, Sparkles, Ban, RotateCcw,
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
@@ -53,7 +53,7 @@ export default function AdminLogistics() {
   const { eventSlug } = useParams();
   const navigate = useNavigate();
   const { event } = useEvent();
-  const { services, isLoading, createService, updateService, deleteService, isCreating, isUpdating } = useAdminLogistics(event?.id);
+  const { services, isLoading, createService, updateService, deleteService, cancelService, reactivateService, isCreating, isUpdating } = useAdminLogistics(event?.id);
 
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState('all');
@@ -61,6 +61,7 @@ export default function AdminLogistics() {
   const [editing, setEditing] = useState<ServiceCatalogRow | null>(null);
   const [viewingAssignees, setViewingAssignees] = useState<ServiceCatalogRow | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<ServiceCatalogRow | null>(null);
 
   const stats = useMemo(() => {
     let total = 0, pending = 0, used = 0, cancelled = 0;
@@ -99,8 +100,13 @@ export default function AdminLogistics() {
         await createService(data);
         toast.success(t('logistics.createSuccess'));
       }
-    } catch {
-      toast.error(t('logistics.saveError'));
+    } catch (err: any) {
+      if (err?.message === 'DUPLICATE_NAME') {
+        toast.error(t('logistics.duplicateName'));
+      } else {
+        toast.error(t('logistics.saveError'));
+      }
+      throw err;
     }
   }, [editing, createService, updateService, t]);
 
@@ -115,6 +121,27 @@ export default function AdminLogistics() {
       setDeletingId(null);
     }
   }, [deletingId, deleteService, t]);
+
+  const handleCancelService = useCallback(async () => {
+    if (!cancellingId) return;
+    try {
+      await cancelService(cancellingId.id);
+      toast.success(t('logistics.cancelSuccess'));
+    } catch {
+      toast.error(t('logistics.cancelError'));
+    } finally {
+      setCancellingId(null);
+    }
+  }, [cancellingId, cancelService, t]);
+
+  const handleReactivate = useCallback(async (s: ServiceCatalogRow) => {
+    try {
+      await reactivateService(s.id);
+      toast.success(t('logistics.reactivateSuccess'));
+    } catch {
+      toast.error(t('logistics.saveError'));
+    }
+  }, [reactivateService, t]);
 
   const handleEdit = useCallback((s: ServiceCatalogRow) => {
     setEditing(s);
