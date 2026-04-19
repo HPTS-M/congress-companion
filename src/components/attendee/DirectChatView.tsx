@@ -4,11 +4,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { useEvent } from '@/hooks/useEvent';
 import { useDirectMessages, useAttendeeNames, useDeleteConversation } from '@/hooks/useMessaging';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { usePendingMessages } from '@/hooks/usePendingMessages';
 import { messagingService, type ChatMessage, type DirectConversation } from '@/services/messaging.service';
 import { supabase } from '@/integrations/supabase/client';
 import { format, isToday, isYesterday } from 'date-fns';
 import { es, enUS } from 'date-fns/locale';
-import { ArrowLeft, Send, Trash2, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Send, Trash2, MessageSquare, Clock, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -24,6 +25,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import type { PendingMessage } from '@/lib/pending-messages';
 
 interface Props {
   conversation: DirectConversation;
