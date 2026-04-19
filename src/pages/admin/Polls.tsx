@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BarChart3, Plus, Play, Square, Eye, Trash2, Upload, Download, Loader2 } from 'lucide-react';
+import { BarChart3, Plus, Play, Square, Eye, Trash2, Upload, Download, Loader2, Pencil, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useAdminPolls, useAdminPollResults } from '@/hooks/useAdminPolls';
+import { useAdminPolls, useAdminPollResults, useAdminPollForEdit } from '@/hooks/useAdminPolls';
 import { usePollRealtime } from '@/hooks/usePolls';
 import { adminPollsService } from '@/services/admin-polls.service';
 import { adminPollsExcelService } from '@/services/admin-polls-excel.service';
@@ -42,125 +42,192 @@ function formatSessionLabel(
   return `Día ${dayNum} - ${time} - ${titleTrunc}`;
 }
 
-// ---- New Poll Modal ----
-function NewPollModal({
+// ---- Poll Form Modal (Create + Edit) ----
+function PollFormModal({
   open,
   onOpenChange,
   sessions,
   eventStartDate,
-  onSave,
+  onCreate,
+  onUpdate,
   isSaving,
   prefilledSessionId,
+  editPollId,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   sessions: { id: string; title: string; scheduled_date: string; start_time: string }[];
   eventStartDate: string | undefined;
-  onSave: (data: { question: string; pollType: string; sessionId: string | null; opensAt: string | null; closesAt: string | null; options: string[] }) => void;
+  onCreate: (data: { question: string; pollType: string; sessionId: string | null; opensAt: string | null; closesAt: string | null; options: string[] }, onSuccess: () => void) => void;
+  onUpdate: (data: { pollId: string; question: string; sessionId: string | null; options: { id?: string; text: string }[] }, onSuccess: () => void) => void;
   isSaving: boolean;
   prefilledSessionId?: string | null;
+  editPollId?: string | null;
 }) {
   const { t } = useTranslation('admin');
+  const isEdit = !!editPollId;
+  const { data: editData, isLoading: editLoading } = useAdminPollForEdit(isEdit ? editPollId : null);
+
   const [question, setQuestion] = useState('');
   const [pollType, setPollType] = useState('multiple_choice');
   const [sessionId, setSessionId] = useState(prefilledSessionId ?? '');
-  const [options, setOptions] = useState(['', '']);
+  // Options carry an id when they correspond to an existing row (edit mode)
+  const [options, setOptions] = useState<{ id?: string; text: string }[]>([{ text: '' }, { text: '' }]);
+
+  // Reset on open / load edit data
+  useEffect(() => {
+    if (!open) return;
+    if (isEdit && editData) {
+      setQuestion(editData.poll.question);
+      setPollType(editData.poll.poll_type);
+      setSessionId(editData.poll.session_id ?? '');
+      setOptions(
+        editData.options.length > 0
+          ? editData.options.map((o) => ({ id: o.id, text: o.option_text }))
+          : [{ text: '' }, { text: '' }]
+      );
+    } else if (!isEdit) {
+      setQuestion('');
+      setPollType('multiple_choice');
+      setSessionId(prefilledSessionId ?? '');
+      setOptions([{ text: '' }, { text: '' }]);
+    }
+  }, [open, isEdit, editData, prefilledSessionId]);
 
   const needsOptions = pollType === 'multiple_choice' || pollType === 'single_choice';
   const isRatingType = pollType === 'rating_scale';
-  const validOptions = options.filter(o => o.trim());
+  const validOptions = options.filter((o) => o.text.trim());
   const canSave = question.trim() && (!needsOptions || validOptions.length >= 2);
+  const responseCount = editData?.response_count ?? 0;
+  const hasResponses = isEdit && responseCount > 0;
 
   const handleSave = () => {
-    onSave({
-      question: question.trim(),
-      pollType,
-      sessionId: sessionId && sessionId !== 'none' ? sessionId : null,
-      opensAt: null,
-      closesAt: null,
-      options: needsOptions ? validOptions : [],
-    });
-    setQuestion('');
-    setPollType('multiple_choice');
-    setSessionId('');
-    setOptions(['', '']);
+    if (isEdit && editPollId) {
+      onUpdate(
+        {
+          pollId: editPollId,
+          question: question.trim(),
+          sessionId: sessionId && sessionId !== 'none' ? sessionId : null,
+          options: needsOptions
+            ? validOptions.map((o) => ({ id: o.id, text: o.text.trim() }))
+            : [],
+        },
+        () => onOpenChange(false)
+      );
+    } else {
+      onCreate(
+        {
+          question: question.trim(),
+          pollType,
+          sessionId: sessionId && sessionId !== 'none' ? sessionId : null,
+          opensAt: null,
+          closesAt: null,
+          options: needsOptions ? validOptions.map((o) => o.text.trim()) : [],
+        },
+        () => onOpenChange(false)
+      );
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{t('polls.newTitle')}</DialogTitle>
+          <DialogTitle>{isEdit ? t('polls.editTitle') : t('polls.newTitle')}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
-          <div>
-            <label className="text-sm font-medium">{t('polls.fieldQuestion')}</label>
-            <Textarea value={question} onChange={e => setQuestion(e.target.value)} placeholder={t('polls.questionPlaceholder')} />
+
+        {isEdit && editLoading ? (
+          <div className="space-y-3 py-4">
+            <Skeleton className="h-6 w-2/3" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
           </div>
-          <div>
-            <label className="text-sm font-medium">{t('polls.fieldType')}</label>
-            <Select value={pollType} onValueChange={setPollType}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="multiple_choice">{t('polls.typeMultiple')}</SelectItem>
-                <SelectItem value="single_choice">{t('polls.typeSingle')}</SelectItem>
-                <SelectItem value="rating_scale">{t('polls.typeRating')}</SelectItem>
-                <SelectItem value="open_text">{t('polls.typeOpen')}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <label className="text-sm font-medium">{t('polls.fieldSession')}</label>
-            <Select value={sessionId} onValueChange={setSessionId}>
-              <SelectTrigger><SelectValue placeholder={t('polls.noSession')} /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">{t('polls.noSession')}</SelectItem>
-                {sessions.map(s => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {formatSessionLabel(s, eventStartDate)}
-                  </SelectItem>
+        ) : (
+          <div className="space-y-4">
+            {hasResponses && (
+              <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>{t('polls.editWarning', { count: responseCount })}</p>
+              </div>
+            )}
+
+            <div>
+              <label className="text-sm font-medium">{t('polls.fieldQuestion')}</label>
+              <Textarea value={question} onChange={(e) => setQuestion(e.target.value)} placeholder={t('polls.questionPlaceholder')} />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">{t('polls.fieldType')}</label>
+              <Select value={pollType} onValueChange={setPollType} disabled={isEdit}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="multiple_choice">{t('polls.typeMultiple')}</SelectItem>
+                  <SelectItem value="single_choice">{t('polls.typeSingle')}</SelectItem>
+                  <SelectItem value="rating_scale">{t('polls.typeRating')}</SelectItem>
+                  <SelectItem value="open_text">{t('polls.typeOpen')}</SelectItem>
+                </SelectContent>
+              </Select>
+              {isEdit && (
+                <p className="mt-1 text-xs text-muted-foreground">{t('polls.typeLockedHint')}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">{t('polls.fieldSession')}</label>
+              <Select value={sessionId} onValueChange={setSessionId}>
+                <SelectTrigger><SelectValue placeholder={t('polls.noSession')} /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{t('polls.noSession')}</SelectItem>
+                  {sessions.map((s) => (
+                    <SelectItem key={s.id} value={s.id} title={s.title}>
+                      {formatSessionLabel(s, eventStartDate)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {needsOptions && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{t('polls.fieldOptions')}</label>
+                {options.map((opt, idx) => (
+                  <div key={opt.id ?? `new-${idx}`} className="flex gap-2">
+                    <Input
+                      value={opt.text}
+                      onChange={(e) => {
+                        const next = [...options];
+                        next[idx] = { ...next[idx], text: e.target.value };
+                        setOptions(next);
+                      }}
+                      placeholder={`${t('polls.optionLabel')} ${idx + 1}`}
+                    />
+                    {options.length > 2 && (
+                      <Button variant="ghost" size="icon" onClick={() => setOptions(options.filter((_, i) => i !== idx))}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                 ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {needsOptions && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium">{t('polls.fieldOptions')}</label>
-              {options.map((opt, idx) => (
-                <div key={idx} className="flex gap-2">
-                  <Input
-                    value={opt}
-                    onChange={e => {
-                      const next = [...options];
-                      next[idx] = e.target.value;
-                      setOptions(next);
-                    }}
-                    placeholder={`${t('polls.optionLabel')} ${idx + 1}`}
-                  />
-                  {options.length > 2 && (
-                    <Button variant="ghost" size="icon" onClick={() => setOptions(options.filter((_, i) => i !== idx))}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              ))}
-              <Button variant="outline" size="sm" onClick={() => setOptions([...options, ''])}>
-                <Plus className="mr-1 h-3 w-3" />{t('polls.addOption')}
+                <Button variant="outline" size="sm" onClick={() => setOptions([...options, { text: '' }])}>
+                  <Plus className="mr-1 h-3 w-3" />{t('polls.addOption')}
+                </Button>
+              </div>
+            )}
+
+            {isRatingType && (
+              <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
+                {t('polls.ratingAutoOptionsHint')}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>{t('polls.cancel')}</Button>
+              <Button onClick={handleSave} disabled={!canSave || isSaving} className="bg-[hsl(var(--primary))]">
+                {isSaving ? t('polls.saving') : t('polls.save')}
               </Button>
             </div>
-          )}
-          {isRatingType && (
-            <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
-              {t('polls.ratingAutoOptionsHint')}
-            </div>
-          )}
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>{t('polls.cancel')}</Button>
-            <Button onClick={handleSave} disabled={!canSave || isSaving} className="bg-[hsl(var(--primary))]">
-              {isSaving ? t('polls.saving') : t('polls.save')}
-            </Button>
           </div>
-        </div>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -342,9 +409,10 @@ export default function AdminPolls() {
   const { t, i18n } = useTranslation('admin');
   const { event } = useEvent();
   const { user } = useAuth();
-  const { polls, isLoading, sessions, createPoll, updateStatus, deletePoll } = useAdminPolls();
+  const { polls, isLoading, sessions, createPoll, updatePoll, updateStatus, deletePoll } = useAdminPolls();
   const qc = useQueryClient();
-  const [showNew, setShowNew] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editPollId, setEditPollId] = useState<string | null>(null);
   const [resultsId, setResultsId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [isExportingAll, setIsExportingAll] = useState(false);
@@ -372,8 +440,22 @@ export default function AdminPolls() {
     responses: polls.reduce((sum, p) => sum + (p.response_count || 0), 0),
   };
 
-  const handleCreate = (data: any) => {
-    createPoll.mutate(data, { onSuccess: () => setShowNew(false) });
+  const handleCreate = (data: any, onSuccess: () => void) => {
+    createPoll.mutate(data, { onSuccess });
+  };
+
+  const handleUpdate = (
+    data: { pollId: string; question: string; sessionId: string | null; options: { id?: string; text: string }[] },
+    onSuccess: () => void,
+  ) => {
+    updatePoll.mutate(data, { onSuccess });
+  };
+
+  const handleCloseForm = (open: boolean) => {
+    if (!open) {
+      setShowForm(false);
+      setEditPollId(null);
+    }
   };
 
   const handleBulkImport = async (pollsData: { question: string; pollType: string; sessionId: string | null; options: string[] }[]) => {
@@ -414,7 +496,7 @@ export default function AdminPolls() {
           <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
             <Upload className="mr-1 h-4 w-4" />{t('polls.importButton')}
           </Button>
-          <Button onClick={() => setShowNew(true)} className="bg-[hsl(var(--primary))]">
+          <Button onClick={() => { setEditPollId(null); setShowForm(true); }} className="bg-[hsl(var(--primary))]">
             <Plus className="mr-2 h-4 w-4" />{t('polls.newPoll')}
           </Button>
         </div>
@@ -489,6 +571,10 @@ export default function AdminPolls() {
                           onClick={() => setResultsId(poll.id)}>
                           <Eye className="h-4 w-4" />
                         </Button>
+                        <Button variant="ghost" size="icon" title={t('polls.edit')}
+                          onClick={() => { setEditPollId(poll.id); setShowForm(true); }}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
                         <Button variant="ghost" size="icon" title={t('polls.delete')}
                           onClick={() => deletePoll.mutate(poll.id)}>
                           <Trash2 className="h-4 w-4 text-destructive" />
@@ -513,13 +599,15 @@ export default function AdminPolls() {
         />
       )}
 
-      <NewPollModal
-        open={showNew}
-        onOpenChange={setShowNew}
+      <PollFormModal
+        open={showForm}
+        onOpenChange={handleCloseForm}
         sessions={sessions}
         eventStartDate={event?.start_date ?? ''}
-        onSave={handleCreate}
-        isSaving={createPoll.isPending}
+        onCreate={handleCreate}
+        onUpdate={handleUpdate}
+        isSaving={createPoll.isPending || updatePoll.isPending}
+        editPollId={editPollId}
       />
 
       <ResultsModal

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useEvent } from '@/hooks/useEvent';
 import { useAdminReports } from '@/hooks/useAdminReports';
@@ -8,10 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Users, Calendar, Star, Ticket, Download, FileSpreadsheet, Eye, ClipboardCheck } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Users, Calendar, Star, Ticket, Download, FileSpreadsheet, Eye, ClipboardCheck, BarChart3 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { toast } from '@/hooks/use-toast';
-import type { AttendanceReport, RatingsReport, LogisticsReport, SponsorEngagementReport } from '@/services/admin-reports.service';
+import type { AttendanceReport, RatingsReport, LogisticsReport, SponsorEngagementReport, PollResponseReport } from '@/services/admin-reports.service';
 import { usePagination } from '@/hooks/usePagination';
 import { DataTablePagination } from '@/components/ui/data-table-pagination';
 
@@ -52,6 +53,36 @@ function exportAttendanceExcel(data: AttendanceReport[], t: (k: string) => strin
 }
 
 function exportRatingsExcel(data: RatingsReport[], t: (k: string) => string) {
+  // One row per comment so Author + Credential are first-class
+  const rows: Record<string, unknown>[] = [];
+  data.forEach((r) => {
+    if (r.comments.length === 0) {
+      rows.push({
+        title: r.title,
+        speaker_name: r.speaker_name ?? '',
+        avg_stars: r.avg_stars,
+        total_ratings: r.total_ratings,
+        author_name: '',
+        credential_code: '',
+        stars: '',
+        comment: '',
+      });
+    } else {
+      r.comments.forEach((c) => {
+        rows.push({
+          title: r.title,
+          speaker_name: r.speaker_name ?? '',
+          avg_stars: r.avg_stars,
+          total_ratings: r.total_ratings,
+          author_name: c.author_name,
+          credential_code: c.credential_code,
+          stars: c.stars,
+          comment: c.comment,
+        });
+      });
+    }
+  });
+
   writeExcelFile({
     filename: 'reporte_calificaciones.xlsx',
     sheetName: t('reports.ratings.title'),
@@ -60,9 +91,33 @@ function exportRatingsExcel(data: RatingsReport[], t: (k: string) => string) {
       { header: t('reports.ratings.colSpeaker'), key: 'speaker_name', width: 25 },
       { header: t('reports.ratings.colAvg'), key: 'avg_stars', width: 12 },
       { header: t('reports.ratings.colTotal'), key: 'total_ratings', width: 16 },
-      { header: t('reports.ratings.colComments'), key: 'comments_text', width: 50 },
+      { header: t('reports.ratings.colAuthor'), key: 'author_name', width: 28 },
+      { header: t('reports.ratings.colCredential'), key: 'credential_code', width: 18 },
+      { header: t('reports.ratings.colStars'), key: 'stars', width: 8 },
+      { header: t('reports.ratings.colComments'), key: 'comment', width: 60 },
     ],
-    rows: toRows(data.map((r) => ({ ...r, comments_text: r.comments.join(' | ') }))),
+    rows,
+  });
+}
+
+function exportPollsExcel(data: PollResponseReport[], t: (k: string) => string) {
+  writeExcelFile({
+    filename: 'reporte_encuestas.xlsx',
+    sheetName: t('reports.polls.title'),
+    columns: [
+      { header: t('reports.polls.colQuestion'), key: 'question', width: 50 },
+      { header: t('reports.polls.colAuthor'), key: 'author_name', width: 28 },
+      { header: t('reports.polls.colCredential'), key: 'credential_code', width: 18 },
+      { header: t('reports.polls.colAnswer'), key: 'answer', width: 40 },
+      { header: t('reports.polls.colDate'), key: 'created_at', width: 22 },
+    ],
+    rows: data.map((r) => ({
+      question: r.question,
+      author_name: r.author_name,
+      credential_code: r.credential_code,
+      answer: r.option_text ?? r.text_response ?? '',
+      created_at: r.created_at ? new Date(r.created_at).toLocaleString('es-CO') : '',
+    })),
   });
 }
 
@@ -103,6 +158,7 @@ async function exportAll(
   ratings: RatingsReport[],
   logistics: LogisticsReport[],
   sponsors: SponsorEngagementReport[],
+  pollResponses: PollResponseReport[],
   t: (k: string) => string,
 ) {
   const workbook = new ExcelJS.Workbook();
@@ -124,9 +180,29 @@ async function exportAll(
     { header: t('reports.ratings.colSpeaker'), key: 'speaker_name', width: 25 },
     { header: t('reports.ratings.colAvg'), key: 'avg_stars', width: 12 },
     { header: t('reports.ratings.colTotal'), key: 'total_ratings', width: 16 },
-    { header: t('reports.ratings.colComments'), key: 'comments_text', width: 50 },
+    { header: t('reports.ratings.colAuthor'), key: 'author_name', width: 28 },
+    { header: t('reports.ratings.colCredential'), key: 'credential_code', width: 18 },
+    { header: t('reports.ratings.colStars'), key: 'stars', width: 8 },
+    { header: t('reports.ratings.colComments'), key: 'comment', width: 60 },
   ];
-  ratings.forEach((r) => ws2.addRow({ ...r, comments_text: r.comments.join(' | ') }));
+  ratings.forEach((r) => {
+    if (r.comments.length === 0) {
+      ws2.addRow({ title: r.title, speaker_name: r.speaker_name ?? '', avg_stars: r.avg_stars, total_ratings: r.total_ratings });
+    } else {
+      r.comments.forEach((c) => {
+        ws2.addRow({
+          title: r.title,
+          speaker_name: r.speaker_name ?? '',
+          avg_stars: r.avg_stars,
+          total_ratings: r.total_ratings,
+          author_name: c.author_name,
+          credential_code: c.credential_code,
+          stars: c.stars,
+          comment: c.comment,
+        });
+      });
+    }
+  });
 
   const ws3 = workbook.addWorksheet(t('reports.logistics.title'));
   ws3.columns = [
@@ -149,6 +225,24 @@ async function exportAll(
     { header: t('reports.sponsors.colLeads'), key: 'leads_captured', width: 16 },
   ];
   sponsors.forEach((r) => ws4.addRow(r));
+
+  const ws5 = workbook.addWorksheet(t('reports.polls.title'));
+  ws5.columns = [
+    { header: t('reports.polls.colQuestion'), key: 'question', width: 50 },
+    { header: t('reports.polls.colAuthor'), key: 'author_name', width: 28 },
+    { header: t('reports.polls.colCredential'), key: 'credential_code', width: 18 },
+    { header: t('reports.polls.colAnswer'), key: 'answer', width: 40 },
+    { header: t('reports.polls.colDate'), key: 'created_at', width: 22 },
+  ];
+  pollResponses.forEach((r) => {
+    ws5.addRow({
+      question: r.question,
+      author_name: r.author_name,
+      credential_code: r.credential_code,
+      answer: r.option_text ?? r.text_response ?? '',
+      created_at: r.created_at ? new Date(r.created_at).toLocaleString('es-CO') : '',
+    });
+  });
 
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -270,15 +364,36 @@ export default function Reports() {
   const { t } = useTranslation('admin');
   const { event } = useEvent();
   const eventId = event?.id;
-  const { summary, attendance, ratings, logistics, sponsorEngagement } = useAdminReports(eventId);
+  const { summary, attendance, ratings, logistics, sponsorEngagement, pollResponses } = useAdminReports(eventId);
 
   const logisticsPagination = usePagination(logistics.data ?? [], 10);
   const sponsorsPagination = usePagination(sponsorEngagement.data ?? [], 10);
 
+  // Polls filter + pagination
+  const [pollFilter, setPollFilter] = useState<string>('all');
+  const filteredPollResponses = useMemo(() => {
+    const all = pollResponses.data ?? [];
+    return pollFilter === 'all' ? all : all.filter((r) => r.poll_id === pollFilter);
+  }, [pollResponses.data, pollFilter]);
+  const pollsPagination = usePagination(filteredPollResponses, 10);
+
+  const uniquePolls = useMemo(() => {
+    const map = new Map<string, string>();
+    (pollResponses.data ?? []).forEach((r) => map.set(r.poll_id, r.question));
+    return Array.from(map, ([id, question]) => ({ id, question }));
+  }, [pollResponses.data]);
+
   const handleExportAll = async () => {
     if (!attendance.data || !ratings.data || !logistics.data || !sponsorEngagement.data) return;
     try {
-      await exportAll(attendance.data, ratings.data, logistics.data, sponsorEngagement.data, t);
+      await exportAll(
+        attendance.data,
+        ratings.data,
+        logistics.data,
+        sponsorEngagement.data,
+        pollResponses.data ?? [],
+        t,
+      );
       toast({ title: t('reports.exportSuccess') });
     } catch {
       toast({ title: t('reports.exportError'), variant: 'destructive' });
@@ -346,17 +461,33 @@ export default function Reports() {
             ) : (ratings.data?.length ?? 0) === 0 ? (
               <RatingsEmptyState t={t} />
             ) : (
-              <div className="max-h-64 overflow-y-auto space-y-2">
+              <div className="max-h-72 overflow-y-auto space-y-2">
                 {ratings.data!.map((r) => (
-                  <div key={r.session_id} className="flex items-center justify-between rounded-lg border p-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{r.title}</p>
-                      {r.speaker_name && <p className="text-xs text-muted-foreground">{r.speaker_name}</p>}
+                  <div key={r.session_id} className="rounded-lg border p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate">{r.title}</p>
+                        {r.speaker_name && <p className="text-xs text-muted-foreground">{r.speaker_name}</p>}
+                      </div>
+                      <div className="text-right shrink-0 ml-3">
+                        <p className="text-sm font-semibold">⭐ {r.avg_stars}</p>
+                        <p className="text-xs text-muted-foreground">({r.total_ratings} {t('reports.ratings.reviews')})</p>
+                      </div>
                     </div>
-                    <div className="text-right shrink-0 ml-3">
-                      <p className="text-sm font-semibold">⭐ {r.avg_stars}</p>
-                      <p className="text-xs text-muted-foreground">({r.total_ratings} {t('reports.ratings.reviews')})</p>
-                    </div>
+                    {r.comments.length > 0 && (
+                      <ul className="space-y-1.5 border-t pt-2">
+                        {r.comments.map((c, i) => (
+                          <li key={i} className="text-xs space-y-0.5">
+                            <div className="flex items-center justify-between gap-2 text-muted-foreground">
+                              <span className="font-medium text-foreground truncate">{c.author_name}</span>
+                              <span className="shrink-0">⭐ {c.stars}</span>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground">{c.credential_code}</p>
+                            <p className="whitespace-pre-wrap">{c.comment}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 ))}
               </div>
@@ -459,6 +590,81 @@ export default function Reports() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Polls Responses Section */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5 text-primary" />
+            <CardTitle className="text-base font-semibold">{t('reports.polls.title')}</CardTitle>
+          </div>
+          <div className="flex items-center gap-2">
+            {uniquePolls.length > 0 && (
+              <Select value={pollFilter} onValueChange={(v) => { setPollFilter(v); pollsPagination.setPage(1); }}>
+                <SelectTrigger className="h-8 w-[220px] text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t('reports.polls.filterAll')}</SelectItem>
+                  {uniquePolls.map((p) => (
+                    <SelectItem key={p.id} value={p.id} className="text-xs">
+                      {p.question.length > 50 ? p.question.slice(0, 50) + '…' : p.question}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Button size="sm" variant="ghost" onClick={() => pollResponses.data && exportPollsExcel(pollResponses.data, t)} disabled={!pollResponses.data?.length}>
+              <FileSpreadsheet className="mr-1 h-4 w-4" /> Excel
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {pollResponses.isLoading ? (
+            <Skeleton className="h-48 w-full" />
+          ) : filteredPollResponses.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-center">
+              <BarChart3 className="h-12 w-12 text-muted-foreground/40 mb-3" />
+              <p className="text-sm font-medium text-muted-foreground">{t('reports.polls.emptyTitle')}</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('reports.polls.colQuestion')}</TableHead>
+                    <TableHead>{t('reports.polls.colAuthor')}</TableHead>
+                    <TableHead className="hidden sm:table-cell">{t('reports.polls.colCredential')}</TableHead>
+                    <TableHead>{t('reports.polls.colAnswer')}</TableHead>
+                    <TableHead className="hidden md:table-cell text-right">{t('reports.polls.colDate')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pollsPagination.paginatedItems.map((r, i) => (
+                    <TableRow key={`${r.poll_id}-${i}`}>
+                      <TableCell className="max-w-[260px] text-sm">
+                        <span className="line-clamp-2">{r.question}</span>
+                      </TableCell>
+                      <TableCell className="text-sm font-medium">{r.author_name}</TableCell>
+                      <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">{r.credential_code}</TableCell>
+                      <TableCell className="text-sm">{r.option_text ?? r.text_response ?? '—'}</TableCell>
+                      <TableCell className="hidden md:table-cell text-right text-xs text-muted-foreground">
+                        {r.created_at ? new Date(r.created_at).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) : ''}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <DataTablePagination
+                currentPage={pollsPagination.currentPage}
+                totalPages={pollsPagination.totalPages}
+                totalItems={pollsPagination.totalItems}
+                startIndex={pollsPagination.startIndex}
+                endIndex={pollsPagination.endIndex}
+                onPageChange={pollsPagination.setPage}
+              />
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
