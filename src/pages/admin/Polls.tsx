@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BarChart3, Plus, Play, Square, Eye, Trash2, Upload, Download, Loader2 } from 'lucide-react';
+import { BarChart3, Plus, Play, Square, Eye, Trash2, Upload, Download, Loader2, Pencil, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useAdminPolls, useAdminPollResults } from '@/hooks/useAdminPolls';
+import { useAdminPolls, useAdminPollResults, useAdminPollForEdit } from '@/hooks/useAdminPolls';
 import { usePollRealtime } from '@/hooks/usePolls';
 import { adminPollsService } from '@/services/admin-polls.service';
 import { adminPollsExcelService } from '@/services/admin-polls-excel.service';
