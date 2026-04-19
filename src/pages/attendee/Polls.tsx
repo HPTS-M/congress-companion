@@ -264,7 +264,7 @@ function OpenTextForm({ onSubmit, isSubmitting }: {
 
 function PollCard({ poll, onSubmit, isSubmitting }: {
   poll: AttendeePoll;
-  onSubmit: (pollId: string, optionId: string | null, text: string | null) => Promise<void>;
+  onSubmit: (pollId: string, optionIds: string[] | null, text: string | null) => Promise<void>;
   isSubmitting: boolean;
 }) {
   const { t } = useTranslation('common');
@@ -279,10 +279,10 @@ function PollCard({ poll, onSubmit, isSubmitting }: {
 
   const typeKey = POLL_TYPE_KEYS[poll.poll_type] || 'polls.typeSingle';
 
-  const handleSubmit = async (optionId: string | null, text: string | null) => {
+  const handleSubmit = async (optionIds: string[] | null, text: string | null) => {
     try {
-      setSubmittedOptionId(optionId);
-      await onSubmit(poll.id, optionId, text);
+      setSubmittedOptionId(optionIds && optionIds.length > 0 ? optionIds[0] : null);
+      await onSubmit(poll.id, optionIds, text);
       setJustSubmitted(true);
       setShowAnswer(false);
     } catch {
@@ -332,14 +332,14 @@ function PollCard({ poll, onSubmit, isSubmitting }: {
             {isChoice && (
               <ChoiceForm
                 poll={poll}
-                onSubmit={optId => handleSubmit(optId, null)}
+                onSubmit={optIds => handleSubmit(optIds, null)}
                 isSubmitting={isSubmitting}
               />
             )}
             {isRating && (
               <RatingForm
                 poll={poll}
-                onSubmit={optId => handleSubmit(optId, null)}
+                onSubmit={optId => handleSubmit([optId], null)}
                 isSubmitting={isSubmitting}
               />
             )}
@@ -397,8 +397,8 @@ export default function AttendeePolls() {
           <PollCard
             key={poll.id}
             poll={poll}
-            onSubmit={(pollId, optionId, text) =>
-              submitResponse.mutateAsync({ pollId, optionId, textResponse: text })
+            onSubmit={(pollId, optionIds, text) =>
+              submitResponse.mutateAsync({ pollId, optionIds, textResponse: text })
             }
             isSubmitting={submitResponse.isPending}
           />
