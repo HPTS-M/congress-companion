@@ -81,28 +81,40 @@ export type Database = {
           body: string
           event_id: string
           id: string
+          last_edited_at: string | null
+          last_resent_at: string | null
           reach: string | null
           reach_count: number
+          scheduled_for: string | null
           sent_at: string | null
           title: string
+          updated_at: string
         }
         Insert: {
           body: string
           event_id: string
           id?: string
+          last_edited_at?: string | null
+          last_resent_at?: string | null
           reach?: string | null
           reach_count?: number
+          scheduled_for?: string | null
           sent_at?: string | null
           title: string
+          updated_at?: string
         }
         Update: {
           body?: string
           event_id?: string
           id?: string
+          last_edited_at?: string | null
+          last_resent_at?: string | null
           reach?: string | null
           reach_count?: number
+          scheduled_for?: string | null
           sent_at?: string | null
           title?: string
+          updated_at?: string
         }
         Relationships: [
           {
