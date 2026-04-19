@@ -345,18 +345,21 @@ export default function AdminAttendees() {
       <div className="space-y-3 rounded-lg border bg-card p-3 sm:p-4">
         {/* Status tabs (scrollable on mobile) */}
         <Tabs value={statusFilter} onValueChange={setStatusFilter}>
-          <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
-            <TabsTrigger value="all">
-              {t('attendees.filterAll')} <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5">{counts.total}</Badge>
+          <TabsList className="grid w-full grid-cols-4 h-auto">
+            <TabsTrigger value="all" className="flex-col gap-0.5 py-2 sm:flex-row sm:gap-1.5">
+              <span className="truncate">{t('attendees.filterAll')}</span>
+              <Badge variant="secondary" className="hidden sm:inline-flex text-[10px] px-1.5">{counts.total}</Badge>
             </TabsTrigger>
-            <TabsTrigger value="confirmed">
-              {t('attendees.filterConfirmed')} <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5">{counts.confirmed}</Badge>
+            <TabsTrigger value="confirmed" className="flex-col gap-0.5 py-2 sm:flex-row sm:gap-1.5">
+              <span className="truncate">{t('attendees.filterConfirmed')}</span>
+              <Badge variant="secondary" className="hidden sm:inline-flex text-[10px] px-1.5">{counts.confirmed}</Badge>
             </TabsTrigger>
-            <TabsTrigger value="pending">
-              {t('attendees.filterPending')} <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5">{counts.pending}</Badge>
+            <TabsTrigger value="pending" className="flex-col gap-0.5 py-2 sm:flex-row sm:gap-1.5">
+              <span className="truncate">{t('attendees.filterPending')}</span>
+              <Badge variant="secondary" className="hidden sm:inline-flex text-[10px] px-1.5">{counts.pending}</Badge>
             </TabsTrigger>
-            <TabsTrigger value="cancelled">
-              {t('attendees.filterCancelled')}
+            <TabsTrigger value="cancelled" className="py-2">
+              <span className="truncate">{t('attendees.filterCancelled')}</span>
             </TabsTrigger>
           </TabsList>
         </Tabs>

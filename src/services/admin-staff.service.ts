@@ -8,6 +8,7 @@ export interface StaffMember {
   assigned_room: string | null;
   contact_email: string;
   invitation_status: string | null;
+  is_active: boolean;
   last_login: string | null;
   access_expires_at: string | null;
   created_at: string | null;
@@ -57,6 +58,22 @@ export const adminStaffService = {
       .delete()
       .eq('id', id);
 
+    if (error) throw new Error(error.message);
+  },
+
+  async setInvitationStatus(id: string, status: 'pending' | 'active'): Promise<void> {
+    const { error } = await supabase
+      .from('staff_members')
+      .update({ invitation_status: status })
+      .eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+
+  async setActive(id: string, isActive: boolean): Promise<void> {
+    const { error } = await supabase
+      .from('staff_members')
+      .update({ is_active: isActive })
+      .eq('id', id);
     if (error) throw new Error(error.message);
   },
 

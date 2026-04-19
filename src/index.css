@@ -124,29 +124,48 @@
   }
 }
 
-@layer utilities {
-  /* Branded scrollbar — applied to overflow containers (tables, lists). */
-  .scrollbar-branded {
+@layer base {
+  /* Branded scrollbars applied globally — Firefox + WebKit */
+  html {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--primary) / 0.4) transparent;
   }
-  .scrollbar-branded::-webkit-scrollbar {
-    height: 8px;
+  *::-webkit-scrollbar {
     width: 8px;
+    height: 8px;
   }
-  .scrollbar-branded::-webkit-scrollbar-track {
+  *::-webkit-scrollbar-track {
     background: transparent;
-    border-radius: 4px;
   }
-  .scrollbar-branded::-webkit-scrollbar-thumb {
+  *::-webkit-scrollbar-thumb {
     background: hsl(var(--primary) / 0.4);
     border-radius: 4px;
     transition: background 0.2s ease;
   }
-  .scrollbar-branded::-webkit-scrollbar-thumb:hover {
+  *::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--accent));
   }
-  .scrollbar-branded::-webkit-scrollbar-corner {
+  *::-webkit-scrollbar-corner {
     background: transparent;
+  }
+  /* Radix ScrollArea viewport */
+  [data-radix-scroll-area-viewport] {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary) / 0.4) transparent;
+  }
+  /* Mobile: thinner */
+  @media (max-width: 640px) {
+    *::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+  }
+}
+
+@layer utilities {
+  /* Legacy alias — keep for any explicit usage */
+  .scrollbar-branded {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary) / 0.4) transparent;
   }
 }

@@ -1024,18 +1024,21 @@ export type Database = {
       poll_options: {
         Row: {
           id: string
+          is_active: boolean
           option_text: string
           order_index: number
           poll_id: string
         }
         Insert: {
           id?: string
+          is_active?: boolean
           option_text: string
           order_index?: number
           poll_id: string
         }
         Update: {
           id?: string
+          is_active?: boolean
           option_text?: string
           order_index?: number
           poll_id?: string
@@ -1116,8 +1119,10 @@ export type Database = {
           opens_at: string | null
           poll_type: string
           question: string
+          results_visibility: string
           session_id: string | null
           status: string
+          updated_at: string
         }
         Insert: {
           closes_at?: string | null
@@ -1128,8 +1133,10 @@ export type Database = {
           opens_at?: string | null
           poll_type?: string
           question: string
+          results_visibility?: string
           session_id?: string | null
           status?: string
+          updated_at?: string
         }
         Update: {
           closes_at?: string | null
@@ -1140,8 +1147,10 @@ export type Database = {
           opens_at?: string | null
           poll_type?: string
           question?: string
+          results_visibility?: string
           session_id?: string | null
           status?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -1777,6 +1786,7 @@ export type Database = {
           full_name: string
           id: string
           invitation_status: string | null
+          is_active: boolean
           last_login: string | null
           user_id: string | null
         }
@@ -1789,6 +1799,7 @@ export type Database = {
           full_name: string
           id?: string
           invitation_status?: string | null
+          is_active?: boolean
           last_login?: string | null
           user_id?: string | null
         }
@@ -1801,6 +1812,7 @@ export type Database = {
           full_name?: string
           id?: string
           invitation_status?: string | null
+          is_active?: boolean
           last_login?: string | null
           user_id?: string | null
         }
@@ -1960,6 +1972,14 @@ export type Database = {
           _participant_ids: string[]
         }
         Returns: string
+      }
+      get_poll_aggregate: {
+        Args: { _poll_id: string }
+        Returns: {
+          option_id: string
+          option_text: string
+          response_count: number
+        }[]
       }
       get_provider_assigned_services: {
         Args: { _provider_id: string }

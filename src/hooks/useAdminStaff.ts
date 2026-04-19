@@ -12,7 +12,6 @@ export function useStaffMembers(eventId: string | undefined) {
 
 export function useCreateStaffMember() {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: (member: {
       event_id: string;
@@ -29,7 +28,6 @@ export function useCreateStaffMember() {
 
 export function useUpdateStaffMember() {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<StaffMember> }) =>
       adminStaffService.updateStaffMember(id, updates),
@@ -41,7 +39,6 @@ export function useUpdateStaffMember() {
 
 export function useDeleteStaffMember() {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: (id: string) => adminStaffService.deleteStaffMember(id),
     onSuccess: () => {
@@ -52,7 +49,6 @@ export function useDeleteStaffMember() {
 
 export function useInviteStaffUser() {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: (params: {
       email: string;
@@ -62,6 +58,28 @@ export function useInviteStaffUser() {
       access_expires_at?: string;
       action?: string;
     }) => adminStaffService.inviteStaffUser(params),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['staff-members'] });
+    },
+  });
+}
+
+export function useSetStaffInvitationStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: 'pending' | 'active' }) =>
+      adminStaffService.setInvitationStatus(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['staff-members'] });
+    },
+  });
+}
+
+export function useToggleStaffActive() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      adminStaffService.setActive(id, isActive),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['staff-members'] });
     },
