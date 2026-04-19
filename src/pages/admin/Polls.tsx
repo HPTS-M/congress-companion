@@ -149,6 +149,11 @@ function NewPollModal({
               </Button>
             </div>
           )}
+          {isRatingType && (
+            <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
+              {t('polls.ratingAutoOptionsHint')}
+            </div>
+          )}
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>{t('polls.cancel')}</Button>
             <Button onClick={handleSave} disabled={!canSave || isSaving} className="bg-[hsl(var(--primary))]">
