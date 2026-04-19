@@ -1,43 +1,63 @@
 
-El usuario quiere cambiar la política de validación: el **email duplicado** ya no es bloqueante — pasa a ser **advertencia (warning)**. El usuario decide si carga o no. El **código credencial externo** se mantiene como **bloqueante absoluto** (nunca se puede repetir, identifica al individuo).
 
-## Plan
+## Diagnóstico
 
-### 1. `src/lib/import-validators.ts`
-- Mantener `BLOCKING_FIELDS_ALWAYS = ['full_name']` (quitar `email`).
-- Crear nueva categoría `WARNING_FIELDS = ['email']` para duplicados (formato sigue bloqueante).
-- Actualizar `classifyRow` para devolver `{ blocked, blockingErrors, permissiveErrors, warningErrors }`.
-- **Email**: formato inválido → bloqueante. Duplicado (en file o DB) → warning.
-- **Código credencial externo**: formato inválido O duplicado → SIEMPRE bloqueante.
+Hay **dos problemas distintos** que se combinan:
 
-### 2. `src/components/admin/attendees/ImportCsvModal.tsx`
-- Reclasificar filas con email duplicado como `warning` (no `blocked`).
-- Nueva sección en el preview: contador "X advertencias" + botón "Ver advertencias".
-- Si hay warnings, mostrar diálogo de confirmación antes de importar: "Hay N filas con email duplicado. Se cargarán de todos modos. ¿Continuar?".
-- Generar archivo Excel `advertencias-importacion.xlsx` con las filas marcadas (mismo patrón que el de errores).
-- Mantener el flujo bloqueante intacto para credencial externa.
+### Problema 1 (CRÍTICO) — La imagen muestra `<select>` nativos, no el componente real
+La captura que enviaste muestra dropdowns con flechitas dobles `↕` típicas de **selects nativos del navegador en macOS**, con los placeholders literales "Especialidad", "Institución", "Servicios" — **sin valores cargados**. El componente real `AttendeesFilters.tsx` es un `Popover` con buscador y multi-select, no un `<select>` nativo.
 
-### 3. Nuevo componente `ImportWarningsModal.tsx`
-- Tabla con filas de advertencia, columna "Motivo" (email duplicado en archivo / email duplicado en BD).
-- Botón "Descargar advertencias" → exporta Excel.
-- Botón "Continuar e importar" → confirma y procede.
-- Botón "Cancelar".
+Esto significa que en ese viewport (938px CSS) **NO se está renderizando el componente desktop**. Mirando `AttendeesFilters.tsx`:
 
-### 4. i18n (`es/admin.json` + `en/admin.json`)
-- Nuevas claves: `importModal.warnings.*`, `importModal.warningsModal.*`, `importModal.duplicateEmailWarning`, `importModal.confirmWithWarnings`.
+```tsx
+<div className="hidden flex-wrap items-end gap-3 md:flex">  // desktop
+<div className="md:hidden">                                    // mobile sheet
+```
 
-### 5. Verificación
-- Tests unitarios: actualizar `import-validators.test.ts` para validar la nueva clasificación (email duplicado = warning, código duplicado = blocked).
-- Test funcional: importar CSV con 2 filas mismo email → ambas se cargan tras confirmación.
-- Test funcional: importar CSV con 2 filas mismo código externo → segunda fila bloqueada.
+`md:` en Tailwind = ≥768px. A 938px debería verse el desktop, pero los `MultiSelect` muestran `Popover` con `Button`, no `<select>`. 
 
-### Reglas confirmadas (tras tu mensaje)
-| Campo | Duplicado en archivo | Duplicado en BD | Formato inválido |
-|---|---|---|---|
-| Nombre | n/a | n/a | Bloqueante |
-| **Email** | **Warning** | **Warning** | Bloqueante |
-| **Código externo** | **Bloqueante** | **Bloqueante** | Bloqueante |
-| Especialidad / Institución | n/a | n/a | NO APLICA |
-| Estado | n/a | n/a | Bloqueante |
+→ **La pantalla en la captura está mostrando el componente nativo `<select>` de algún build viejo cacheado, o hay otro componente sobrepuesto.** 
 
-⚠️ Nota técnica: la BD actualmente tiene índice único `(email, event_id)` en `attendees`. Hay que verificar y posiblemente eliminarlo para permitir emails duplicados (el código credencial externo SÍ debe mantener su índice único). Lo verifico al pasar a default mode.
+### Problema 2 (CONFIRMADO) — Los datos sí existen en BD
+Verifiqué directo en Supabase:
+- **573 asistentes** activos
+- **85 especialidades distintas** (ej. `QUIMICO FARMACEUTICO`, `ASISTENTE`, `INVITADO`)
+- **331 instituciones distintas** (ej. `ADIUM SAS`, `UNIVERSIDAD DE ANTIOQUIA`, `CRUZ VERDE`)
+
+El servicio `getFilterOptions` construye correctamente el listado y el hook `useAttendeeFilterOptions` lo expone. El backend está OK.
+
+### Problema 3 — Inconsistencia menor en el servicio
+En `admin-attendees.service.ts` la columna se llama `institution` pero en algún lugar del código antiguo aparece `institutions` (plural) en filtros — el `.in('institution', filters.institutions)` usa el plural en el array de UI y singular en la columna, lo cual está correcto. ✅
+
+---
+
+## Plan de implementación
+
+### Paso 1 · Forzar invalidación de caché Service Worker + recarga
+El sospechoso #1 es el Service Worker PWA cacheando una versión vieja del bundle.
+- Bumpear la versión del SW en `vite.config.ts` (workbox `cacheId`).
+- Agregar query string `?v={timestamp}` en build para forzar revalidación.
+
+### Paso 2 · Verificar y blindar render de `AttendeesFilters`
+- Inspeccionar visualmente el DOM real con `browser--observe` en el preview para confirmar qué componente está renderizando a 938px.
+- Si está cargando un fallback nativo, revisar si `Popover`/`Command` de shadcn fallaron por error JS.
+- Añadir `console.warn` si `options.specialties` o `options.institutions` están vacíos cuando `isLoading=false` para detectar el problema en runtime.
+
+### Paso 3 · Mejora UX — Mostrar contador en el trigger
+- Cuando `options.specialties.length === 0` y la query terminó: mostrar el botón deshabilitado con tooltip "Sin datos".
+- Cuando `isLoading`: mostrar skeleton en lugar del botón vacío.
+- Asegurar que `useAttendeeFilterOptions` invalide cache cuando se importan nuevos asistentes (hoy solo invalida `admin-attendees`, no `admin-attendee-filter-options`).
+
+### Paso 4 · Corregir invalidación tras bulk import
+En `useBulkCreateAttendees` y `useCreateAttendee`, agregar:
+```ts
+queryClient.invalidateQueries({ queryKey: ['admin-attendee-filter-options'] });
+```
+Hoy se importan asistentes con nuevas especialidades/instituciones y los dropdowns no se refrescan hasta los 5 minutos de `staleTime`.
+
+### Paso 5 · Verificación end-to-end
+1. Abrir `/{event-slug}/admin/users` en navegador desktop → confirmar que aparecen los dropdowns con buscador (NO selects nativos).
+2. Abrir el dropdown "Especialidad" → debe listar las 85 especialidades reales (`QUIMICO FARMACEUTICO`, `ASISTENTE`, etc.).
+3. Seleccionar 1-2 → la tabla se filtra y la URL refleja `?specialties=QUIMICO%20FARMACEUTICO`.
+4. Importar un CSV con una especialidad nueva → reabrir el dropdown → debe aparecer inmediatamente.
+
