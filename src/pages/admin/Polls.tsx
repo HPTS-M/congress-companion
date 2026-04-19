@@ -440,8 +440,22 @@ export default function AdminPolls() {
     responses: polls.reduce((sum, p) => sum + (p.response_count || 0), 0),
   };
 
-  const handleCreate = (data: any) => {
-    createPoll.mutate(data, { onSuccess: () => setShowNew(false) });
+  const handleCreate = (data: any, onSuccess: () => void) => {
+    createPoll.mutate(data, { onSuccess });
+  };
+
+  const handleUpdate = (
+    data: { pollId: string; question: string; sessionId: string | null; options: { id?: string; text: string }[] },
+    onSuccess: () => void,
+  ) => {
+    updatePoll.mutate(data, { onSuccess });
+  };
+
+  const handleCloseForm = (open: boolean) => {
+    if (!open) {
+      setShowForm(false);
+      setEditPollId(null);
+    }
   };
 
   const handleBulkImport = async (pollsData: { question: string; pollType: string; sessionId: string | null; options: string[] }[]) => {
@@ -482,7 +496,7 @@ export default function AdminPolls() {
           <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
             <Upload className="mr-1 h-4 w-4" />{t('polls.importButton')}
           </Button>
-          <Button onClick={() => setShowNew(true)} className="bg-[hsl(var(--primary))]">
+          <Button onClick={() => { setEditPollId(null); setShowForm(true); }} className="bg-[hsl(var(--primary))]">
             <Plus className="mr-2 h-4 w-4" />{t('polls.newPoll')}
           </Button>
         </div>
