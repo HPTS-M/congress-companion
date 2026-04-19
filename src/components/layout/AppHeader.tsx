@@ -22,6 +22,7 @@ export function AppHeader({ onMenuOpen }: AppHeaderProps) {
   const announcements = useUnreadAnnouncements(event?.id ?? '');
   const messages = useUnreadMessages(event?.id ?? '');
   const { headerLogoUrl } = useEventSettings();
+  const isOnline = useOnlineStatus();
 
   const toggleLanguage = (): void => {
     i18n.changeLanguage(i18n.language.startsWith('es') ? 'en' : 'es');
