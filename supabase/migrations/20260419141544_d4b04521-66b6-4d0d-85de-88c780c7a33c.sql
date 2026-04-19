@@ -1,0 +1,1 @@
+ALTER VIEW public.service_catalog_with_status SET (security_invoker = true);
