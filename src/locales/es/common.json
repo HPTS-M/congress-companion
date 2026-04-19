@@ -20,7 +20,8 @@
   "pagination": {
     "showing": "Mostrando {{start}}-{{end}} de {{total}}",
     "previous": "Anterior",
-    "next": "Siguiente"
+    "next": "Siguiente",
+    "rowsPerPage": "Filas por página"
   },
   "offlineBanner": {
     "offline": "Sin conexión — mostrando datos guardados",
