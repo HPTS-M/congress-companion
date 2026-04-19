@@ -571,6 +571,10 @@ export default function AdminPolls() {
                           onClick={() => setResultsId(poll.id)}>
                           <Eye className="h-4 w-4" />
                         </Button>
+                        <Button variant="ghost" size="icon" title={t('polls.edit')}
+                          onClick={() => { setEditPollId(poll.id); setShowForm(true); }}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
                         <Button variant="ghost" size="icon" title={t('polls.delete')}
                           onClick={() => deletePoll.mutate(poll.id)}>
                           <Trash2 className="h-4 w-4 text-destructive" />
@@ -595,13 +599,15 @@ export default function AdminPolls() {
         />
       )}
 
-      <NewPollModal
-        open={showNew}
-        onOpenChange={setShowNew}
+      <PollFormModal
+        open={showForm}
+        onOpenChange={handleCloseForm}
         sessions={sessions}
         eventStartDate={event?.start_date ?? ''}
-        onSave={handleCreate}
-        isSaving={createPoll.isPending}
+        onCreate={handleCreate}
+        onUpdate={handleUpdate}
+        isSaving={createPoll.isPending || updatePoll.isPending}
+        editPollId={editPollId}
       />
 
       <ResultsModal
