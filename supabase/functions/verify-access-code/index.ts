@@ -9,23 +9,36 @@ const corsHeaders = {
 };
 
 // --- Input validation schema ---
-const requestSchema = z.object({
-  access_code: z
-    .string()
-    .trim()
-    .min(6, 'Invalid code')
-    .max(12, 'Invalid code')
-    .regex(/^[A-Za-z0-9]+$/, 'Invalid code'),
-  event_code: z
-    .string()
-    .trim()
-    .min(3, 'Invalid event')
-    .max(50, 'Invalid event')
-    .regex(/^[A-Za-z0-9-]+$/, 'Invalid event'),
-  force_login: z.boolean().optional().default(false),
-});
+// Accepts EITHER an access_code (bcrypt-hashed) OR an external_credential_code.
+const requestSchema = z
+  .object({
+    access_code: z
+      .string()
+      .trim()
+      .min(6)
+      .max(12)
+      .regex(/^[A-Za-z0-9]+$/)
+      .optional(),
+    external_credential_code: z
+      .string()
+      .trim()
+      .min(3)
+      .max(50)
+      .regex(/^[A-Za-z0-9_\-]+$/)
+      .optional(),
+    event_code: z
+      .string()
+      .trim()
+      .min(3, 'Invalid event')
+      .max(50, 'Invalid event')
+      .regex(/^[A-Za-z0-9-]+$/, 'Invalid event'),
+    force_login: z.boolean().optional().default(false),
+  })
+  .refine(
+    (d) => !!d.access_code || !!d.external_credential_code,
+    { message: 'Code required' },
+  );
 
-// --- Rate limiting helpers ---
 const RATE_LIMIT_MAX = 5;
 const RATE_LIMIT_WINDOW_MINUTES = 15;
 
@@ -51,7 +64,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // 1. Parse & validate input
     let body: unknown;
     try {
       body = await req.json();
@@ -64,14 +76,14 @@ Deno.serve(async (req) => {
       return jsonError(400, 'Invalid code');
     }
 
-    const { access_code, event_code, force_login } = parsed.data;
+    const { access_code, external_credential_code, event_code, force_login } = parsed.data;
 
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // 2. Rate limiting
+    // Rate limiting
     const clientIp = getClientIp(req);
     const windowStart = new Date(Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60 * 1000).toISOString();
 
@@ -89,20 +101,18 @@ Deno.serve(async (req) => {
       return jsonError(429, 'Too many attempts. Try again later.');
     }
 
-    // Log this attempt
     await supabaseAdmin
       .from('access_attempts')
       .insert({ ip_address: clientIp, event_code });
 
-    // Periodic cleanup (fire-and-forget, ~1% of requests)
     if (Math.random() < 0.01) {
       supabaseAdmin.rpc('cleanup_old_attempts').then(() => {}).catch(() => {});
     }
 
-    // 3. Find event
+    // Find event
     const { data: event, error: eventError } = await supabaseAdmin
       .from('events')
-      .select('id, name, event_code, start_date, end_date, venue_name, status')
+      .select('id, name, event_code, start_date, end_date, venue_name, status, settings')
       .eq('event_code', event_code)
       .is('deleted_at', null)
       .single();
@@ -112,34 +122,59 @@ Deno.serve(async (req) => {
       return jsonError(404, 'Event not found');
     }
 
-    // 4. Find attendee candidates for this event (need hash for bcrypt compare)
-    const { data: attendees, error: attendeesError } = await supabaseAdmin
-      .from('attendees')
-      .select('id, full_name, email, credential_code, registration_status, user_id, event_id, access_code_hash, last_session_id')
-      .eq('event_id', event.id)
-      .is('deleted_at', null)
-      .not('access_code_hash', 'is', null);
+    const externalEnabled =
+      ((event.settings ?? {}) as Record<string, unknown>).external_credentials_enabled === true;
 
-    if (attendeesError) {
-      console.error('Attendee lookup error:', attendeesError.message);
-      return jsonError(500, 'Server error');
-    }
+    let matchedAttendee: Record<string, any> | null = null;
 
-    // 5. Bcrypt compare against each attendee's hash
-    const normalizedCode = access_code.toUpperCase().trim();
-    let matchedAttendee: typeof attendees[number] | null = null;
+    if (external_credential_code) {
+      // External-code login path: only allowed if the toggle is enabled
+      if (!externalEnabled) {
+        return jsonError(401, 'Invalid code');
+      }
 
-    for (const att of (attendees || [])) {
-      try {
-        // Use compareSync — async compare uses Workers which are unavailable in edge runtime
-        const isMatch = bcrypt.compareSync(normalizedCode, att.access_code_hash!);
-        if (isMatch) {
-          matchedAttendee = att;
-          break;
+      const normalizedExt = external_credential_code.toUpperCase().trim();
+      const { data: candidates, error: extErr } = await supabaseAdmin
+        .from('attendees')
+        .select('id, full_name, email, credential_code, registration_status, user_id, event_id, external_credential_code, last_session_id')
+        .eq('event_id', event.id)
+        .is('deleted_at', null)
+        .not('external_credential_code', 'is', null);
+
+      if (extErr) {
+        console.error('External code lookup error:', extErr.message);
+        return jsonError(500, 'Server error');
+      }
+
+      matchedAttendee =
+        (candidates || []).find(
+          (a) => (a.external_credential_code || '').toUpperCase().trim() === normalizedExt,
+        ) || null;
+    } else if (access_code) {
+      // Bcrypt access-code path
+      const { data: attendees, error: attendeesError } = await supabaseAdmin
+        .from('attendees')
+        .select('id, full_name, email, credential_code, registration_status, user_id, event_id, access_code_hash, last_session_id')
+        .eq('event_id', event.id)
+        .is('deleted_at', null)
+        .not('access_code_hash', 'is', null);
+
+      if (attendeesError) {
+        console.error('Attendee lookup error:', attendeesError.message);
+        return jsonError(500, 'Server error');
+      }
+
+      const normalizedCode = access_code.toUpperCase().trim();
+      for (const att of (attendees || [])) {
+        try {
+          const isMatch = bcrypt.compareSync(normalizedCode, att.access_code_hash!);
+          if (isMatch) {
+            matchedAttendee = att;
+            break;
+          }
+        } catch {
+          continue;
         }
-      } catch {
-        // Hash format mismatch (e.g., old SHA-256 hash) — skip
-        continue;
       }
     }
 
@@ -151,12 +186,11 @@ Deno.serve(async (req) => {
       return jsonError(403, 'Registration cancelled');
     }
 
-    // 5b. Block if session already active unless force_login is set
+    // Block if session already active unless force_login is set
     if (matchedAttendee.last_session_id) {
       if (!force_login) {
         return jsonError(409, 'Session already active');
       }
-      // force_login=true → clear previous session and continue
       await supabaseAdmin
         .from('attendees')
         .update({ last_session_id: null })
@@ -172,7 +206,7 @@ Deno.serve(async (req) => {
       matchedAttendee.registration_status = 'confirmed';
     }
 
-    // 6. Create or find auth user
+    // Create or find auth user
     let userId = matchedAttendee.user_id;
 
     if (!userId) {
@@ -215,7 +249,7 @@ Deno.serve(async (req) => {
         .maybeSingle();
     }
 
-    // 7. Generate magic link
+    // Generate magic link
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'magiclink',
       email: matchedAttendee.email,
@@ -226,7 +260,6 @@ Deno.serve(async (req) => {
       return jsonError(500, 'Server error');
     }
 
-    // 7b. Set session marker on attendee (will be confirmed with actual session ID by frontend)
     const sessionMarker = crypto.randomUUID();
     await supabaseAdmin
       .from('attendees')

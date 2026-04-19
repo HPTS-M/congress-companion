@@ -89,6 +89,7 @@ export function NewAttendeeModal({ open, onOpenChange, attendee }: Props) {
         specialty: attendee.specialty || '',
         institution: attendee.institution || '',
         registration_status: attendee.registration_status || 'pending',
+        external_credential_code: attendee.external_credential_code || '',
       });
     } else {
       // New mode: try to restore draft
@@ -172,11 +173,19 @@ export function NewAttendeeModal({ open, onOpenChange, attendee }: Props) {
             specialty: values.specialty || null,
             institution: values.institution || null,
             registration_status: values.registration_status,
+            external_credential_code: externalCredentialsEnabled
+              ? (values.external_credential_code?.trim() || null)
+              : undefined,
           },
         });
         toast({ title: t('attendees.newAttendeeModal.updateSuccess') });
       } else {
-        const created = await createMutation.mutateAsync(values);
+        const created = await createMutation.mutateAsync({
+          ...values,
+          external_credential_code: externalCredentialsEnabled
+            ? (values.external_credential_code?.trim() || null)
+            : null,
+        });
         toast({
           title: t('attendees.newAttendeeModal.success'),
           description: t('attendees.newAttendeeModal.successCode', { code: created.credential_code }),
@@ -261,6 +270,45 @@ export function NewAttendeeModal({ open, onOpenChange, attendee }: Props) {
                   </FormItem>
                 )}
               />
+
+              {externalCredentialsEnabled && (
+                <FormField
+                  control={form.control}
+                  name="external_credential_code"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('attendees.newAttendeeModal.externalCode')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t('attendees.newAttendeeModal.externalCodePlaceholder')}
+                          {...field}
+                          onBlur={(e) => {
+                            field.onBlur();
+                            const v = e.target.value.trim();
+                            if (!v) return;
+                            if (!EXTERNAL_CODE_REGEX.test(v)) {
+                              form.setError('external_credential_code', {
+                                message: t('attendees.newAttendeeModal.externalCodeInvalid'),
+                              });
+                              return;
+                            }
+                            const codes = (existingExternalCodes ?? []).map((c) => c.toUpperCase());
+                            const isSelf = isEditMode && (attendee?.external_credential_code ?? '').toUpperCase() === v.toUpperCase();
+                            if (codes.includes(v.toUpperCase()) && !isSelf) {
+                              form.setError('external_credential_code', {
+                                message: t('attendees.newAttendeeModal.externalCodeDuplicate'),
+                              });
+                            } else {
+                              form.clearErrors('external_credential_code');
+                            }
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
               <FormField
                 control={form.control}
