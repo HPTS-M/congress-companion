@@ -1,138 +1,123 @@
 
 
-El usuario quiere que valide el plan actual contra las buenas prácticas del proyecto (knowledge base + lecciones aprendidas). Reviso el plan en `.lovable/plan.md` y lo confronto con las reglas oficiales antes de proponer mejoras.
+El usuario quiere optimizar la UI del módulo Admin → Asistentes. Pide específicamente:
+1. Paginar a 10 registros visibles
+2. Optimizar los filtros
+3. Recomendar buenas prácticas
 
-Reviso rápido los puntos críticos del knowledge base aplicables:
-- LL-001/LL-002: RLS dual anon+authenticated, RESTRICTIVE+PERMISSIVE
-- Backend-first: migración → RLS → tipos → hooks → componentes
-- i18n obligatorio (es/en), mobile-first 360px
-- ExcelJS (NO xlsx) — ya cubierto en `src/lib/excel.ts`
-- Realtime cleanup con `removeChannel`
-- Dark mode con `dark:` variants
-- TanStack Query para server state
-- Skeleton screens + estados loading/error
-- Tipos TS estrictos, no `any`
-- No llamar Supabase desde componentes (usar services)
+Reviso el estado actual:
+- `usePagination` ya existe y soporta `pageSize`. La página `Attendees.tsx` ya lo usa con `pageSize=10` según el summary.
+- `DataTablePagination` ya está implementado con i18n.
+- `AttendeesTable` ya está memoizada (filas y badges).
+- El search ya tiene `debouncedSearch` (server-side via React Query key).
+- Hay tabs por estado (`statusFilter`) + panel de calidad de datos.
 
-Detecto que el plan actual cubre lo funcional pero le faltan varios checks de buenas prácticas. Presento el plan revisado y completado.
+Necesito revisar el código real para detectar qué falta vs. qué ya está bien.
 
-## Revisión del Plan: Fase A — Encuestas + Exportación
+Voy a leer `src/pages/admin/Attendees.tsx`, `src/hooks/useAdminAttendees.ts` y verificar qué oportunidades hay realmente.
 
-### Auditoría de buenas prácticas
+## Plan: Optimización UI Asistentes — Paginación + Filtros + Buenas Prácticas
 
-| Buena práctica del proyecto | Plan actual | Gap |
-|---|---|---|
-| Backend-first (migración → RLS → tipos → hooks → UI) | ✅ Sí | OK |
-| ExcelJS (no xlsx) | ✅ Implícito (usa `writeExcelFile`) | Hacerlo explícito |
-| RLS dual anon+authenticated en tablas tocadas | ⚠️ No revisado | Verificar `poll_options` y `poll_responses` |
-| i18n es/en para todos los strings nuevos | ✅ Mencionado | Listar claves exactas |
-| Mobile-first 360px (checkboxes en multiple_choice) | ❌ No mencionado | Añadir |
-| Dark mode con `dark:` variants | ❌ No mencionado | Añadir |
-| Skeleton/loading state en exportación | ❌ No mencionado | Añadir |
-| TanStack Query para nueva data | ❌ No mencionado | Añadir para `getTextResponses` |
-| Tipos TS estrictos (sin `any`) | ❌ No mencionado | Añadir |
-| Realtime cleanup en ResultsModal open_text | ⚠️ Posible gap | Verificar |
-| Validación Zod en formularios admin | ❌ No aplica (no hay form nuevo) | OK |
-| Linter Supabase post-migración | ✅ Punto 7 verificación | OK |
-| Sin llamadas Supabase desde componentes | ✅ Service `admin-polls-excel.service.ts` | OK |
-| Performance: archivos grandes paginados | ❌ No mencionado para export | Añadir batching |
+### Diagnóstico actual
+- ✅ Paginación cliente ya existe (`usePagination`, pageSize=10) — funcional
+- ✅ Tabla memoizada (filas + badges)
+- ✅ Tabs por estado + búsqueda server-side con debounce
+- ❌ Selector de tamaño de página fijo en 10 (sin opción 25/50/100)
+- ❌ Filtros no incluyen: especialidad, institución, fecha de registro, con/sin servicios
+- ❌ Filtros activos no son visibles como "chips removibles"
+- ❌ No hay persistencia de filtros en URL (al recargar se pierden)
+- ❌ Search debounce puede ser largo; sin indicador "buscando…"
+- ❌ Sin filtro rápido por "calidad de datos" expuesto (sin email, sin especialidad, duplicados)
+- ❌ Selección bulk no se conserva al cambiar de página
+- ❌ Sin scroll virtual (no necesario con paginación de 10, pero sí en exportación)
+- ❌ Mobile (360px): tabs de estado pueden desbordar; búsqueda y bulk bar pueden empujar la tabla
 
-### Plan completado y mejorado
+### Cambios propuestos
 
-#### 1. Migración SQL (backend-first)
+#### 1. Paginación mejorada
+- Mantener default 10, añadir selector `[10, 25, 50, 100]` en el footer junto a `DataTablePagination`.
+- Persistir `pageSize` y `currentPage` en `searchParams` de la URL.
+- Al cambiar de filtro/búsqueda → reset a página 1 (ya lo hace `usePagination`).
 
-- Poblar opciones 1–5 para los 3 `rating_scale` vacíos.
-- Trigger `AFTER INSERT` en `polls`: si `poll_type='rating_scale'`, insertar 5 filas en `poll_options`.
-- `UNIQUE(poll_id, attendee_id)` en `poll_responses` — **excepción:** parcial WHERE `option_id IS NOT NULL` para permitir múltiples filas en `multiple_choice` (un voto = N filas, una por opción).
-- **Verificar RLS post-migración:** `poll_options` y `poll_responses` deben mantener políticas dual anon (block) + authenticated (existentes ya están OK según schema).
-- Correr `supabase--linter` después.
+#### 2. Filtros optimizados
+**Barra de filtros unificada (sticky bajo el header):**
+- Búsqueda con icon spinner cuando `isFetching` (visual feedback durante debounce + query).
+- Tabs estado (actuales): Todos / Confirmado / Pendiente / Cancelado.
+- **Nuevos filtros desplegables** (Popover con multi-select):
+  - Especialidad (lista derivada de attendees del evento)
+  - Institución (lista derivada)
+  - Tiene servicios (Sí / No / Cualquiera)
+  - Calidad de datos (Sin email / Sin especialidad / Email duplicado / Código duplicado)
+- **Chips de filtros activos** removibles individualmente, con botón "Limpiar todo".
+- **Persistencia en URL** (`?status=pending&specialty=Cardiología&page=2`) — bookmarkable y compartible.
 
-#### 2. Tipos TS (antes de hooks)
+#### 3. Selección bulk persistente
+- Mantener `selectedIds` en memoria al paginar (Set global, no resetear al cambiar página).
+- Mostrar contador "X seleccionados (de N total)" + opción "Seleccionar todos los N" (no solo los visibles).
+- Indicador visual: cuando hay selección oculta en otras páginas.
 
-- Actualizar `src/services/polls.service.ts`: `submitResponse` acepta `optionIds: string[] | null` en vez de `optionId: string | null`.
-- Definir `interface OpenTextResponseRow { attendee_name: string; credential_code: string; text_response: string; created_at: string }` en service admin.
-- Definir `interface PollExportRow` para cada hoja del Excel (3 interfaces).
-- **Sin `any`.**
+#### 4. Mejoras de rendimiento
+- Mover el filtro de "calidad de datos" del cliente al servidor cuando sea posible (vía RPC o filtros en query).
+- Si dataset > 500 attendees, considerar paginación server-side (LIMIT/OFFSET en Supabase) — preparar el hook para soportar ambos modos.
+- `staleTime` 60s para counts (ya está), 30s para listado.
 
-#### 3. Hooks/services
+#### 5. UX/Accesibilidad
+- Estado vacío diferenciado: "Sin resultados con estos filtros" vs "Aún no hay asistentes".
+- Botón "Limpiar filtros" en estado vacío.
+- `aria-live="polite"` para anunciar cambios de filtro a screen readers.
+- Touch targets ≥44px en mobile (botones de filtros, paginación).
+- Scroll horizontal interno en tabla (no en página) en mobile.
 
-- `usePolls.submitResponse`: insertar N filas si multiple_choice (un `Promise.all` de inserts).
-- `adminPollsService.getAllResponsesForExport(eventId)` — query agregada con joins.
-- `adminPollsService.getTextResponses(pollId)` — ya existe, exponerlo en hook nuevo `useAdminPollTextResponses(pollId)` con TanStack Query (`staleTime: 10s`).
+#### 6. Mobile-first (360px)
+- Tabs de estado → scroll horizontal con `overflow-x-auto` y snap.
+- Filtros nuevos → consolidados en un único botón "Filtros (3)" que abre `Sheet` con todas las opciones.
+- Bulk bar → fixed bottom en mobile (no sticky top).
+- Paginación → solo Prev/Next + "X de Y" en mobile.
 
-#### 4. UI asistente — `src/pages/attendee/Polls.tsx`
+#### 7. Dark mode
+- Verificar contraste de chips de filtros activos (bg-primary/10 + text-primary funciona).
+- Skeleton + spinner con `dark:` variants.
 
-- `RatingForm`: eliminar fallback `rating-N`. Si `options.length === 0` → mostrar `<EmptyState>` con `t('polls.malformed')`.
-- `ChoiceForm`: rama por `pollType`:
-  - `single_choice` → `RadioGroup` (actual)
-  - `multiple_choice` → `Checkbox[]` con state `Set<string>`, hint `t('polls.multiSelectHint')`
-- Mobile-first: checkboxes con `min-h-11` (44px touch target), spacing `gap-3`, dark mode `dark:bg-slate-800`.
+### Archivos a tocar
+| Archivo | Cambio |
+|---|---|
+| `src/hooks/usePagination.ts` | Aceptar `pageSize` dinámico vía setter; persistencia opcional |
+| `src/hooks/useAdminAttendees.ts` | Aceptar nuevos filtros (specialty, institution, hasServices, quality) |
+| `src/pages/admin/Attendees.tsx` | Barra de filtros, chips activos, selector pageSize, URL params |
+| `src/components/admin/attendees/AttendeesTable.tsx` | Selección persistente + indicador "ocultas" |
+| `src/components/admin/attendees/AttendeesFilters.tsx` (NUEVO) | Componente de filtros + Sheet móvil |
+| `src/components/ui/data-table-pagination.tsx` | Añadir prop `pageSize` + `onPageSizeChange` opcional |
+| `src/services/admin-attendees.service.ts` | Soportar filtros nuevos en query Supabase |
+| `src/locales/{es,en}/admin.json` | Claves nuevas: filtros, chips, "limpiar todo", pageSize, "seleccionar todos los N" |
 
-#### 5. UI admin
+### Buenas prácticas incluidas
+1. **URL como fuente de verdad** para filtros (compartible, refrescable).
+2. **Selección bulk persistente entre páginas** con contador real.
+3. **Filtros derivados del dataset** (no hardcoded) — escalable.
+4. **Server-side filtering** con índices en columnas filtrables.
+5. **Debounce visible** con spinner — feedback inmediato.
+6. **Chips removibles** — patrón estándar de data tables (Linear, Notion, Airtable).
+7. **Estado vacío contextual** según causa (sin datos vs sin resultados).
+8. **Mobile-first**: filtros consolidados en Sheet, paginación simplificada.
+9. **i18n**: cero hardcoded strings.
+10. **TanStack Query**: queryKey incluye todos los filtros para cache automático.
+11. **Accesibilidad**: aria-live, touch targets ≥44px.
+12. **Dark mode** completo.
 
-- `ResultsModal`:
-  - Para `open_text` → renderizar lista con TanStack Query loading skeleton, dark mode, `<ScrollArea>` si >5 respuestas.
-  - Botón **"Exportar esta encuesta"** con icon `Download`, estado `isExporting` (spinner mientras genera).
-- `Polls.tsx` header: botón **"Exportar respuestas"** junto a "Importar Polls", mismo patrón loading.
-- `NewPollModal`: ocultar input de opciones cuando `pollType === 'rating_scale'` (el trigger las genera).
-
-#### 6. Servicio Excel — `src/services/admin-polls-excel.service.ts` (nuevo)
-
-- Usa `writeExcelFile` de `src/lib/excel.ts` (ExcelJS, NUNCA xlsx).
-- 3 hojas: Respuestas detalladas / Resumen por encuesta / Conteo por opción.
-- Headers i18n (acepta `t` como param o usa keys hardcoded en español por convención del módulo admin).
-- Batching: si total respuestas > 1000, traer en chunks (límite Supabase).
-- Filename: `Encuestas_{event_code}_{YYYY-MM-DD}.xlsx`.
-
-#### 7. i18n — claves nuevas
-
-`src/locales/{es,en}/admin.json`:
-- `polls.exportAll`, `polls.exportSingle`, `polls.exporting`, `polls.exportSuccess`, `polls.exportError`
-- `polls.openTextResponses`, `polls.openTextEmpty`
-- `polls.excel.sheetDetailed`, `polls.excel.sheetSummary`, `polls.excel.sheetCounts`
-- `polls.excel.col.*` (12 columnas)
-
-`src/locales/{es,en}/common.json`:
-- `polls.malformed`, `polls.multiSelectHint`, `polls.duplicateVote`
-
-#### 8. Archivos a tocar (orden backend-first)
-
-1. Migración SQL (poblar + trigger + UNIQUE parcial)
-2. `src/services/polls.service.ts` — array de option_ids
-3. `src/services/admin-polls.service.ts` — método getAllResponsesForExport
-4. `src/services/admin-polls-excel.service.ts` (NUEVO)
-5. `src/hooks/usePolls.ts` — N inserts
-6. Hook nuevo `useAdminPollTextResponses` (o inline en ResultsModal con useQuery)
-7. `src/pages/attendee/Polls.tsx` — RatingForm + ChoiceForm
-8. `src/pages/admin/Polls.tsx` — botones export + ResultsModal open_text
-9. `src/components/admin/polls/NewPollModal.tsx` — ocultar opciones rating_scale
-10. `src/components/admin/polls/ImportPollsModal.tsx` — validación rating_scale sin opciones
-11. `src/locales/{es,en}/{admin,common}.json`
-
-#### 9. Verificación post-fix (12 puntos)
-
+### Verificación post-cambios
 | # | Prueba | Criterio |
 |---|---|---|
-| 1 | Query opciones rating_scale | Cada poll = 5 filas |
-| 2 | Crear rating_scale nuevo | Trigger genera 5 opciones |
-| 3 | Votar la encuesta del bug | Inserta UUID real, sin error |
-| 4 | Votar 2 opciones multiple_choice | 2 filas con mismo attendee_id+poll_id |
-| 5 | Votar 2 veces single_choice | Falla por UNIQUE parcial |
-| 6 | Abrir results open_text en admin | Lista con autor + fecha + texto |
-| 7 | Click "Exportar respuestas" | Descarga .xlsx 3 hojas |
-| 8 | Click "Exportar esta encuesta" | Descarga .xlsx del poll |
-| 9 | Regresión single_choice existentes | Resultados intactos |
-| 10 | `supabase--linter` post-migración | 0 nuevos warnings |
-| 11 | **Mobile 360px:** votar multiple en móvil | Touch targets ≥44px, sin overflow |
-| 12 | **Dark mode:** ver ResultsModal y formularios | Contraste correcto, sin texto invisible |
+| 1 | Paginar con 10/25/50/100 | Conserva selección bulk |
+| 2 | Aplicar 3 filtros + recargar página | Filtros persisten via URL |
+| 3 | Buscar "claudia" mientras carga | Spinner visible en input |
+| 4 | Filtro por especialidad | Resultados correctos, chip removible |
+| 5 | Seleccionar todos los N (no solo visibles) | Bulk delete afecta todos |
+| 6 | Mobile 360px: abrir filtros | Sheet con todas las opciones, touch ≥44px |
+| 7 | Dark mode: chips + skeleton | Contraste OK |
+| 8 | Estado vacío con filtros | Botón "Limpiar filtros" funcional |
+| 9 | Navegación con teclado | Tab/Enter en filtros y paginación |
+| 10 | `supabase--linter` post-cambios | 0 nuevos warnings (si tocamos service) |
 
-#### 10. Riesgos y mitigaciones
-
-- **Riesgo:** `UNIQUE(poll_id, attendee_id)` rompe multiple_choice. **Mitigación:** índice parcial `WHERE option_id IS NOT NULL AND poll_id IN (SELECT id FROM polls WHERE poll_type IN ('single_choice','rating_scale','open_text'))` — o validar a nivel app en multiple_choice.
-- **Riesgo:** export con miles de respuestas tarda y bloquea UI. **Mitigación:** botón con estado `isExporting`, batching en service.
-- **Riesgo:** trigger duplica opciones si admin las crea manualmente para rating_scale. **Mitigación:** trigger con `IF NOT EXISTS` check.
-
-### Veredicto de la revisión
-
-El plan original cubre la funcionalidad pero le faltaban **6 chequeos de buenas prácticas** del knowledge base: mobile-first, dark mode, skeleton states, TanStack Query, tipos estrictos y batching de exportación. Plan ahora completo y alineado con LL-001/LL-002/backend-first/ExcelJS.
+### Entregable
+Reporte ✅/❌ de los 10 puntos + screenshots desktop/mobile/dark mode.
 
