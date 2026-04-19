@@ -89,6 +89,7 @@ export function NewAttendeeModal({ open, onOpenChange, attendee }: Props) {
         specialty: attendee.specialty || '',
         institution: attendee.institution || '',
         registration_status: attendee.registration_status || 'pending',
+        external_credential_code: attendee.external_credential_code || '',
       });
     } else {
       // New mode: try to restore draft
