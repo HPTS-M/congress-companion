@@ -277,10 +277,10 @@ export function NewAttendeeModal({ open, onOpenChange, attendee }: Props) {
                   name="external_credential_code"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t('attendees.newAttendeeModal.externalCode')}</FormLabel>
+                      <FormLabel>{t('attendees.congressCode')}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder={t('attendees.newAttendeeModal.externalCodePlaceholder')}
+                          placeholder={t('attendees.congressCodePlaceholder')}
                           {...field}
                           onBlur={(e) => {
                             field.onBlur();

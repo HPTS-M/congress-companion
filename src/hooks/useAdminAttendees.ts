@@ -2,6 +2,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminAttendeesService, type CreateAttendeeData, type AddServiceData, type AttendeeFilters, type BulkAttendeeRow } from '@/services/admin-attendees.service';
 import { useEvent } from '@/hooks/useEvent';
 
+export type UpsertResolution =
+  | { rowIndex: number; action: 'create' }
+  | { rowIndex: number; action: 'update'; targetAttendeeId: string }
+  | { rowIndex: number; action: 'skip' };
+
 async function clearAttendeesSWCache() {
   if (typeof window === 'undefined' || !('caches' in window)) return;
   try {
@@ -105,6 +110,34 @@ export function useBulkCreateAttendees() {
         queryClient.invalidateQueries({ queryKey: ['admin-attendees'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-attendees-counts'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-attendee-filter-options'] }),
+      ]);
+    },
+  });
+}
+
+export function useBulkUpsertAttendees() {
+  const queryClient = useQueryClient();
+  const { event } = useEvent();
+
+  return useMutation({
+    mutationFn: ({
+      rows,
+      resolutions,
+      registrationStatus,
+    }: {
+      rows: BulkAttendeeRow[];
+      resolutions: UpsertResolution[];
+      registrationStatus?: string;
+    }) =>
+      adminAttendeesService.bulkUpsertAttendees(event!.id, rows, resolutions, registrationStatus),
+    onSuccess: async () => {
+      await clearAttendeesSWCache();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-attendees'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-attendees-counts'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-attendee-filter-options'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-existing-emails'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-existing-external-codes'] }),
       ]);
     },
   });

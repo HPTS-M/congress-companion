@@ -208,6 +208,12 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
                       <span className="ml-1 text-foreground">{data.attendee.phone}</span>
                     </div>
                   )}
+                  {data.attendee.external_credential_code && (
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">{t('attendees.congressCode')}:</span>
+                      <span className="ml-1 font-mono text-foreground">{data.attendee.external_credential_code}</span>
+                    </div>
+                  )}
                   {data.attendee.registration_date && (
                     <div>
                       <span className="text-muted-foreground">{t('attendees.detail.registrationDate')}:</span>

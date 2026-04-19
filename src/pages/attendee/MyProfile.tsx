@@ -2,14 +2,14 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { useEventSlug, useEventSettings } from '@/hooks/useEvent';
+import { useEventSlug, useEventSettings, useEvent } from '@/hooks/useEvent';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { QRCodeSVG } from 'qrcode.react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { LogOut, Mail, Building2, Stethoscope, CreditCard } from 'lucide-react';
+import { LogOut, Mail, Building2, Stethoscope, CreditCard, BadgeCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function MyProfile() {
@@ -18,6 +18,9 @@ export default function MyProfile() {
   const { attendee, logout } = useAuth();
   const eventSlug = useEventSlug();
   const { qrEnabled } = useEventSettings();
+  const { event } = useEvent();
+  const congressCodesEnabled =
+    ((event?.settings ?? {}) as Record<string, unknown>).external_credentials_enabled === true;
   const queryClient = useQueryClient();
 
   const { data: fullProfile } = useQuery({
@@ -25,7 +28,7 @@ export default function MyProfile() {
     queryFn: async () => {
       const { data } = await supabase
         .from('attendees')
-        .select('specialty, institution')
+        .select('specialty, institution, external_credential_code')
         .eq('id', attendee!.id)
         .single();
       return data;
@@ -117,6 +120,19 @@ export default function MyProfile() {
               </p>
             </div>
           </div>
+
+          {/* Congress code (organization-issued) — read only, only when toggle is active and value exists */}
+          {congressCodesEnabled && fullProfile?.external_credential_code && (
+            <div className="flex items-center gap-3 px-4 py-3">
+              <BadgeCheck className="h-4 w-4 shrink-0 text-accent" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-muted-foreground">{t('profile.congressCode')}</p>
+                <p className="truncate text-sm font-medium text-foreground">
+                  {fullProfile.external_credential_code}
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Specialty — editable */}
           <div className="flex items-center gap-3 px-4 py-3">

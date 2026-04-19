@@ -1,11 +1,12 @@
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Upload, Download, FileText, AlertCircle, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Upload, Download, FileText, AlertCircle, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -13,11 +14,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
 import {
   useBulkCreateAttendees,
+  useBulkUpsertAttendees,
   useExistingEmails,
   useExistingExternalCodes,
   useSendInvitations,
+  type UpsertResolution,
 } from '@/hooks/useAdminAttendees';
 import { useEvent } from '@/hooks/useEvent';
+import { adminAttendeesService } from '@/services/admin-attendees.service';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
@@ -32,6 +36,11 @@ import {
 } from '@/lib/import-validators';
 import { ImportErrorsModal } from './ImportErrorsModal';
 import { ImportWarningsModal } from './ImportWarningsModal';
+import {
+  ResolveAmbiguousImportModal,
+  type AmbiguousRow,
+  type AmbiguousResolutionMap,
+} from './ResolveAmbiguousImportModal';
 
 interface Props {
   open: boolean;
@@ -67,7 +76,7 @@ async function downloadTemplate() {
     columns: [
       { header: 'Nombre completo', key: 'full_name', width: 30 },
       { header: 'Email', key: 'email', width: 30 },
-      { header: 'Código credencial', key: 'external_credential_code', width: 22 },
+      { header: 'Código del congreso', key: 'external_credential_code', width: 28 },
       { header: 'Especialidad', key: 'specialty', width: 20 },
       { header: 'Institución', key: 'institution', width: 25 },
       { header: 'Estado', key: 'registration_status_id', width: 10 },
@@ -76,7 +85,7 @@ async function downloadTemplate() {
       {
         full_name: 'Dr. Juan Pérez',
         email: 'juan@ejemplo.com',
-        external_credential_code: 'EXT-001234',
+        external_credential_code: 'CMP-12345',
         specialty: 'Cardiología',
         institution: 'Hospital General',
         registration_status_id: 1,
@@ -84,7 +93,7 @@ async function downloadTemplate() {
       {
         full_name: 'Dra. María López',
         email: 'maria@ejemplo.com',
-        external_credential_code: 'EXT-001235',
+        external_credential_code: 'CMP-67890',
         specialty: 'Neurología',
         institution: 'Clínica Central',
         registration_status_id: 2,
@@ -100,6 +109,7 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
     ((event?.settings ?? {}) as Record<string, unknown>).external_credentials_enabled === true;
 
   const bulkMutation = useBulkCreateAttendees();
+  const upsertMutation = useBulkUpsertAttendees();
   const sendInvitationsMutation = useSendInvitations();
   const { data: existingEmails } = useExistingEmails();
   const { data: existingExternalCodes } = useExistingExternalCodes();
@@ -113,6 +123,14 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
   const [errorsModalOpen, setErrorsModalOpen] = useState(false);
   const [warningsModalOpen, setWarningsModalOpen] = useState(false);
   const [confirmWarningsOpen, setConfirmWarningsOpen] = useState(false);
+  const [updateExisting, setUpdateExisting] = useState(false);
+  const [matchesByEmail, setMatchesByEmail] = useState<Record<string, Array<{
+    id: string; full_name: string; email: string; credential_code: string;
+    external_credential_code: string | null; created_at: string | null;
+  }>>>({});
+  const [matchesLoading, setMatchesLoading] = useState(false);
+  const [resolutionsByRow, setResolutionsByRow] = useState<AmbiguousResolutionMap>({});
+  const [resolveModalOpen, setResolveModalOpen] = useState(false);
 
   const existingEmailSet = useMemo(
     () => new Set((existingEmails ?? []).map((e) => e.toLowerCase())),
@@ -189,6 +207,68 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
   const blockedRows = processedRows.filter((r) => r.blocked);
   const warningRows = processedRows.filter((r) => r.hasWarning);
   const rowsWithPermissiveErrors = validRows.filter((r) => r.permissiveErrors.length > 0);
+
+  // Fetch DB matches for valid rows (for upsert classification)
+  const eventId = event?.id;
+  useEffect(() => {
+    if (!eventId || validRows.length === 0) {
+      setMatchesByEmail({});
+      return;
+    }
+    const emails = validRows.map((r) => r.validated.email).filter(Boolean);
+    if (emails.length === 0) return;
+    let cancelled = false;
+    setMatchesLoading(true);
+    adminAttendeesService
+      .lookupAttendeesByEmails(eventId, emails)
+      .then((map) => {
+        if (!cancelled) setMatchesByEmail(map);
+      })
+      .catch(() => {
+        if (!cancelled) setMatchesByEmail({});
+      })
+      .finally(() => {
+        if (!cancelled) setMatchesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId, rawRows]);
+
+  // Classify valid rows for upsert mode
+  const classifiedValidRows = useMemo(() => {
+    return validRows.map((r) => {
+      const email = (r.validated.email ?? '').toLowerCase();
+      const matches = email ? (matchesByEmail[email] ?? []) : [];
+      let kind: 'new' | 'updatable' | 'ambiguous' = 'new';
+      if (matches.length === 1) kind = 'updatable';
+      else if (matches.length > 1) kind = 'ambiguous';
+      return { processed: r, matches, kind };
+    });
+  }, [validRows, matchesByEmail]);
+
+  const newCount = classifiedValidRows.filter((c) => c.kind === 'new').length;
+  const updatableCount = classifiedValidRows.filter((c) => c.kind === 'updatable').length;
+  const ambiguousList = classifiedValidRows.filter((c) => c.kind === 'ambiguous');
+  const ambiguousCount = ambiguousList.length;
+
+  const ambiguousRows: AmbiguousRow[] = useMemo(
+    () =>
+      ambiguousList.map((c) => ({
+        rowIndex: c.processed.rowNumber - 2,
+        rowNumber: c.processed.rowNumber,
+        fullName: c.processed.validated.full_name ?? '',
+        email: c.processed.validated.email ?? '',
+        incomingCongressCode: c.processed.validated.external_credential_code ?? '',
+        candidates: c.matches,
+      })),
+    [ambiguousList],
+  );
+
+  const allAmbiguousResolved =
+    ambiguousCount === 0 ||
+    ambiguousRows.every((r) => resolutionsByRow[r.rowIndex] !== undefined);
 
   const handleFile = useCallback(async (file: File) => {
     const validExts = ['.xlsx', '.xls', '.csv'];
