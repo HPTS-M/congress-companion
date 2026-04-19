@@ -67,6 +67,9 @@ interface ImportResult {
   warnings: number;
   blockedRows: ProcessedRow[];
   warningRows: ProcessedRow[];
+  updated?: number;
+  skipped?: number;
+  upsertErrors?: number;
 }
 
 async function downloadTemplate() {
@@ -298,13 +301,32 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
     if (file) handleFile(file);
   }, [handleFile]);
 
+  const upsertEnabled = updateExisting && (updatableCount > 0 || ambiguousCount > 0);
+
   const handleImportClick = () => {
     if (validRows.length === 0) return;
-    if (warningRows.length > 0) {
+    if (upsertEnabled && !allAmbiguousResolved) return;
+    if (warningRows.length > 0 && !upsertEnabled) {
       setConfirmWarningsOpen(true);
       return;
     }
     void runImport();
+  };
+
+  const buildRowPayload = (r: ProcessedRow) => {
+    const finalRow = r.permissiveErrors.length > 0
+      ? applyNoAplica(r.validated, r.permissiveErrors)
+      : r.validated;
+    return {
+      full_name: finalRow.full_name,
+      email: finalRow.email,
+      specialty: finalRow.specialty || undefined,
+      institution: finalRow.institution || undefined,
+      external_credential_code: externalCredentialsEnabled
+        ? (finalRow.external_credential_code || null)
+        : null,
+      registration_status: finalRow.registration_status,
+    };
   };
 
   const runImport = async () => {
@@ -314,22 +336,77 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
       setConfirmWarningsOpen(false);
       setProgress(10);
 
-      // Apply NO APLICA substitution to permissive-error rows
-      const rowsToInsert = validRows.map((r) => {
-        const finalRow = r.permissiveErrors.length > 0
-          ? applyNoAplica(r.validated, r.permissiveErrors)
-          : r.validated;
-        return {
-          full_name: finalRow.full_name,
-          email: finalRow.email,
-          specialty: finalRow.specialty || undefined,
-          institution: finalRow.institution || undefined,
-          external_credential_code: externalCredentialsEnabled
-            ? (finalRow.external_credential_code || null)
-            : null,
-          registration_status: finalRow.registration_status,
-        };
-      });
+      if (upsertEnabled) {
+        // Build resolutions for ALL valid rows (auto-create for new, auto-update
+        // for single-match, manual resolution for ambiguous).
+        const allRows = validRows.map(buildRowPayload);
+        const resolutions = classifiedValidRows.map((c) => {
+          const rowIndex = c.processed.rowNumber - 2;
+          if (c.kind === 'new') {
+            return { rowIndex, action: 'create' as const };
+          }
+          if (c.kind === 'updatable') {
+            return {
+              rowIndex,
+              action: 'update' as const,
+              targetAttendeeId: c.matches[0].id,
+            };
+          }
+          // ambiguous → use manual resolution
+          const manual = resolutionsByRow[rowIndex];
+          if (!manual || manual.action === 'skip') {
+            return { rowIndex, action: 'skip' as const };
+          }
+          if (manual.action === 'create') {
+            return { rowIndex, action: 'create' as const };
+          }
+          return {
+            rowIndex,
+            action: 'update' as const,
+            targetAttendeeId: manual.targetAttendeeId,
+          };
+        });
+
+        const upsertResult = await upsertMutation.mutateAsync({
+          rows: allRows,
+          resolutions,
+          registrationStatus: importStatus,
+        });
+        setProgress(80);
+
+        if (importStatus === 'confirmed' && upsertResult.insertedIds.length > 0) {
+          try {
+            await sendInvitationsMutation.mutateAsync(upsertResult.insertedIds);
+          } catch (invErr) {
+            console.error('Failed to send invitations:', invErr);
+          }
+        }
+        setProgress(100);
+
+        setImportResult({
+          imported: upsertResult.inserted,
+          updated: upsertResult.updated,
+          skipped: upsertResult.skipped,
+          upsertErrors: upsertResult.errors.length,
+          blocked: blockedRows.length,
+          permissiveFixed: rowsWithPermissiveErrors.length,
+          warnings: warningRows.length,
+          blockedRows,
+          warningRows,
+        });
+
+        toast({
+          title: t('attendees.importModal.upsertSuccess', {
+            inserted: upsertResult.inserted,
+            updated: upsertResult.updated,
+            skipped: upsertResult.skipped,
+          }),
+        });
+        return;
+      }
+
+      // Default insert-only path
+      const rowsToInsert = validRows.map(buildRowPayload);
 
       const result = await bulkMutation.mutateAsync({
         rows: rowsToInsert,
@@ -390,6 +467,18 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
                     <CheckCircle2 className="h-4 w-4" />
                     {t('attendees.importModal.summaryImported', { count: importResult.imported })}
                   </div>
+                  {(importResult.updated ?? 0) > 0 && (
+                    <div className="flex items-center gap-2 text-sm font-medium text-primary">
+                      <RefreshCw className="h-4 w-4" />
+                      {t('attendees.importModal.summaryUpdated', { count: importResult.updated })}
+                    </div>
+                  )}
+                  {(importResult.skipped ?? 0) > 0 && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <AlertTriangle className="h-4 w-4" />
+                      {t('attendees.importModal.summarySkipped', { count: importResult.skipped })}
+                    </div>
+                  )}
                   {importResult.permissiveFixed > 0 && (
                     <div className="flex items-center gap-2 text-sm text-amber-600">
                       <AlertTriangle className="h-4 w-4" />
@@ -400,6 +489,12 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
                     <div className="flex items-center gap-2 text-sm text-amber-600">
                       <AlertTriangle className="h-4 w-4" />
                       {t('attendees.importModal.summaryWarnings', { count: importResult.warnings })}
+                    </div>
+                  )}
+                  {(importResult.upsertErrors ?? 0) > 0 && (
+                    <div className="flex items-center gap-2 text-sm text-destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      {t('attendees.importModal.summaryUpsertErrors', { count: importResult.upsertErrors })}
                     </div>
                   )}
                   {importResult.blocked > 0 && (
@@ -484,6 +579,64 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
                   </span>
                 )}
               </div>
+
+              {/* Upsert classification summary */}
+              {(updatableCount > 0 || ambiguousCount > 0) && (
+                <Card className="border-primary/30">
+                  <CardContent className="p-3 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <Checkbox
+                        id="update-existing"
+                        checked={updateExisting}
+                        onCheckedChange={(v) => setUpdateExisting(v === true)}
+                        disabled={matchesLoading}
+                        className="mt-0.5"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <Label htmlFor="update-existing" className="text-sm font-medium cursor-pointer">
+                          {t('attendees.importModal.updateExisting')}
+                        </Label>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {t('attendees.importModal.updateExistingDescription')}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 text-xs pt-1">
+                      <span className="rounded-full bg-accent/15 text-accent px-2 py-0.5">
+                        {t('attendees.importModal.summaryNew', { count: newCount })}
+                      </span>
+                      {updatableCount > 0 && (
+                        <span className="rounded-full bg-primary/15 text-primary px-2 py-0.5">
+                          {t('attendees.importModal.summaryUpdatable', { count: updatableCount })}
+                        </span>
+                      )}
+                      {ambiguousCount > 0 && (
+                        <span className="rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-400 px-2 py-0.5">
+                          {t('attendees.importModal.summaryAmbiguous', { count: ambiguousCount })}
+                        </span>
+                      )}
+                    </div>
+
+                    {updateExisting && ambiguousCount > 0 && (
+                      <Button
+                        variant={allAmbiguousResolved ? 'outline' : 'default'}
+                        size="sm"
+                        className="w-full mt-2"
+                        onClick={() => setResolveModalOpen(true)}
+                      >
+                        <AlertTriangle className="mr-2 h-4 w-4" />
+                        {t('attendees.importModal.resolveButton', { count: ambiguousCount })}
+                      </Button>
+                    )}
+                    {updateExisting && ambiguousCount > 0 && !allAmbiguousResolved && (
+                      <p className="text-xs text-destructive">
+                        {t('attendees.importModal.needsResolution')}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
 
               <div className="text-sm font-medium text-foreground">{t('attendees.importModal.previewTitle')}</div>
               <div className="max-h-48 overflow-auto rounded border">
@@ -586,9 +739,15 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
               <Button
                 className="w-full"
                 onClick={handleImportClick}
-                disabled={bulkMutation.isPending || sendInvitationsMutation.isPending || validRows.length === 0}
+                disabled={
+                  bulkMutation.isPending ||
+                  upsertMutation.isPending ||
+                  sendInvitationsMutation.isPending ||
+                  validRows.length === 0 ||
+                  (upsertEnabled && !allAmbiguousResolved)
+                }
               >
-                {bulkMutation.isPending || sendInvitationsMutation.isPending
+                {bulkMutation.isPending || upsertMutation.isPending || sendInvitationsMutation.isPending
                   ? t('attendees.importModal.importing')
                   : blockedRows.length > 0
                     ? t('attendees.importModal.importValidOnly', { count: validRows.length })
@@ -598,6 +757,13 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
           )}
         </DialogContent>
       </Dialog>
+
+      <ResolveAmbiguousImportModal
+        open={resolveModalOpen}
+        onOpenChange={setResolveModalOpen}
+        ambiguousRows={ambiguousRows}
+        onResolve={(map) => setResolutionsByRow(map)}
+      />
 
       <ImportErrorsModal
         open={errorsModalOpen}

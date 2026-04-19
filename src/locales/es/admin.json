@@ -156,6 +156,8 @@
       "summaryBlocked": "❌ {{count}} bloqueados (no importados)",
       "summaryUpdated": "🔄 {{count}} actualizados",
       "summarySkipped": "⏭ {{count}} omitidos",
+      "summaryUpsertErrors": "❌ {{count}} errores en upsert",
+      "upsertSuccess": "{{inserted}} creados · {{updated}} actualizados · {{skipped}} omitidos",
       "downloadErrors": "Descargar reporte de errores",
       "viewBlockedRows": "Ver {{count}} filas bloqueadas",
       "viewWarningRows": "Ver {{count}} advertencias",
