@@ -6,7 +6,10 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-async function sendInviteEmail(email: string, inviteLink: string, resendApiKey: string): Promise<void> {
+async function sendInviteEmail(email: string, inviteLink: string, resendApiKey: string, accessCode?: string | null): Promise<void> {
+  const codeBlock = accessCode
+    ? `<div style="background-color:#F8FAFC; border:1px solid #E2E8F0; border-radius:8px; padding:16px; margin:16px 0; text-align:center;"><p style="color:#64748B; font-size:12px; margin:0 0 6px;">Tu código de acceso interno</p><p style="color:#1A56A0; font-size:22px; font-weight:700; letter-spacing:4px; font-family:monospace; margin:0;">${accessCode}</p></div>`
+    : '';
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -21,6 +24,7 @@ async function sendInviteEmail(email: string, inviteLink: string, resendApiKey: 
         <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;">
           <h1 style="color: #1A56A0; font-size: 24px; margin-bottom: 16px;">Bienvenido al Portal de Proveedores</h1>
           <p style="color: #334155; font-size: 16px; line-height: 1.6;">Has sido invitado a acceder al portal de proveedores de Health Plus Travels Events.</p>
+          ${codeBlock}
           <p style="color: #334155; font-size: 16px; line-height: 1.6;">Haz clic en el botón para configurar tu acceso:</p>
           <a href="${inviteLink}" style="display: inline-block; background: linear-gradient(135deg, #1A56A0, #00B89F); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px; margin: 24px 0;">
             Acceder al Portal
@@ -102,9 +106,10 @@ Deno.serve(async (req) => {
 
     const { data: provider } = await adminClient
       .from("providers")
-      .select("user_id, contact_email")
+      .select("user_id, contact_email, access_code")
       .eq("id", provider_id)
       .single();
+    const accessCode = (provider as any)?.access_code ?? null;
 
     // === ACTION: reinvite ===
     if (action === "reinvite" && provider?.user_id) {
