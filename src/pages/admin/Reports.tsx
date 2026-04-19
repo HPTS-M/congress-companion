@@ -461,17 +461,33 @@ export default function Reports() {
             ) : (ratings.data?.length ?? 0) === 0 ? (
               <RatingsEmptyState t={t} />
             ) : (
-              <div className="max-h-64 overflow-y-auto space-y-2">
+              <div className="max-h-72 overflow-y-auto space-y-2">
                 {ratings.data!.map((r) => (
-                  <div key={r.session_id} className="flex items-center justify-between rounded-lg border p-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{r.title}</p>
-                      {r.speaker_name && <p className="text-xs text-muted-foreground">{r.speaker_name}</p>}
+                  <div key={r.session_id} className="rounded-lg border p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate">{r.title}</p>
+                        {r.speaker_name && <p className="text-xs text-muted-foreground">{r.speaker_name}</p>}
+                      </div>
+                      <div className="text-right shrink-0 ml-3">
+                        <p className="text-sm font-semibold">⭐ {r.avg_stars}</p>
+                        <p className="text-xs text-muted-foreground">({r.total_ratings} {t('reports.ratings.reviews')})</p>
+                      </div>
                     </div>
-                    <div className="text-right shrink-0 ml-3">
-                      <p className="text-sm font-semibold">⭐ {r.avg_stars}</p>
-                      <p className="text-xs text-muted-foreground">({r.total_ratings} {t('reports.ratings.reviews')})</p>
-                    </div>
+                    {r.comments.length > 0 && (
+                      <ul className="space-y-1.5 border-t pt-2">
+                        {r.comments.map((c, i) => (
+                          <li key={i} className="text-xs space-y-0.5">
+                            <div className="flex items-center justify-between gap-2 text-muted-foreground">
+                              <span className="font-medium text-foreground truncate">{c.author_name}</span>
+                              <span className="shrink-0">⭐ {c.stars}</span>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground">{c.credential_code}</p>
+                            <p className="whitespace-pre-wrap">{c.comment}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 ))}
               </div>
