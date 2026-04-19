@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/table';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useEvent } from '@/hooks/useEvent';
 import type { AttendeeWithServices } from '@/services/admin-attendees.service';
 
 interface Props {
@@ -60,19 +61,24 @@ interface RowProps {
   onEdit: (a: AttendeeWithServices) => void;
   onDelete: (id: string, name: string) => void;
   onToggleActive: (a: AttendeeWithServices) => void;
+  externalCredentialsEnabled: boolean;
 }
 
 const AttendeeRow = memo(function AttendeeRow({
-  a, selected, onToggleSelect, onView, onEdit, onDelete, onToggleActive,
+  a, selected, onToggleSelect, onView, onEdit, onDelete, onToggleActive, externalCredentialsEnabled,
 }: RowProps) {
   const { t } = useTranslation('admin');
   const isCancelled = a.registration_status === 'cancelled';
 
+  const displayedCode = externalCredentialsEnabled
+    ? ((a as AttendeeWithServices & { external_credential_code?: string | null }).external_credential_code || a.credential_code)
+    : a.credential_code;
+
   const copyCode = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(a.credential_code);
+    navigator.clipboard.writeText(displayedCode);
     toast({ title: t('attendees.codeCopied'), duration: 1500 });
-  }, [a.credential_code, t]);
+  }, [displayedCode, t]);
 
   return (
     <TableRow className={cn('cursor-pointer', isCancelled && 'opacity-60')} onClick={() => onView(a.id)}>
@@ -96,7 +102,7 @@ const AttendeeRow = memo(function AttendeeRow({
           className="inline-flex items-center gap-1 font-mono text-xs text-muted-foreground hover:text-foreground"
           title={t('attendees.codeCopied')}
         >
-          {a.credential_code}
+          {displayedCode}
           <Copy className="h-3 w-3" />
         </button>
       </TableCell>
@@ -141,6 +147,9 @@ export function AttendeesTable({
   attendees, isLoading, isRefetching, onView, onEdit, onDelete, onToggleActive, selectedIds, onSelectionChange,
 }: Props) {
   const { t } = useTranslation('admin');
+  const { event } = useEvent();
+  const externalCredentialsEnabled =
+    ((event?.settings ?? {}) as Record<string, unknown>).external_credentials_enabled === true;
 
   const toggleSelect = useCallback((id: string) => {
     const next = new Set(selectedIds);
@@ -218,6 +227,7 @@ export function AttendeesTable({
                   onEdit={onEdit}
                   onDelete={onDelete}
                   onToggleActive={onToggleActive}
+                  externalCredentialsEnabled={externalCredentialsEnabled}
                 />
               ))}
             </TableBody>
@@ -248,7 +258,11 @@ export function AttendeesTable({
                   <div className="text-xs text-muted-foreground truncate">{a.email}</div>
                   <div className="mt-1 flex items-center gap-2">
                     <StatusBadge status={a.registration_status} />
-                    <span className="font-mono text-[10px] text-muted-foreground">{a.credential_code}</span>
+                    <span className="font-mono text-[10px] text-muted-foreground">
+                      {externalCredentialsEnabled
+                        ? ((a as AttendeeWithServices & { external_credential_code?: string | null }).external_credential_code || a.credential_code)
+                        : a.credential_code}
+                    </span>
                   </div>
                 </div>
                 <div className="flex flex-col gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>

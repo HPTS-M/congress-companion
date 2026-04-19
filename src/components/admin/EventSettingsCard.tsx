@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Settings, QrCode, Download } from 'lucide-react';
+import { Settings, QrCode, Download, IdCard } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -17,6 +17,7 @@ export function EventSettingsCard() {
   const settings = (event?.settings ?? {}) as Record<string, unknown>;
   const qrEnabled = settings.qr_enabled !== false;
   const documentsDownloadEnabled = settings.documents_download_enabled !== false;
+  const externalCredentialsEnabled = settings.external_credentials_enabled === true;
 
   const updateSetting = useMutation({
     mutationFn: async ({ key, value }: { key: string; value: unknown }) => {
@@ -86,6 +87,28 @@ export function EventSettingsCard() {
             disabled={updateSetting.isPending}
             onCheckedChange={(checked) =>
               updateSetting.mutate({ key: 'documents_download_enabled', value: checked })
+            }
+          />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-start gap-3">
+            <IdCard className="h-4 w-4 text-muted-foreground mt-0.5" />
+            <div>
+              <Label htmlFor="external-creds-toggle" className="text-sm font-medium">
+                {t('settings.externalCredentials')}
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                {t('settings.externalCredentialsDescription')}
+              </p>
+            </div>
+          </div>
+          <Switch
+            id="external-creds-toggle"
+            checked={externalCredentialsEnabled}
+            disabled={updateSetting.isPending}
+            onCheckedChange={(checked) =>
+              updateSetting.mutate({ key: 'external_credentials_enabled', value: checked })
             }
           />
         </div>
