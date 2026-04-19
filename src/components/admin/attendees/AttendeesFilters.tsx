@@ -156,9 +156,20 @@ function HasServicesRadio({
   );
 }
 
-export function AttendeesFilters({ value, onChange, options }: Props) {
+export function AttendeesFilters({ value, onChange, options, isLoading }: Props) {
   const { t } = useTranslation('admin');
   const [sheetOpen, setSheetOpen] = useState(false);
+
+  // Diagnostic: warn if filter options are empty after loading completed.
+  useEffect(() => {
+    if (!isLoading && options.specialties.length === 0 && options.institutions.length === 0) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[AttendeesFilters] Filter options arrived empty (specialties=0, institutions=0). ' +
+          'Check useAttendeeFilterOptions / RLS / event_id.',
+      );
+    }
+  }, [isLoading, options.specialties.length, options.institutions.length]);
 
   const activeCount = useMemo(
     () =>
