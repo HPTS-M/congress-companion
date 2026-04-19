@@ -455,6 +455,221 @@ export const adminAttendeesService = {
     return (data ?? []).map((a) => a.email.toLowerCase());
   },
 
+  /**
+   * Lookup existing attendees by lowercase email within an event.
+   * Returns a map: lowercaseEmail → array of candidate attendees.
+   * Used by the importer to detect single-match (auto-update) vs multi-match (ambiguous).
+   */
+  lookupAttendeesByEmails: async (
+    eventId: string,
+    emails: string[],
+  ): Promise<
+    Record<
+      string,
+      Array<{
+        id: string;
+        full_name: string;
+        email: string;
+        credential_code: string;
+        external_credential_code: string | null;
+        created_at: string | null;
+      }>
+    >
+  > => {
+    const normalized = [...new Set(emails.map((e) => e.toLowerCase().trim()).filter(Boolean))];
+    if (normalized.length === 0) return {};
+
+    const { data, error } = await supabase
+      .from('attendees')
+      .select('id, full_name, email, credential_code, external_credential_code, created_at')
+      .eq('event_id', eventId)
+      .is('deleted_at', null)
+      .in('email', normalized);
+
+    if (error) throw new Error(error.message);
+
+    const map: Record<string, Array<{
+      id: string;
+      full_name: string;
+      email: string;
+      credential_code: string;
+      external_credential_code: string | null;
+      created_at: string | null;
+    }>> = {};
+    (data ?? []).forEach((row) => {
+      const key = row.email.toLowerCase();
+      if (!map[key]) map[key] = [];
+      map[key].push({
+        id: row.id,
+        full_name: row.full_name,
+        email: row.email,
+        credential_code: row.credential_code,
+        external_credential_code: row.external_credential_code ?? null,
+        created_at: row.created_at,
+      });
+    });
+    return map;
+  },
+
+  /**
+   * Bulk upsert: combines INSERT (new) and UPDATE (existing) operations
+   * driven by per-row resolutions. Used by the import flow when "update existing"
+   * is enabled.
+   *
+   * Safety guarantees:
+   *  - NEVER touches: credential_code, access_code_hash, registration_status,
+   *    user_id, invitation_sent_at on UPDATE paths.
+   *  - Pre-validates external_credential_code uniqueness within the event,
+   *    excluding the target attendee for UPDATE rows.
+   */
+  bulkUpsertAttendees: async (
+    eventId: string,
+    rows: BulkAttendeeRow[],
+    resolutions: Array<
+      | { rowIndex: number; action: 'create' }
+      | { rowIndex: number; action: 'update'; targetAttendeeId: string }
+      | { rowIndex: number; action: 'skip' }
+    >,
+    registrationStatus: string = 'confirmed',
+  ): Promise<{
+    inserted: number;
+    updated: number;
+    skipped: number;
+    errors: Array<{ rowIndex: number; reason: string }>;
+    insertedIds: string[];
+  }> => {
+    // Pre-fetch existing external codes (with their attendee id) for uniqueness checks
+    const { data: existingCodes, error: codesErr } = await supabase
+      .from('attendees')
+      .select('id, external_credential_code')
+      .eq('event_id', eventId)
+      .is('deleted_at', null)
+      .not('external_credential_code', 'is', null);
+    if (codesErr) throw new Error(codesErr.message);
+
+    const codeOwner = new Map<string, string>(); // upperCode → attendeeId
+    (existingCodes ?? []).forEach((c) => {
+      const code = (c.external_credential_code ?? '').trim().toUpperCase();
+      if (code) codeOwner.set(code, c.id);
+    });
+
+    // Detect duplicate external_credential_code WITHIN the upsert batch
+    const codeBatchUsage = new Map<string, number[]>();
+    resolutions.forEach((res) => {
+      if (res.action === 'skip') return;
+      const row = rows[res.rowIndex];
+      const code = (row?.external_credential_code ?? '').trim().toUpperCase();
+      if (!code) return;
+      const list = codeBatchUsage.get(code) ?? [];
+      list.push(res.rowIndex);
+      codeBatchUsage.set(code, list);
+    });
+
+    const errors: Array<{ rowIndex: number; reason: string }> = [];
+    const insertsToRun: Array<{ rowIndex: number; payload: Record<string, unknown> }> = [];
+    const updatesToRun: Array<{ rowIndex: number; targetId: string; payload: Record<string, unknown> }> = [];
+    let skipped = 0;
+
+    for (const res of resolutions) {
+      if (res.action === 'skip') {
+        skipped += 1;
+        continue;
+      }
+      const row = rows[res.rowIndex];
+      if (!row) {
+        errors.push({ rowIndex: res.rowIndex, reason: 'row_not_found' });
+        continue;
+      }
+
+      const codeRaw = (row.external_credential_code ?? '').trim();
+      const codeUpper = codeRaw.toUpperCase();
+
+      // 1) Duplicate within the same import batch → block
+      if (codeUpper) {
+        const occurrences = codeBatchUsage.get(codeUpper) ?? [];
+        if (occurrences.length > 1) {
+          errors.push({ rowIndex: res.rowIndex, reason: 'duplicate_code_in_batch' });
+          continue;
+        }
+      }
+
+      // 2) Duplicate against existing DB row (excluding target on UPDATE)
+      if (codeUpper) {
+        const owner = codeOwner.get(codeUpper);
+        if (owner && (res.action === 'create' || owner !== res.targetAttendeeId)) {
+          errors.push({ rowIndex: res.rowIndex, reason: 'duplicate_code_in_db' });
+          continue;
+        }
+      }
+
+      if (res.action === 'create') {
+        insertsToRun.push({
+          rowIndex: res.rowIndex,
+          payload: {
+            event_id: eventId,
+            full_name: row.full_name,
+            email: row.email,
+            specialty: row.specialty || null,
+            institution: row.institution || null,
+            registration_status: row.registration_status || registrationStatus,
+            credential_code: '',
+            external_credential_code: codeRaw || null,
+          },
+        });
+      } else {
+        // UPDATE — only the safe, non-PII-sensitive fields
+        const updatePayload: Record<string, unknown> = {
+          external_credential_code: codeRaw || null,
+        };
+        if (row.specialty) updatePayload.specialty = row.specialty;
+        if (row.institution) updatePayload.institution = row.institution;
+        // full_name updates allowed (organizer correction)
+        if (row.full_name) updatePayload.full_name = row.full_name;
+
+        updatesToRun.push({
+          rowIndex: res.rowIndex,
+          targetId: res.targetAttendeeId,
+          payload: updatePayload,
+        });
+      }
+    }
+
+    // Execute inserts (single batch for efficiency)
+    let insertedIds: string[] = [];
+    let inserted = 0;
+    if (insertsToRun.length > 0) {
+      const { data: insertedData, error: insertErr } = await supabase
+        .from('attendees')
+        .insert(insertsToRun.map((i) => i.payload as never))
+        .select('id');
+      if (insertErr) {
+        // Mark all as failed
+        insertsToRun.forEach((i) =>
+          errors.push({ rowIndex: i.rowIndex, reason: insertErr.message }),
+        );
+      } else {
+        insertedIds = (insertedData ?? []).map((d) => d.id);
+        inserted = insertedIds.length;
+      }
+    }
+
+    // Execute updates sequentially (low volume; preserves per-row error isolation)
+    let updated = 0;
+    for (const u of updatesToRun) {
+      const { error: updErr } = await supabase
+        .from('attendees')
+        .update(u.payload)
+        .eq('id', u.targetId);
+      if (updErr) {
+        errors.push({ rowIndex: u.rowIndex, reason: updErr.message });
+      } else {
+        updated += 1;
+      }
+    }
+
+    return { inserted, updated, skipped, errors, insertedIds };
+  },
+
   getExistingExternalCodes: async (eventId: string): Promise<string[]> => {
     const { data } = await supabase
       .from('attendees')
