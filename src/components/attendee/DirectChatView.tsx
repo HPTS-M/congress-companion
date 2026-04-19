@@ -62,6 +62,7 @@ export default function DirectChatView({ conversation, onBack }: Props) {
   );
   const { data: nameMap = {} } = useAttendeeNames(eventId);
   const deleteMutation = useDeleteConversation();
+  const { pending, enqueue, retry, remove: removePending } = usePendingMessages(conversation.id);
 
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
