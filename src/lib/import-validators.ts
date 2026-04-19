@@ -180,13 +180,19 @@ export function validateRow(
   };
 }
 
-// --- Bloqueante / Permisivo rules (Fase 6) ---
+// --- Bloqueante / Permisivo / Warning rules ---
+// Email format invalid is bloqueante; duplicates (file/DB) son warning.
+// Código credencial externo: formato O duplicado SIEMPRE bloqueante (identifica al individuo).
 export const BLOCKING_FIELDS_ALWAYS: FieldKey[] = ['full_name', 'email'];
 export const PERMISSIVE_FIELDS: FieldKey[] = ['specialty', 'institution'];
 
 /**
  * Decide whether a row is fully blocked (must be discarded) or can be inserted
  * with NO APLICA substitutions on permissive fields.
+ *
+ * Note: this only classifies *format* errors from `validateRow`. Duplicate
+ * checks (email duplicate = warning, external_code duplicate = blocking) are
+ * applied externally by the caller after cross-row/DB lookup.
  */
 export function classifyRow(
   row: ValidatedRow,
