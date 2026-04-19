@@ -1,102 +1,54 @@
 
 
-## Plan · Importación con upsert + resolución manual de duplicados
+## Estado actual de la implementación
 
-### 1 · Servicio `bulkUpsertAttendees`
-**`src/services/admin-attendees.service.ts`**
+Ya quedó construido en turnos anteriores:
+- ✅ Servicio `bulkUpsertAttendees` + `lookupAttendeesByEmails`
+- ✅ Hook `useBulkUpsertAttendees`
+- ✅ Modal `ResolveAmbiguousImportModal`
+- ✅ Renombrado a "Código del congreso" en `MyProfile`, `AttendeeDetailDrawer`, `NewAttendeeModal`
+- ✅ Locales actualizados (es/en)
 
-Nuevo método que recibe `eventId`, filas del CSV y `resolutions` (mapa `csvRow → action`).
+## Lo que falta para cerrar el flujo
 
-```ts
-type Resolution = 
-  | { action: 'create' }
-  | { action: 'update', targetAttendeeId: string }
-  | { action: 'skip' };
+El importador (`ImportCsvModal.tsx`) tiene la lógica de detección de matches (new/updatable/ambiguous) pero **no está cableado a la UI ni al ejecutor final**. Sin esto, el flujo de upsert no se puede activar.
 
-bulkUpsertAttendees(eventId, rows, resolutions): Promise<{
-  inserted: number;
-  updated: number;
-  skipped: number;
-  errors: Array<{ row: number; reason: string }>;
-}>
-```
-
-Lógica:
-- Pre-validar unicidad de `external_credential_code` dentro del evento (excluyendo el target en updates)
-- Si conflicto → registrar error, no aplicar
-- INSERT/UPDATE selectivo (jamás tocar `credential_code`, `access_code_hash`, `registration_status`, `user_id`)
-
-### 2 · Hook
-**`src/hooks/useAdminAttendees.ts`**
-
-`useBulkUpsertAttendees()` con invalidación de queries y limpieza de SW cache (mismo patrón que `useBulkCreateAttendees`).
-
-### 3 · Detección previa de matches
-**`src/components/admin/attendees/ImportCsvModal.tsx`**
-
-Después del parseo:
-1. Para cada fila con email → consultar BD: `SELECT id, full_name, credential_code, created_at FROM attendees WHERE event_id = X AND lower(email) = Y`
-2. Clasificar:
-   - 0 matches → `new` (INSERT)
-   - 1 match → `single-match` (UPDATE auto si toggle activo)
-   - 2+ matches → `ambiguous` (requiere resolución manual)
-
-### 4 · UI en preview
+### 1 · Checkbox "Actualizar asistentes existentes" en preview
 **`ImportCsvModal.tsx`**
+- Agregar `Checkbox` visible en el paso de preview cuando se detecten matches (`updatableCount > 0 || ambiguousCount > 0`).
+- Estado local `updateExisting: boolean` controla si se hace upsert o sólo insert (comportamiento actual).
 
-- Nuevo `Checkbox`: "Actualizar asistentes existentes (por email)" — visible solo si hay `single-match` o `ambiguous`
-- Resumen del preview muestra:
-  - X nuevos
-  - Y actualizables (1 match)
-  - Z requieren resolución (multi-match)
-- Botón "Resolver duplicados" abre modal si Z > 0
-- Botón "Confirmar importación" deshabilitado mientras haya ambiguos sin resolver
+### 2 · Resumen del preview con conteos
+**`ImportCsvModal.tsx`**
+- Mostrar bajo el preview: `X nuevos · Y actualizables · Z requieren resolución`.
+- Badge ámbar para filas ambiguas, badge azul para actualizables, badge verde para nuevas.
 
-### 5 · Modal nuevo `ResolveAmbiguousImportModal.tsx`
-**`src/components/admin/attendees/ResolveAmbiguousImportModal.tsx`**
+### 3 · Botón "Resolver duplicados" + integración del modal
+**`ImportCsvModal.tsx`**
+- Si `ambiguousCount > 0` y `updateExisting = true` → mostrar botón "Resolver duplicados (Z)".
+- Abre `ResolveAmbiguousImportModal` ya existente.
+- Guardar el mapa de `resolutions` retornado en estado local.
+- Botón "Confirmar importación" deshabilitado mientras `ambiguousCount > 0` y no haya resolución completa.
 
-Lista cada email ambiguo con:
-- Datos de la fila CSV (nombre, código del congreso entrante)
-- Cards con cada candidato existente: nombre + `credential_code` interno + fecha registro + último login
-- Radio group por fila: `[ ] Candidato 1 · [ ] Candidato 2 · [ ] Crear nuevo · [ ] Saltar`
-- Validación: todos resueltos antes de aplicar
+### 4 · Ejecutor final: rama insert vs upsert
+**`ImportCsvModal.tsx` (`runImport` / handler de confirmación)**
+- Si `updateExisting = false` → mantiene `bulkCreateAttendees` actual (filas duplicadas se saltan o fallan según validación previa).
+- Si `updateExisting = true` → llama a `bulkUpsertAttendees(eventId, rows, resolutions)`.
+- Toast de resumen final: `"X creados · Y actualizados · Z saltados · W errores"`.
+- Mostrar `ImportErrorsModal` si hay errores devueltos.
 
-### 6 · Renombrar visible "External" → "Congress code"
-Cambios solo de label (campo BD intacto):
-- `EventSettingsCard.tsx`: toggle "Códigos del congreso"
-- `AttendeesTable.tsx`: columna "Código del congreso"
-- `AttendeeDetailDrawer.tsx`, `NewAttendeeModal.tsx`: input "Código del congreso"
-- `MyProfile.tsx`: nueva fila condicional con icono `BadgeCheck` (solo si toggle activo + valor)
-- Plantilla CSV descargable: header "Código del congreso"
+### 5 · Ajustes menores
+- Verificar que las claves i18n usadas en el modal (`attendees.importModal.resolve.*`) existan; agregar las que falten.
+- Asegurar invalidación de queries (`['admin-attendees', eventId]`) tras upsert exitoso.
 
-### 7 · Locales
-**`es/admin.json`, `en/admin.json`, `es/common.json`, `en/common.json`**
+## Verificación end-to-end (post-implementación)
 
-Reemplazar/agregar:
-- `settings.externalCredentials` → "Códigos del congreso" / "Congress codes"
-- `settings.externalCredentialsDescription` → "Identificadores entregados por la organización del congreso (cédula, ID corporativo). Únicos por asistente."
-- `attendees.congressCode` / `congressCodePlaceholder`
-- `attendees.import.updateExisting` / `updateExistingDescription`
-- `attendees.import.summary.{new,updatable,ambiguous,updated,skipped}`
-- `attendees.import.resolve.{title,description,createNew,skip,confirm}`
-- `profile.congressCode`
-
-### Verificación end-to-end
-1. Activar toggle "Códigos del congreso" en `/admin/event-config`
-2. Subir CSV en importador → marcar "Actualizar existentes"
-3. Preview muestra: X nuevos, Y updatables, Z ambiguos
-4. Modal de resolución → elegir candidato por cada email duplicado
-5. Confirmar → resumen "X creados · Y actualizados · Z resueltos · W saltados"
-6. Query BD: `SELECT external_credential_code FROM attendees WHERE email = '...'` → ya no NULL
-7. Login como ese attendee → "Mi Perfil" muestra "Código del congreso"
-8. Validar que NO se modificaron `credential_code`, `access_code_hash`, `user_id`, `registration_status`
-
-### Mejores prácticas aplicadas
-- ✅ Backwards compatible (campo BD `external_credential_code` intacto)
-- ✅ Sin UNIQUE constraint forzado (respeta tu decisión)
-- ✅ Resolución manual obligatoria para multi-match (cero auto-magia destructiva)
-- ✅ Validación de unicidad de código antes de UPDATE
-- ✅ i18n completo
-- ✅ Invalidación correcta de TanStack Query + SW cache
-- ✅ Nunca toca PII sensible en updates
+1. Activar toggle "Códigos del congreso" en `/admin/event-config`.
+2. Subir CSV con 3 escenarios: 1 email nuevo, 1 email único existente, 1 email duplicado en BD.
+3. Preview muestra: `1 nuevo · 1 actualizable · 1 requiere resolución`.
+4. Marcar checkbox "Actualizar existentes" → aparece botón "Resolver duplicados".
+5. Abrir modal → elegir candidato para el email duplicado.
+6. Confirmar import → toast `"1 creado · 2 actualizados"`.
+7. Validar en BD: `external_credential_code` poblado en los 2 actualizados, sin tocar `credential_code` ni `access_code_hash`.
+8. Login como uno de ellos → "Mi Perfil" muestra "Código del congreso".
 
