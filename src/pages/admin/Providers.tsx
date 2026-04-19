@@ -385,6 +385,13 @@ export default function AdminProviders() {
         />
       )}
 
+      {/* Activity drawer */}
+      <ProviderActivityDrawer
+        open={!!activityProvider}
+        onClose={() => setActivityProvider(null)}
+        provider={activityProvider}
+      />
+
       {/* Delete confirm */}
       <AlertDialog open={!!deletingId} onOpenChange={(o) => !o && setDeletingId(null)}>
         <AlertDialogContent>
