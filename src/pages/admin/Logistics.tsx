@@ -361,6 +361,24 @@ export default function AdminLogistics() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Cancel service confirm */}
+      <AlertDialog open={!!cancellingId} onOpenChange={(o) => !o && setCancellingId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('logistics.cancelServiceTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('logistics.cancelServiceConfirm', { name: cancellingId?.name ?? '' })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('sponsors.cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCancelService} className="bg-amber-600 text-white hover:bg-amber-700">
+              {t('logistics.cancelService')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
