@@ -1,63 +1,143 @@
 
 
-Agrego la Fase 3 al plan vigente. Reemplazo la sección "Plan de implementación" para insertarla como nuevo paso explícito.
+## Análisis de los 3 hallazgos
 
-## Cambio al plan
+### 1. `activity_quizzes.correct_answer` expuesto a asistentes
+Las políticas SELECT actuales (`Attendees can view quizzes`, `Authenticated read event quizzes`) devuelven la fila completa, incluyendo `correct_answer`. Cualquier asistente puede leer las respuestas correctas antes de responder.
 
-Inserto **Paso 5-bis · Plantilla descargable** entre el Paso 5 (Modal de importación) y el Paso 6 (Modal de errores). El resto del plan no cambia.
+**Validación funcional:** revisé `process_checkin` (RPC `SECURITY DEFINER`) — ya valida respuestas server-side comparando contra `correct_answer` directamente desde la tabla. El frontend NO necesita esa columna para funcionar. Solo necesita: `id`, `activity_id`, `question_text`, `question_type`, `options`, `display_order`.
 
-### Paso 5-bis · Actualización de la plantilla descargable (OBLIGATORIO)
+**Solución (recomendada por Lovable docs):** mover `correct_answer` a tabla aparte `activity_quiz_answers` con RLS estricta (solo admins/staff/superuser leen, nunca attendees). `process_checkin` se actualiza para hacer JOIN.
 
-**Ubicación:** función `downloadTemplate()` en `src/components/admin/attendees/ImportCsvModal.tsx`.
+### 2. `realtime.messages` sin RLS
+Realtime publica cambios de tablas sensibles (`attendees`, `chat_messages`, `notifications`, `poll_responses`, `announcements`, etc.) sin filtrar por suscriptor. Cualquier usuario autenticado podría suscribirse a topics arbitrarios.
 
-**Cambio:** reemplazar las 4 columnas actuales (`full_name`, `email`, `specialty`, `institution`) por estas **6 columnas en este orden exacto** (encabezados en español, tal como pide el usuario):
+**Solución:** habilitar RLS en `realtime.messages` y agregar política que valide que el `topic` del canal coincide con un `event_id` del que el usuario es asistente/staff/admin. Patrón estándar Supabase.
 
-| # | Header (Excel) | Key interno | Tipo | Ejemplo |
-|---|---|---|---|---|
-| 1 | Nombre completo | `full_name` | string | Dr. Juan Pérez |
-| 2 | Email | `email` | string | juan@ejemplo.com |
-| 3 | Código credencial | `external_credential_code` | string | EXT-001234 |
-| 4 | Especialidad | `specialty` | string | Cardiología |
-| 5 | Institución | `institution` | string | Hospital General |
-| 6 | Estado | `registration_status_id` | number (1\|2\|3) | 1 |
+⚠️ **Riesgo controlado:** los canales actuales del proyecto usan nombres como `chat:{conversation_id}`, `polls:{event_id}`, `announcements:{event_id}`. Hay que confirmar el formato exacto antes de escribir el `USING`. Voy a escanear el código para listarlos.
 
-**Filas de ejemplo (2):** una con estado 1 (confirmado) y otra con estado 2 (pendiente), para que el admin entienda el mapeo numérico.
+### 3. `event-sponsors` storage sin filtro por evento
+La policy actual solo chequea `bucket_id = 'event-sponsors'`. Cualquier autenticado de cualquier evento ve assets de cualquier otro. Path real: `{event_id}/...` (verificado en `admin-sponsors.service.ts` → `uploadFile` usa `${eventId}/${prefix}-...`).
 
-**Archivo descargado:** `plantilla-asistentes.xlsx` (se mantiene el nombre).
-
-**Mapeo bidireccional encabezado → key interno** debe quedar centralizado en `src/lib/import-validators.ts` (creado en Paso 3) para que el parser acepte los headers en español de la plantilla nueva pero también tolere los anteriores en inglés (retro-compatibilidad para archivos viejos):
-
-```ts
-const HEADER_ALIASES = {
-  full_name: ['Nombre completo', 'nombre_completo', 'full_name', 'nombre'],
-  email:     ['Email', 'email', 'correo'],
-  external_credential_code: ['Código credencial', 'codigo_credencial', 'credential_code'],
-  specialty: ['Especialidad', 'specialty', 'especialidad'],
-  institution: ['Institución', 'institution', 'institucion'],
-  registration_status_id: ['Estado', 'estado', 'status'],
-};
-```
-
-**Notas operativas:**
-- La columna 3 (`Código credencial`) corresponde al `external_credential_code` introducido en Paso 1. Si el toggle `external_credentials_enabled` está OFF, esa columna se ignora silenciosamente al importar (pero sigue presente en la plantilla para coherencia).
-- La columna 6 (`Estado`) acepta solo `1`, `2`, `3` y se mapea a `confirmed | pending | cancelled` por el validador (Paso 3). Si viene vacío, default = `2` (pendiente).
-- Anchos de columna sugeridos: 30, 30, 22, 20, 25, 10.
+**Solución:** replicar el patrón de `event-documents`: validar que `(storage.foldername(name))[1]::uuid IN (SELECT get_my_event_ids())` o que el usuario es admin/staff de esa org/evento.
 
 ---
 
-## Plan completo actualizado (orden de ejecución)
+## Plan de implementación
 
-1. Paso 1 · Migración BD (`external_credential_code` + índice único parcial)
-2. Paso 2 · Tipos + toggle en `EventSettingsCard`
-3. Paso 3 · `src/lib/import-validators.ts` (Zod, regex, mapeo estado, header aliases)
-4. Paso 4 · Servicio: `getExistingExternalCodes` + extender `bulkCreateAttendees`
-5. Paso 5 · Reescritura del `ImportCsvModal` (parser tolerante, validación acumulativa)
-6. **Paso 5-bis · Plantilla descargable nueva (6 columnas en español)** ← agregado
-7. Paso 6 · `ImportErrorsModal` (tabla errores + exportar Excel + decisión NO APLICA)
-8. Paso 7 · UI tabla y `NewAttendeeModal` con campo credencial externa
-9. Paso 8 · Edge Function `verify-access-code` acepta credencial externa
-10. Paso 9 · i18n (es/en) — incluir claves para los nuevos headers de la plantilla
-11. Paso 10 · Checklist de verificación end-to-end
+### Paso 1 · Migración BD — Quiz answers aislados
+```sql
+-- Nueva tabla con RLS restrictiva
+CREATE TABLE public.activity_quiz_answers (
+  quiz_id uuid PRIMARY KEY REFERENCES public.activity_quizzes(id) ON DELETE CASCADE,
+  correct_answer text NOT NULL,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+ALTER TABLE public.activity_quiz_answers ENABLE ROW LEVEL SECURITY;
 
-Tras tu aprobación cambio a modo default y ejecuto Pasos 1 → 11.
+-- Migrar datos existentes
+INSERT INTO public.activity_quiz_answers (quiz_id, correct_answer)
+SELECT id, correct_answer FROM public.activity_quizzes
+WHERE correct_answer IS NOT NULL;
+
+-- Políticas: bloqueo total para anon + attendee, admin/staff/superuser sí
+CREATE POLICY "block_anon_quiz_answers" ON public.activity_quiz_answers
+  FOR SELECT TO anon USING (false);
+CREATE POLICY "block_attendees_quiz_answers" ON public.activity_quiz_answers
+  AS RESTRICTIVE FOR SELECT TO authenticated
+  USING (
+    has_role(auth.uid(), 'superuser') OR
+    EXISTS (SELECT 1 FROM activity_quizzes q
+            JOIN event_activities a ON a.id = q.activity_id
+            JOIN events e ON e.id = a.event_id
+            WHERE q.id = quiz_id AND e.organization_id = get_user_organization(auth.uid()))
+    OR (has_role(auth.uid(),'coordinator') OR has_role(auth.uid(),'field_manager'))
+       AND EXISTS (SELECT 1 FROM activity_quizzes q
+                   JOIN event_activities a ON a.id = q.activity_id
+                   WHERE q.id = quiz_id AND is_event_staff(auth.uid(), a.event_id))
+  );
+CREATE POLICY "admins_manage_quiz_answers" ON public.activity_quiz_answers
+  FOR ALL TO authenticated USING (/* misma condición admin/staff/superuser */);
+
+-- Actualizar process_checkin para hacer JOIN con la nueva tabla
+-- (reemplazar `quiz_questions.correct_answer` por la tabla de answers)
+
+-- Eliminar la columna del esquema público expuesto:
+ALTER TABLE public.activity_quizzes DROP COLUMN correct_answer;
+```
+
+### Paso 2 · Migración BD — Realtime authorization
+```sql
+ALTER TABLE realtime.messages ENABLE ROW LEVEL SECURITY;
+
+-- Política: el topic debe contener un event_id del usuario, o ser una conversation_id
+-- donde participa, o un attendee_id propio
+CREATE POLICY "Authenticated realtime scoped by membership"
+ON realtime.messages FOR SELECT TO authenticated
+USING (
+  -- Topics que llevan event_id (announcements, polls, agenda)
+  EXISTS (
+    SELECT 1 FROM public.attendees a
+    WHERE a.user_id = auth.uid()
+      AND a.deleted_at IS NULL
+      AND topic LIKE '%' || a.event_id::text || '%'
+  )
+  OR EXISTS ( -- staff/admin de la org del evento mencionado en topic
+    SELECT 1 FROM public.events e
+    WHERE topic LIKE '%' || e.id::text || '%'
+      AND (e.organization_id = get_user_organization(auth.uid())
+           OR is_event_staff(auth.uid(), e.id)
+           OR has_role(auth.uid(),'superuser'))
+  )
+  OR EXISTS ( -- conversaciones de chat donde el user participa
+    SELECT 1 FROM public.chat_participants cp
+    WHERE cp.user_id = auth.uid() AND topic LIKE '%' || cp.conversation_id::text || '%'
+  )
+);
+```
+Antes de aplicar, en Paso 0 voy a `grep` todos los `supabase.channel('...')` del repo para confirmar formato exacto de topics.
+
+### Paso 3 · Migración BD — Storage event-sponsors aislado por evento
+```sql
+DROP POLICY IF EXISTS "Authenticated can view sponsor assets" ON storage.objects;
+
+CREATE POLICY "Authenticated read own event sponsor assets"
+ON storage.objects FOR SELECT TO authenticated
+USING (
+  bucket_id = 'event-sponsors' AND (
+    -- Asistente del evento
+    ((storage.foldername(name))[1])::uuid IN (SELECT get_my_event_ids())
+    -- o admin de la org dueña del evento
+    OR EXISTS (SELECT 1 FROM events e
+               WHERE e.id::text = (storage.foldername(name))[1]
+                 AND e.organization_id = get_user_organization(auth.uid()))
+    -- o staff
+    OR EXISTS (SELECT 1 FROM events e
+               WHERE e.id::text = (storage.foldername(name))[1]
+                 AND is_event_staff(auth.uid(), e.id))
+    OR has_role(auth.uid(),'superuser')
+  )
+);
+```
+
+### Paso 4 · Cambios de código
+- `src/services/admin-agenda.service.ts` (o donde se cree quizzes): al INSERT/UPDATE de quizzes, hacer también upsert en `activity_quiz_answers`. Verificar dónde se gestiona hoy.
+- `src/services/checkin.service.ts` y consumidores: si alguno lee `correct_answer` desde el cliente, refactorizar para depender solo de `process_checkin` (ya server-side).
+- Regenerar tipos Supabase (automático).
+
+### Paso 5 · Verificación
+1. `supabase--linter` debe quedar limpio en estos 3 hallazgos.
+2. Test: como attendee, `select correct_answer from activity_quizzes` → debe fallar (columna no existe).
+3. Test: como attendee, `select * from activity_quiz_answers` → 0 filas.
+4. Test: `process_checkin` sigue calculando score correctamente.
+5. Test realtime: usuario evento A no recibe broadcasts del evento B (chat, polls, announcements).
+6. Test storage: signed URL del bucket sponsors solo se genera si user pertenece al evento.
+
+### Orden de ejecución
+1. Grep de topics realtime (read-only) para confirmar patrón
+2. Migración 1 (quiz answers) + actualizar `process_checkin` + admin services
+3. Migración 2 (realtime RLS) — con cuidado, probar suscripciones después
+4. Migración 3 (storage sponsors)
+5. Re-correr security scan
 
