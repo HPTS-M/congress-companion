@@ -12,6 +12,14 @@ export interface EventSettings {
   commercial_enabled?: boolean;
   banner_url?: string;
   header_logo_url?: string;
+  /** When true, attendees use externally-provided credential codes instead of the auto-generated one. */
+  external_credentials_enabled?: boolean;
+  /** When true, document downloads are enabled in the attendee app. */
+  documents_download_enabled?: boolean;
+}
+
+export interface AttendeeProfileExtended {
+  external_credential_code?: string | null;
 }
 
 export interface CongressEvent {
