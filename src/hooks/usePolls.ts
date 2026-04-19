@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { useEvent } from '@/hooks/useEvent';
 import { useAuth } from '@/hooks/useAuth';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
@@ -40,12 +40,20 @@ export function usePolls() {
     },
   });
 
+  // Re-subscribe realtime channel after a reconnect.
+  const [realtimeKey, setRealtimeKey] = useState(0);
+  useEffect(() => {
+    const onReconnect = () => setRealtimeKey(k => k + 1);
+    window.addEventListener('attendee:reconnected', onReconnect);
+    return () => window.removeEventListener('attendee:reconnected', onReconnect);
+  }, []);
+
   // Realtime: refetch when polls are updated (e.g. activated/closed)
   useEffect(() => {
     if (!eventId || !isOnline) return;
 
     const channel = supabase
-      .channel(`active-polls-${eventId}`)
+      .channel(`active-polls-${eventId}-${realtimeKey}`)
       .on(
         'postgres_changes',
         {
@@ -75,7 +83,7 @@ export function usePolls() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [eventId, attendeeId, qc, isOnline]);
+  }, [eventId, attendeeId, qc, isOnline, realtimeKey]);
 
   return {
     polls: pollsQuery.data ?? [],

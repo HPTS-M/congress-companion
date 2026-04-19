@@ -26,8 +26,9 @@
   "offlineBanner": {
     "offline": "Sin conexión — mostrando datos guardados",
     "reconnected": "Conexión restaurada ✓",
-    "syncingTitle": "Conexión restaurada",
-    "syncingDescription": "Actualizando datos…"
+    "syncingTitle": "Reconectando — sincronizando…",
+    "syncingDescription": "Actualizando mensajes y anuncios…",
+    "headerDot": "Sin conexión"
   },
   "status": {
     "confirmed": "Confirmado",

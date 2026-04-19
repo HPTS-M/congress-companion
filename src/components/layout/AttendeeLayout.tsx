@@ -5,6 +5,7 @@ import { AppHeader } from './AppHeader';
 import { BottomNav } from './BottomNav';
 import { HamburgerMenu } from './HamburgerMenu';
 import { AttendeeSidebar } from './AttendeeSidebar';
+import { AttendeeOfflineBanner } from './AttendeeOfflineBanner';
 
 export function AttendeeLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -17,6 +18,7 @@ export function AttendeeLayout() {
 
         <div className="flex flex-1 flex-col">
           <AppHeader onMenuOpen={() => setMenuOpen(true)} />
+          <AttendeeOfflineBanner />
           <HamburgerMenu open={menuOpen} onOpenChange={setMenuOpen} />
 
           {/* Main content — between header (56px) and bottom nav (64px on mobile) */}

@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { announcementsService } from '@/services/announcements.service';
 
 interface UnreadAnnouncementsResult {
@@ -14,6 +15,7 @@ const NEW_KEY_PREFIX = 'announcements_last_seen_';
 export function useUnreadAnnouncements(eventId: string): UnreadAnnouncementsResult {
   const { attendee } = useAuth();
   const queryClient = useQueryClient();
+  const isOnline = useOnlineStatus();
   const attendeeId = attendee?.id;
   const storageKey = attendeeId ? `${NEW_KEY_PREFIX}${attendeeId}` : null;
   const legacyKey = attendeeId ? `${LEGACY_KEY_PREFIX}${attendeeId}` : null;
@@ -45,8 +47,10 @@ export function useUnreadAnnouncements(eventId: string): UnreadAnnouncementsResu
         (a) => a.sent_at && new Date(a.sent_at) > lastSeen
       ).length;
     },
-    enabled: !!attendeeId && !!eventId,
-    refetchInterval: 30_000,
+    enabled: !!attendeeId && !!eventId && isOnline,
+    refetchInterval: isOnline ? 30_000 : false,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: 'always',
   });
 
   return {
