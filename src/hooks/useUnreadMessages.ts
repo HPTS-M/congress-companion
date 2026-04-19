@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { messagingService } from '@/services/messaging.service';
 
 interface UnreadMessagesResult {
@@ -22,6 +23,7 @@ interface UnreadMessagesData {
 export function useUnreadMessages(eventId: string): UnreadMessagesResult {
   const { attendee } = useAuth();
   const queryClient = useQueryClient();
+  const isOnline = useOnlineStatus();
   const attendeeId = attendee?.id;
   const storageKey = attendeeId ? `${NEW_KEY_PREFIX}${attendeeId}` : null;
   const legacyKey = attendeeId ? `${LEGACY_KEY_PREFIX}${attendeeId}` : null;
@@ -63,8 +65,10 @@ export function useUnreadMessages(eventId: string): UnreadMessagesResult {
         total: pendingInvites + unreadMessages,
       };
     },
-    enabled: !!attendeeId && !!eventId,
-    refetchInterval: 30_000,
+    enabled: !!attendeeId && !!eventId && isOnline,
+    refetchInterval: isOnline ? 30_000 : false,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: 'always',
   });
 
   return {
