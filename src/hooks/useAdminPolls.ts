@@ -65,14 +65,43 @@ export function useAdminPolls() {
     onError: () => toast({ title: t('polls.deleteError'), variant: 'destructive' }),
   });
 
+  const updatePoll = useMutation({
+    mutationFn: (params: {
+      pollId: string;
+      question: string;
+      sessionId: string | null;
+      options: { id?: string; text: string }[];
+    }) =>
+      adminPollsService.updatePoll(params.pollId, {
+        question: params.question,
+        sessionId: params.sessionId,
+        options: params.options,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-polls', eventId] });
+      toast({ title: t('polls.updateSuccess') });
+    },
+    onError: () => toast({ title: t('polls.updateError'), variant: 'destructive' }),
+  });
+
   return {
     polls: pollsQuery.data ?? [],
     isLoading: pollsQuery.isLoading,
     sessions: sessionsQuery.data ?? [],
     createPoll,
+    updatePoll,
     updateStatus,
     deletePoll,
   };
+}
+
+export function useAdminPollForEdit(pollId: string | null) {
+  return useQuery({
+    queryKey: ['admin-poll-edit', pollId],
+    queryFn: () => adminPollsService.getPollForEdit(pollId!),
+    enabled: !!pollId,
+    staleTime: 0,
+  });
 }
 
 export function useAdminPollResults(pollId: string | null) {
