@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BarChart3, Plus, Play, Square, Eye, Trash2, Upload } from 'lucide-react';
+import { BarChart3, Plus, Play, Square, Eye, Trash2, Upload, Download, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,13 +10,16 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAdminPolls, useAdminPollResults } from '@/hooks/useAdminPolls';
 import { usePollRealtime } from '@/hooks/usePolls';
 import { adminPollsService } from '@/services/admin-polls.service';
+import { adminPollsExcelService } from '@/services/admin-polls-excel.service';
 import { ImportPollsModal } from '@/components/admin/polls/ImportPollsModal';
 import { useEvent } from '@/hooks/useEvent';
 import { useAuth } from '@/hooks/useAuth';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { usePagination } from '@/hooks/usePagination';
 import { DataTablePagination } from '@/components/ui/data-table-pagination';
@@ -64,6 +67,7 @@ function NewPollModal({
   const [options, setOptions] = useState(['', '']);
 
   const needsOptions = pollType === 'multiple_choice' || pollType === 'single_choice';
+  const isRatingType = pollType === 'rating_scale';
   const validOptions = options.filter(o => o.trim());
   const canSave = question.trim() && (!needsOptions || validOptions.length >= 2);
 
