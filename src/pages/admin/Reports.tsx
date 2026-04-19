@@ -590,6 +590,81 @@ export default function Reports() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Polls Responses Section */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5 text-primary" />
+            <CardTitle className="text-base font-semibold">{t('reports.polls.title')}</CardTitle>
+          </div>
+          <div className="flex items-center gap-2">
+            {uniquePolls.length > 0 && (
+              <Select value={pollFilter} onValueChange={(v) => { setPollFilter(v); pollsPagination.setPage(1); }}>
+                <SelectTrigger className="h-8 w-[220px] text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t('reports.polls.filterAll')}</SelectItem>
+                  {uniquePolls.map((p) => (
+                    <SelectItem key={p.id} value={p.id} className="text-xs">
+                      {p.question.length > 50 ? p.question.slice(0, 50) + '…' : p.question}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Button size="sm" variant="ghost" onClick={() => pollResponses.data && exportPollsExcel(pollResponses.data, t)} disabled={!pollResponses.data?.length}>
+              <FileSpreadsheet className="mr-1 h-4 w-4" /> Excel
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {pollResponses.isLoading ? (
+            <Skeleton className="h-48 w-full" />
+          ) : filteredPollResponses.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-center">
+              <BarChart3 className="h-12 w-12 text-muted-foreground/40 mb-3" />
+              <p className="text-sm font-medium text-muted-foreground">{t('reports.polls.emptyTitle')}</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('reports.polls.colQuestion')}</TableHead>
+                    <TableHead>{t('reports.polls.colAuthor')}</TableHead>
+                    <TableHead className="hidden sm:table-cell">{t('reports.polls.colCredential')}</TableHead>
+                    <TableHead>{t('reports.polls.colAnswer')}</TableHead>
+                    <TableHead className="hidden md:table-cell text-right">{t('reports.polls.colDate')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pollsPagination.paginatedItems.map((r, i) => (
+                    <TableRow key={`${r.poll_id}-${i}`}>
+                      <TableCell className="max-w-[260px] text-sm">
+                        <span className="line-clamp-2">{r.question}</span>
+                      </TableCell>
+                      <TableCell className="text-sm font-medium">{r.author_name}</TableCell>
+                      <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">{r.credential_code}</TableCell>
+                      <TableCell className="text-sm">{r.option_text ?? r.text_response ?? '—'}</TableCell>
+                      <TableCell className="hidden md:table-cell text-right text-xs text-muted-foreground">
+                        {r.created_at ? new Date(r.created_at).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) : ''}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <DataTablePagination
+                currentPage={pollsPagination.currentPage}
+                totalPages={pollsPagination.totalPages}
+                totalItems={pollsPagination.totalItems}
+                startIndex={pollsPagination.startIndex}
+                endIndex={pollsPagination.endIndex}
+                onPageChange={pollsPagination.setPage}
+              />
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
