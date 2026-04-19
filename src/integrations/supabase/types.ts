@@ -284,6 +284,13 @@ export type Database = {
             referencedRelation: "service_catalog"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fk_service_catalog"
+            columns: ["service_catalog_id"]
+            isOneToOne: false
+            referencedRelation: "service_catalog_with_status"
+            referencedColumns: ["id"]
+          },
         ]
       }
       attendees: {
@@ -1185,6 +1192,48 @@ export type Database = {
           },
         ]
       }
+      provider_activity_log: {
+        Row: {
+          activity_type: string
+          created_at: string
+          event_id: string
+          id: string
+          metadata: Json | null
+          provider_id: string
+        }
+        Insert: {
+          activity_type: string
+          created_at?: string
+          event_id: string
+          id?: string
+          metadata?: Json | null
+          provider_id: string
+        }
+        Update: {
+          activity_type?: string
+          created_at?: string
+          event_id?: string
+          id?: string
+          metadata?: Json | null
+          provider_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_activity_log_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_activity_log_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       provider_services: {
         Row: {
           created_at: string | null
@@ -1217,6 +1266,13 @@ export type Database = {
             columns: ["service_catalog_id"]
             isOneToOne: false
             referencedRelation: "service_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_services_service_catalog_id_fkey"
+            columns: ["service_catalog_id"]
+            isOneToOne: false
+            referencedRelation: "service_catalog_with_status"
             referencedColumns: ["id"]
           },
         ]
@@ -1430,6 +1486,7 @@ export type Database = {
           location: string | null
           name: string
           service_type: string
+          status: string
           valid_day: number | null
           valid_from: string | null
           valid_until: string | null
@@ -1442,6 +1499,7 @@ export type Database = {
           location?: string | null
           name: string
           service_type: string
+          status?: string
           valid_day?: number | null
           valid_from?: string | null
           valid_until?: string | null
@@ -1454,6 +1512,7 @@ export type Database = {
           location?: string | null
           name?: string
           service_type?: string
+          status?: string
           valid_day?: number | null
           valid_from?: string | null
           valid_until?: string | null
@@ -1821,6 +1880,51 @@ export type Database = {
           },
         ]
       }
+      service_catalog_with_status: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          effective_status: string | null
+          event_id: string | null
+          id: string | null
+          location: string | null
+          name: string | null
+          service_type: string | null
+          status: string | null
+          valid_day: number | null
+          valid_from: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          effective_status?: never
+          event_id?: string | null
+          id?: string | null
+          location?: string | null
+          name?: string | null
+          service_type?: string | null
+          status?: string | null
+          valid_day?: number | null
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          effective_status?: never
+          event_id?: string | null
+          id?: string | null
+          location?: string | null
+          name?: string | null
+          service_type?: string | null
+          status?: string | null
+          valid_day?: number | null
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       accept_or_create_contact: {
@@ -1904,6 +2008,10 @@ export type Database = {
         Args: { _event_id: string; _user_id: string }
         Returns: boolean
       }
+      log_provider_activity: {
+        Args: { _activity_type: string; _metadata?: Json }
+        Returns: undefined
+      }
       mark_activity_complete: {
         Args: { _checkin_id: string }
         Returns: boolean
@@ -1925,6 +2033,7 @@ export type Database = {
         Args: { _attendee_service_id: string; _provider_id: string }
         Returns: Json
       }
+      purge_old_provider_activity_logs: { Args: never; Returns: number }
       validate_service_ticket: {
         Args: { _ticket_code: string; _validator_user_id: string }
         Returns: Json
