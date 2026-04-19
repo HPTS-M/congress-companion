@@ -1,16 +1,15 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Megaphone, Plus, Eye, Trash2, MessageSquare, Users, CalendarClock, ShieldAlert } from 'lucide-react';
+import { Megaphone, Plus, Eye, Trash2, Users, CalendarClock, Pencil, Send, Clock } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useEvent } from '@/hooks/useEvent';
@@ -18,18 +17,18 @@ import {
   useAdminAnnouncements,
   useAdminCommsStats,
   useCreateAnnouncement,
+  useUpdateAnnouncement,
+  useResendAnnouncement,
+  useCancelScheduled,
   useDeleteAnnouncement,
-  useAdminGroupChat,
-  useAdminAttendeeNames,
-  useDeleteChatMessage,
 } from '@/hooks/useAdminCommunications';
 import { format } from 'date-fns';
 import { es as esLocale } from 'date-fns/locale';
-import type { AdminAnnouncement, ChatMessageAdmin } from '@/services/admin-communications.service';
+import type { AdminAnnouncement } from '@/services/admin-communications.service';
 import { usePagination } from '@/hooks/usePagination';
 import { DataTablePagination } from '@/components/ui/data-table-pagination';
+import { AnnouncementModal, type AnnouncementSubmit } from '@/components/admin/communications/AnnouncementModal';
 
-/* ───── Stat Card ───── */
 function StatCard({ label, value, icon: Icon, loading }: { label: string; value: number | undefined; icon: React.ElementType; loading: boolean }) {
   return (
     <Card>
@@ -46,50 +45,82 @@ function StatCard({ label, value, icon: Icon, loading }: { label: string; value:
   );
 }
 
-/* ───── Main Component ───── */
+function isScheduled(a: AdminAnnouncement) {
+  return !!a.scheduled_for && !a.sent_at;
+}
+
 export default function AdminCommunications() {
   const { t } = useTranslation('admin');
   const { event } = useEvent();
   const { toast } = useToast();
   const eventId = event?.id;
 
-  // Data
   const announcements = useAdminAnnouncements(eventId);
   const stats = useAdminCommsStats(eventId);
   const createMutation = useCreateAnnouncement(eventId);
+  const updateMutation = useUpdateAnnouncement(eventId);
+  const resendMutation = useResendAnnouncement(eventId);
+  const cancelMutation = useCancelScheduled(eventId);
   const deleteMutation = useDeleteAnnouncement(eventId);
-  const chatMessages = useAdminGroupChat(eventId);
-  const attendeeNames = useAdminAttendeeNames(eventId);
-  const deleteChatMsg = useDeleteChatMessage(eventId);
 
-  // UI state
-  const [showNewModal, setShowNewModal] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<AdminAnnouncement | null>(null);
+  const [duplicateError, setDuplicateError] = useState(false);
+
   const [viewAnnouncement, setViewAnnouncement] = useState<AdminAnnouncement | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const [deleteChatTarget, setDeleteChatTarget] = useState<string | null>(null);
-  const [newTitle, setNewTitle] = useState('');
-  const [newBody, setNewBody] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<AdminAnnouncement | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<AdminAnnouncement | null>(null);
 
-  const annPagination = usePagination(announcements.data ?? [], 10);
-  const chatPagination = usePagination(chatMessages.data ?? [], 10);
+  const list = announcements.data ?? [];
+  const scheduled = list.filter(isScheduled);
+  const sent = list.filter((a) => !!a.sent_at);
+  const sentPagination = usePagination(sent, 10);
 
-  const handleCreate = async () => {
-    if (!newTitle.trim() || !newBody.trim()) return;
+  const handleSubmit = async (data: AnnouncementSubmit) => {
+    setDuplicateError(false);
     try {
-      await createMutation.mutateAsync({ title: newTitle, body: newBody });
-      toast({ title: t('communications.sendSuccess', { count: stats.attendees.data ?? 0 }) });
-      setShowNewModal(false);
-      setNewTitle('');
-      setNewBody('');
-    } catch {
-      toast({ title: t('communications.sendError'), variant: 'destructive' });
+      if (editing) {
+        await updateMutation.mutateAsync({
+          id: editing.id,
+          fields: { title: data.title, body: data.body, scheduledFor: data.scheduledFor },
+        });
+        toast({ title: t('communications.updateSuccess') });
+      } else {
+        await createMutation.mutateAsync(data);
+        toast({
+          title: data.scheduledFor
+            ? t('communications.scheduleSuccess')
+            : t('communications.sendSuccess', { count: stats.attendees.data ?? 0 }),
+        });
+      }
+      setModalOpen(false);
+      setEditing(null);
+    } catch (err: any) {
+      if (err?.message === 'DUPLICATE_TITLE') {
+        setDuplicateError(true);
+      } else {
+        toast({ title: t('communications.sendError'), variant: 'destructive' });
+      }
+    }
+  };
+
+  const handleResend = async (a: AdminAnnouncement) => {
+    try {
+      await resendMutation.mutateAsync({ id: a.id, title: a.title, body: a.body });
+      toast({ title: t('communications.resendSuccess', { count: stats.attendees.data ?? 0 }) });
+    } catch (err: any) {
+      if (err?.message === 'NO_CHANGES') {
+        toast({ title: t('communications.noChangesToResend'), variant: 'destructive' });
+      } else {
+        toast({ title: t('communications.sendError'), variant: 'destructive' });
+      }
     }
   };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
     try {
-      await deleteMutation.mutateAsync(deleteTarget);
+      await deleteMutation.mutateAsync(deleteTarget.id);
       toast({ title: t('communications.deleteSuccess') });
     } catch {
       toast({ title: t('communications.deleteError'), variant: 'destructive' });
@@ -97,195 +128,187 @@ export default function AdminCommunications() {
     setDeleteTarget(null);
   };
 
-  const handleDeleteChat = async () => {
-    if (!deleteChatTarget) return;
+  const handleCancelScheduled = async () => {
+    if (!cancelTarget) return;
     try {
-      await deleteChatMsg.mutateAsync(deleteChatTarget);
-      toast({ title: t('communications.chatMessageDeleted') });
+      await cancelMutation.mutateAsync(cancelTarget.id);
+      toast({ title: t('communications.cancelSuccess') });
     } catch {
-      toast({ title: t('communications.chatDeleteError'), variant: 'destructive' });
+      toast({ title: t('communications.deleteError'), variant: 'destructive' });
     }
-    setDeleteChatTarget(null);
+    setCancelTarget(null);
+  };
+
+  const openCreate = () => {
+    setEditing(null);
+    setDuplicateError(false);
+    setModalOpen(true);
+  };
+
+  const openEdit = (a: AdminAnnouncement) => {
+    setEditing(a);
+    setDuplicateError(false);
+    setModalOpen(true);
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{t('communications.title')}</h1>
           <p className="text-sm text-muted-foreground">{t('communications.subtitle')}</p>
         </div>
-        <Button className="bg-primary hover:bg-primary/90" onClick={() => setShowNewModal(true)}>
+        <Button className="bg-primary hover:bg-primary/90" onClick={openCreate}>
           <Plus className="mr-2 h-4 w-4" />
           {t('communications.newAnnouncement')}
         </Button>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard label={t('communications.statTotal')} value={stats.total.data} icon={Megaphone} loading={stats.total.isLoading} />
         <StatCard label={t('communications.statToday')} value={stats.today.data} icon={CalendarClock} loading={stats.today.isLoading} />
         <StatCard label={t('communications.statReach')} value={stats.attendees.data} icon={Users} loading={stats.attendees.isLoading} />
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="announcements">
-        <TabsList>
-          <TabsTrigger value="announcements">
-            <Megaphone className="mr-2 h-4 w-4" />
-            {t('communications.tabAnnouncements')}
-          </TabsTrigger>
-          <TabsTrigger value="chat">
-            <MessageSquare className="mr-2 h-4 w-4" />
-            {t('communications.tabChat')}
-          </TabsTrigger>
-        </TabsList>
-
-        {/* ─── Announcements Tab ─── */}
-        <TabsContent value="announcements">
-          <Card>
-            <CardContent className="p-0">
-              {announcements.isLoading ? (
-                <div className="p-6 space-y-3">
-                  {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
-                </div>
-              ) : !announcements.data?.length ? (
-                <div className="p-8 text-center text-muted-foreground">{t('communications.noAnnouncements')}</div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t('communications.colAnnouncement')}</TableHead>
-                      <TableHead className="hidden sm:table-cell">{t('communications.colSentAt')}</TableHead>
-                      <TableHead className="hidden md:table-cell">{t('communications.colReach')}</TableHead>
-                      <TableHead className="text-right">{t('communications.colActions')}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {annPagination.paginatedItems.map((a) => (
-                      <TableRow key={a.id}>
-                        <TableCell>
-                          <p className="font-semibold text-foreground">{a.title}</p>
-                          <p className="text-xs text-muted-foreground line-clamp-1">{a.body}</p>
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell text-sm text-muted-foreground whitespace-nowrap">
-                          {a.sent_at ? format(new Date(a.sent_at), 'dd MMM yyyy HH:mm', { locale: esLocale }) : '—'}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                          {a.reach_count} {t('communications.attendeesLabel')}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button variant="ghost" size="icon" onClick={() => setViewAnnouncement(a)} title={t('communications.view')}>
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(a.id)} title={t('communications.delete')}>
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-          {(announcements.data?.length ?? 0) > 0 && (
-            <div className="mt-2">
-              <DataTablePagination
-                currentPage={annPagination.currentPage}
-                totalPages={annPagination.totalPages}
-                totalItems={annPagination.totalItems}
-                startIndex={annPagination.startIndex}
-                endIndex={annPagination.endIndex}
-                onPageChange={annPagination.setPage}
-              />
+      {/* Scheduled section */}
+      {scheduled.length > 0 && (
+        <Card>
+          <CardContent className="p-0">
+            <div className="px-5 py-3 border-b border-border flex items-center gap-2">
+              <Clock className="h-4 w-4 text-amber-500" />
+              <h2 className="text-sm font-semibold">{t('communications.scheduled')}</h2>
+              <Badge variant="secondary" className="ml-auto">{scheduled.length}</Badge>
             </div>
-          )}
-        </TabsContent>
-
-        {/* ─── Chat General Tab ─── */}
-        <TabsContent value="chat">
-          <Card>
-            <CardContent className="p-4">
-              {chatMessages.isLoading ? (
-                <div className="space-y-3">
-                  {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
-                </div>
-              ) : !chatMessages.data?.length ? (
-                <div className="p-8 text-center text-muted-foreground">{t('communications.noMessages')}</div>
-              ) : (
-                <>
-                <div className="space-y-3">
-                  {chatPagination.paginatedItems.map((msg) => (
-                    <div key={msg.id} className="flex items-start gap-3 rounded-lg border p-3 bg-muted/30">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-foreground">
-                            {attendeeNames.data?.[msg.sender_id] ?? t('communications.unknownSender')}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {msg.created_at ? format(new Date(msg.created_at), 'dd MMM HH:mm', { locale: esLocale }) : ''}
-                          </span>
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-1">{msg.content}</p>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('communications.colAnnouncement')}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{t('communications.scheduledForCol')}</TableHead>
+                  <TableHead className="text-right">{t('communications.colActions')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {scheduled.map((a) => (
+                  <TableRow key={a.id}>
+                    <TableCell>
+                      <p className="font-semibold text-foreground">{a.title}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-1">{a.body}</p>
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell">
+                      <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                        {format(new Date(a.scheduled_for!), 'dd MMM yyyy HH:mm', { locale: esLocale })}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(a)} title={t('communications.editTitle')}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => setCancelTarget(a)} title={t('communications.cancelScheduled')}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="shrink-0"
-                        onClick={() => setDeleteChatTarget(msg.id)}
-                        title={t('communications.moderate')}
-                      >
-                        <ShieldAlert className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-                <DataTablePagination
-                  currentPage={chatPagination.currentPage}
-                  totalPages={chatPagination.totalPages}
-                  totalItems={chatPagination.totalItems}
-                  startIndex={chatPagination.startIndex}
-                  endIndex={chatPagination.endIndex}
-                  onPageChange={chatPagination.setPage}
-                />
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* ─── New Announcement Modal ─── */}
-      <Dialog open={showNewModal} onOpenChange={setShowNewModal}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{t('communications.newAnnouncement')}</DialogTitle>
-            <DialogDescription>{t('communications.newAnnouncementDesc')}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>{t('communications.fieldTitle')}</Label>
-              <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder={t('communications.fieldTitlePlaceholder')} />
-            </div>
-            <div className="space-y-2">
-              <Label>{t('communications.fieldBody')}</Label>
-              <Textarea value={newBody} onChange={(e) => setNewBody(e.target.value)} placeholder={t('communications.fieldBodyPlaceholder')} rows={5} />
-            </div>
+      {/* Sent */}
+      <Card>
+        <CardContent className="p-0">
+          <div className="px-5 py-3 border-b border-border flex items-center gap-2">
+            <Megaphone className="h-4 w-4 text-primary" />
+            <h2 className="text-sm font-semibold">{t('communications.sent')}</h2>
+            <Badge variant="secondary" className="ml-auto">{sent.length}</Badge>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNewModal(false)}>{t('communications.cancel')}</Button>
-            <Button onClick={handleCreate} disabled={createMutation.isPending || !newTitle.trim() || !newBody.trim()}>
-              {createMutation.isPending ? t('communications.sending') : t('communications.send')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          {announcements.isLoading ? (
+            <div className="p-6 space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+            </div>
+          ) : sent.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">{t('communications.noAnnouncements')}</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('communications.colAnnouncement')}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{t('communications.colSentAt')}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t('communications.colReach')}</TableHead>
+                  <TableHead className="text-right">{t('communications.colActions')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sentPagination.paginatedItems.map((a) => (
+                  <TableRow key={a.id}>
+                    <TableCell>
+                      <p className="font-semibold text-foreground">{a.title}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-1">{a.body}</p>
+                      {a.last_edited_at && (
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {t('communications.lastEdited')}: {format(new Date(a.last_edited_at), 'dd MMM HH:mm', { locale: esLocale })}
+                        </p>
+                      )}
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell text-sm text-muted-foreground whitespace-nowrap">
+                      {a.sent_at ? format(new Date(a.sent_at), 'dd MMM yyyy HH:mm', { locale: esLocale }) : '—'}
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                      {a.reach_count} {t('communications.attendeesLabel')}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => setViewAnnouncement(a)} title={t('communications.view')}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(a)} title={t('communications.editTitle')}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleResend(a)}
+                          disabled={resendMutation.isPending}
+                          title={t('communications.resend')}
+                        >
+                          <Send className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(a)} title={t('communications.delete')}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+      {sent.length > 0 && (
+        <DataTablePagination
+          currentPage={sentPagination.currentPage}
+          totalPages={sentPagination.totalPages}
+          totalItems={sentPagination.totalItems}
+          startIndex={sentPagination.startIndex}
+          endIndex={sentPagination.endIndex}
+          onPageChange={sentPagination.setPage}
+        />
+      )}
 
-      {/* ─── View Announcement Dialog ─── */}
+      <AnnouncementModal
+        open={modalOpen}
+        onClose={() => { setModalOpen(false); setEditing(null); setDuplicateError(false); }}
+        onSubmit={handleSubmit}
+        isSubmitting={createMutation.isPending || updateMutation.isPending}
+        announcement={editing}
+        duplicateError={duplicateError}
+        onClearDuplicate={() => setDuplicateError(false)}
+      />
+
       <Dialog open={!!viewAnnouncement} onOpenChange={() => setViewAnnouncement(null)}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -299,16 +322,25 @@ export default function AdminCommunications() {
           <div className="py-2">
             <p className="text-sm text-foreground whitespace-pre-wrap">{viewAnnouncement?.body}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Badge variant="secondary">
               <Users className="mr-1 h-3 w-3" />
-              {stats.attendees.data ?? 0} {t('communications.attendeesLabel')}
+              {viewAnnouncement?.reach_count ?? 0} {t('communications.attendeesLabel')}
             </Badge>
+            {viewAnnouncement?.last_edited_at && (
+              <Badge variant="outline" className="text-xs">
+                {t('communications.lastEdited')}: {format(new Date(viewAnnouncement.last_edited_at), 'dd MMM HH:mm', { locale: esLocale })}
+              </Badge>
+            )}
+            {viewAnnouncement?.last_resent_at && (
+              <Badge variant="outline" className="text-xs">
+                {t('communications.lastResent')}: {format(new Date(viewAnnouncement.last_resent_at), 'dd MMM HH:mm', { locale: esLocale })}
+              </Badge>
+            )}
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* ─── Delete Announcement Confirm ─── */}
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -324,17 +356,16 @@ export default function AdminCommunications() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* ─── Delete Chat Message Confirm ─── */}
-      <AlertDialog open={!!deleteChatTarget} onOpenChange={() => setDeleteChatTarget(null)}>
+      <AlertDialog open={!!cancelTarget} onOpenChange={() => setCancelTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('communications.moderateTitle')}</AlertDialogTitle>
-            <AlertDialogDescription>{t('communications.moderateConfirm')}</AlertDialogDescription>
+            <AlertDialogTitle>{t('communications.cancelScheduledTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('communications.cancelScheduledConfirm')}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t('communications.cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteChat} className="bg-destructive hover:bg-destructive/90">
-              {t('communications.moderateDelete')}
+            <AlertDialogAction onClick={handleCancelScheduled} className="bg-destructive hover:bg-destructive/90">
+              {t('communications.cancelScheduled')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

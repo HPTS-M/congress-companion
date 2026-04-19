@@ -6,6 +6,7 @@ export function useAdminAnnouncements(eventId: string | undefined) {
     queryKey: ['admin-announcements', eventId],
     queryFn: () => adminCommunicationsService.getAnnouncements(eventId!),
     enabled: !!eventId,
+    refetchInterval: 30_000,
   });
 }
 
@@ -31,17 +32,45 @@ export function useAdminCommsStats(eventId: string | undefined) {
   return { total: totalQuery, today: todayQuery, attendees: attendeesQuery };
 }
 
+function invalidateAll(qc: ReturnType<typeof useQueryClient>, eventId: string | undefined) {
+  qc.invalidateQueries({ queryKey: ['admin-announcements', eventId] });
+  qc.invalidateQueries({ queryKey: ['admin-announcements-count', eventId] });
+  qc.invalidateQueries({ queryKey: ['admin-announcements-today', eventId] });
+  qc.invalidateQueries({ queryKey: ['admin-stats', eventId] });
+}
+
 export function useCreateAnnouncement(eventId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ title, body }: { title: string; body: string }) =>
-      adminCommunicationsService.createAnnouncement(eventId!, title, body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin-announcements', eventId] });
-      qc.invalidateQueries({ queryKey: ['admin-announcements-count', eventId] });
-      qc.invalidateQueries({ queryKey: ['admin-announcements-today', eventId] });
-      qc.invalidateQueries({ queryKey: ['admin-stats', eventId] });
-    },
+    mutationFn: (payload: { title: string; body: string; scheduledFor?: Date | null }) =>
+      adminCommunicationsService.createAnnouncement(eventId!, payload),
+    onSuccess: () => invalidateAll(qc, eventId),
+  });
+}
+
+export function useUpdateAnnouncement(eventId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, fields }: { id: string; fields: { title: string; body: string; scheduledFor?: Date | null } }) =>
+      adminCommunicationsService.updateAnnouncement(id, fields),
+    onSuccess: () => invalidateAll(qc, eventId),
+  });
+}
+
+export function useResendAnnouncement(eventId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, title, body }: { id: string; title: string; body: string }) =>
+      adminCommunicationsService.resendAnnouncement(id, title, body),
+    onSuccess: () => invalidateAll(qc, eventId),
+  });
+}
+
+export function useCancelScheduled(eventId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => adminCommunicationsService.cancelScheduled(id),
+    onSuccess: () => invalidateAll(qc, eventId),
   });
 }
 
@@ -49,36 +78,6 @@ export function useDeleteAnnouncement(eventId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => adminCommunicationsService.deleteAnnouncement(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin-announcements', eventId] });
-      qc.invalidateQueries({ queryKey: ['admin-announcements-count', eventId] });
-    },
-  });
-}
-
-export function useAdminGroupChat(eventId: string | undefined) {
-  return useQuery({
-    queryKey: ['admin-group-chat', eventId],
-    queryFn: () => adminCommunicationsService.getGroupChatMessages(eventId!),
-    enabled: !!eventId,
-  });
-}
-
-export function useAdminAttendeeNames(eventId: string | undefined) {
-  return useQuery({
-    queryKey: ['admin-attendee-names', eventId],
-    queryFn: () => adminCommunicationsService.getAttendeeNames(eventId!),
-    enabled: !!eventId,
-    staleTime: 10 * 60 * 1000,
-  });
-}
-
-export function useDeleteChatMessage(eventId: string | undefined) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (messageId: string) => adminCommunicationsService.deleteMessage(messageId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin-group-chat', eventId] });
-    },
+    onSuccess: () => invalidateAll(qc, eventId),
   });
 }

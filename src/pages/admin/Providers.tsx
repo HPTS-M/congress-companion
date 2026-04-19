@@ -15,13 +15,14 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  Plus, Search, Pencil, Trash2, Link2, Mail, RefreshCw,
+  Plus, Search, Pencil, Trash2, Link2, Mail, RefreshCw, Activity,
   Bus, UtensilsCrossed, Map, Sparkles,
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { ProviderModal } from '@/components/admin/providers/ProviderModal';
 import { AssignServicesModal } from '@/components/admin/providers/AssignServicesModal';
+import { ProviderActivityDrawer } from '@/components/admin/providers/ProviderActivityDrawer';
 import { adminProvidersService } from '@/services/admin-providers.service';
 import type { ProviderRow, ProviderForm } from '@/services/admin-providers.service';
 import { usePagination } from '@/hooks/usePagination';
@@ -74,6 +75,7 @@ export default function AdminProviders() {
   // Confirmation dialog states
   const [resendConfirm, setResendConfirm] = useState<ProviderRow | null>(null);
   const [emailChangedConfirm, setEmailChangedConfirm] = useState<{ provider: ProviderRow; newEmail: string } | null>(null);
+  const [activityProvider, setActivityProvider] = useState<ProviderRow | null>(null);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return providers;
@@ -332,6 +334,9 @@ export default function AdminProviders() {
                           <Mail className={`h-4 w-4 ${invitingId === p.id ? 'animate-pulse' : ''}`} />
                         </Button>
                       )}
+                      <Button variant="ghost" size="icon" onClick={() => setActivityProvider(p)} title={t('providers.viewActivity')}>
+                        <Activity className="h-4 w-4" />
+                      </Button>
                       <Button variant="ghost" size="icon" onClick={() => setAssigning(p)} title={t('providers.assignServices')}>
                         <Link2 className="h-4 w-4" />
                       </Button>
@@ -379,6 +384,13 @@ export default function AdminProviders() {
           onSaved={() => {}}
         />
       )}
+
+      {/* Activity drawer */}
+      <ProviderActivityDrawer
+        open={!!activityProvider}
+        onClose={() => setActivityProvider(null)}
+        provider={activityProvider}
+      />
 
       {/* Delete confirm */}
       <AlertDialog open={!!deletingId} onOpenChange={(o) => !o && setDeletingId(null)}>

@@ -29,6 +29,13 @@ export interface ProviderForm {
   is_active?: boolean;
 }
 
+export interface ProviderActivityEntry {
+  id: string;
+  activity_type: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
 export const adminProvidersService = {
   async getAll(eventId: string): Promise<ProviderRow[]> {
     const { data, error } = await supabase
@@ -130,6 +137,31 @@ export const adminProvidersService = {
       const { error } = await supabase.from('provider_services').insert(rows);
       if (error) throw new Error(error.message);
     }
+  },
+
+  async getActivityLog(
+    providerId: string,
+    filters?: { from?: Date | null; to?: Date | null; type?: string | null },
+  ): Promise<ProviderActivityEntry[]> {
+    let query = supabase
+      .from('provider_activity_log')
+      .select('id, activity_type, metadata, created_at')
+      .eq('provider_id', providerId)
+      .order('created_at', { ascending: false })
+      .limit(500);
+
+    if (filters?.from) query = query.gte('created_at', filters.from.toISOString());
+    if (filters?.to) query = query.lte('created_at', filters.to.toISOString());
+    if (filters?.type) query = query.eq('activity_type', filters.type);
+
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((r) => ({
+      id: r.id,
+      activity_type: r.activity_type,
+      metadata: (r.metadata ?? {}) as Record<string, unknown>,
+      created_at: r.created_at,
+    }));
   },
 
   generateAccessCode(): string {
