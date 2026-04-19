@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/table';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useEvent } from '@/hooks/useEvent';
 import type { AttendeeWithServices } from '@/services/admin-attendees.service';
 
 interface Props {
@@ -60,19 +61,24 @@ interface RowProps {
   onEdit: (a: AttendeeWithServices) => void;
   onDelete: (id: string, name: string) => void;
   onToggleActive: (a: AttendeeWithServices) => void;
+  externalCredentialsEnabled: boolean;
 }
 
 const AttendeeRow = memo(function AttendeeRow({
-  a, selected, onToggleSelect, onView, onEdit, onDelete, onToggleActive,
+  a, selected, onToggleSelect, onView, onEdit, onDelete, onToggleActive, externalCredentialsEnabled,
 }: RowProps) {
   const { t } = useTranslation('admin');
   const isCancelled = a.registration_status === 'cancelled';
 
+  const displayedCode = externalCredentialsEnabled
+    ? ((a as AttendeeWithServices & { external_credential_code?: string | null }).external_credential_code || a.credential_code)
+    : a.credential_code;
+
   const copyCode = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(a.credential_code);
+    navigator.clipboard.writeText(displayedCode);
     toast({ title: t('attendees.codeCopied'), duration: 1500 });
-  }, [a.credential_code, t]);
+  }, [displayedCode, t]);
 
   return (
     <TableRow className={cn('cursor-pointer', isCancelled && 'opacity-60')} onClick={() => onView(a.id)}>
