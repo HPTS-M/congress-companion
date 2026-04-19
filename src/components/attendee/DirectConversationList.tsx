@@ -46,6 +46,13 @@ export default function DirectConversationList({ onSelectConversation }: Props) 
   const { data: conversations = [], isLoading } = useDirectConversations(eventId, attendeeId);
   const acceptMutation = useAcceptConversation();
   const rejectMutation = useRejectConversation();
+  const { pending: allPending } = usePendingMessages();
+
+  // Count pending messages by conversation id
+  const pendingByConv: Record<string, number> = {};
+  for (const p of allPending) {
+    pendingByConv[p.conversationId] = (pendingByConv[p.conversationId] ?? 0) + 1;
+  }
 
   // Realtime: refresh list on conversation/message changes for this event
   useEffect(() => {
