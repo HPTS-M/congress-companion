@@ -291,7 +291,7 @@ export default function DirectChatView({ conversation, onBack }: Props) {
             </div>
           ))}
         </div>
-      ) : messages.length === 0 ? (
+      ) : merged.length === 0 ? (
         <div className="flex-1 flex items-center justify-center px-4">
           <div className="text-center">
             <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
@@ -312,6 +312,10 @@ export default function DirectChatView({ conversation, onBack }: Props) {
               {group.msgs.map(msg => {
                 const isOwn = msg.sender_id === attendeeId;
                 const senderName = nameMap[msg.sender_id] || conversation.other_name;
+                const pendingInfo = msg.__pending;
+                const isFailed = pendingInfo?.status === 'failed';
+                const isSending = pendingInfo?.status === 'sending';
+                const isQueued = pendingInfo?.status === 'pending';
                 return (
                   <div key={msg.id} className={`flex gap-2 mb-3 ${isOwn ? 'flex-row-reverse' : ''}`}>
                     {!isOwn && (
@@ -327,12 +331,37 @@ export default function DirectChatView({ conversation, onBack }: Props) {
                           isOwn
                             ? 'bg-[hsl(213,72%,37%)] text-white rounded-br-md'
                             : 'bg-muted text-foreground rounded-bl-md'
-                        }`}
+                        } ${pendingInfo ? 'opacity-80' : ''}`}
                       >
                         {msg.content}
                       </div>
-                      <span className={`text-[11px] text-muted-foreground mt-0.5 px-1 ${isOwn ? 'text-right' : ''}`}>
-                        {msg.created_at ? formatMessageTime(msg.created_at) : ''}
+                      <span
+                        className={`text-[11px] mt-0.5 px-1 flex items-center gap-1 ${
+                          isOwn ? 'text-right justify-end' : ''
+                        } ${isFailed ? 'text-destructive' : 'text-muted-foreground'}`}
+                      >
+                        {isFailed ? (
+                          <button
+                            type="button"
+                            onClick={() => retry(pendingInfo!.id)}
+                            className="flex items-center gap-1 hover:underline"
+                          >
+                            <AlertTriangle className="h-3 w-3" />
+                            {t('tapToRetry')}
+                          </button>
+                        ) : isSending ? (
+                          <>
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            {t('sendingMessage')}
+                          </>
+                        ) : isQueued ? (
+                          <>
+                            <Clock className="h-3 w-3" />
+                            {t('pendingMessage')}
+                          </>
+                        ) : (
+                          msg.created_at ? formatMessageTime(msg.created_at) : ''
+                        )}
                       </span>
                     </div>
                   </div>
