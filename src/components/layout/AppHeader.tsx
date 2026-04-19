@@ -5,6 +5,7 @@ import { useEvent, useEventSlug, useEventSettings } from '@/hooks/useEvent';
 import { useAuth } from '@/hooks/useAuth';
 import { useUnreadAnnouncements } from '@/hooks/useUnreadAnnouncements';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { Button } from '@/components/ui/button';
 
 interface AppHeaderProps {
@@ -81,7 +82,7 @@ export function AppHeader({ onMenuOpen }: AppHeaderProps) {
           className="relative text-white hover:bg-white/10"
           onClick={handleMessagingClick}
           aria-label={tMessaging('headerTooltip')}
-          title={tMessaging('headerTooltip')}
+          title={!isOnline ? t('offlineBanner.headerDot') : tMessaging('headerTooltip')}
         >
           <MessageCircle className="h-4 w-4" />
           {messages.count > 0 && (
@@ -89,8 +90,14 @@ export function AppHeader({ onMenuOpen }: AppHeaderProps) {
               {messages.count > 99 ? '99+' : messages.count}
             </span>
           )}
-          {messages.count === 0 && showMessagingDot && (
+          {messages.count === 0 && showMessagingDot && isOnline && (
             <span className="absolute right-1 top-1 flex h-2 w-2 items-center justify-center rounded-full bg-accent animate-pulse" />
+          )}
+          {!isOnline && (
+            <span
+              className="absolute right-0.5 top-0.5 flex h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-white/40"
+              aria-label={t('offlineBanner.headerDot')}
+            />
           )}
         </Button>
         <Button variant="ghost" size="icon" className="relative text-white hover:bg-white/10 md:w-auto md:px-2" onClick={() => navigate(`/${eventSlug}/profile`)}>

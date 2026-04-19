@@ -73,12 +73,21 @@ export default function DirectChatView({ conversation, onBack }: Props) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
 
-  // Realtime for direct messages — subscribe whenever conversation exists
+  // Realtime for direct messages — subscribe whenever conversation exists.
+  // We re-subscribe on `attendee:reconnected` to recover from dropped channels
+  // after a connectivity blip.
+  const [realtimeKey, setRealtimeKey] = useState(0);
+  useEffect(() => {
+    const onReconnect = () => setRealtimeKey(k => k + 1);
+    window.addEventListener('attendee:reconnected', onReconnect);
+    return () => window.removeEventListener('attendee:reconnected', onReconnect);
+  }, []);
+
   useEffect(() => {
     if (!conversation.id || !isOnline) return;
 
     const channel = supabase
-      .channel(`dm-${conversation.id}`)
+      .channel(`dm-${conversation.id}-${realtimeKey}`)
       .on(
         'postgres_changes',
         {
@@ -109,7 +118,7 @@ export default function DirectChatView({ conversation, onBack }: Props) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [conversation.id, queryClient, isOnline]);
+  }, [conversation.id, queryClient, isOnline, realtimeKey]);
 
   const handleSend = useCallback(async () => {
     if (!input.trim() || sending || isPending) return;
