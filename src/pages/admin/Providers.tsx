@@ -105,8 +105,13 @@ export default function AdminProviders() {
         await createProvider(data);
         toast.success(t('providers.createSuccess'));
       }
-    } catch {
-      toast.error(t('providers.saveError'));
+    } catch (err: any) {
+      if (err?.message === 'DUPLICATE_EMAIL') {
+        toast.error(t('providers.duplicateEmail'));
+      } else {
+        toast.error(t('providers.saveError'));
+      }
+      throw err;
     }
   }, [editing, createProvider, updateProvider, t]);
 

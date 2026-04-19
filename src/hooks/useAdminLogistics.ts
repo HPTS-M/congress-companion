@@ -27,12 +27,24 @@ export function useAdminLogistics(eventId: string | undefined) {
     onSuccess: () => qc.invalidateQueries({ queryKey: key }),
   });
 
+  const cancelMutation = useMutation({
+    mutationFn: (id: string) => adminLogisticsService.cancelService(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: key }),
+  });
+
+  const reactivateMutation = useMutation({
+    mutationFn: (id: string) => adminLogisticsService.reactivateService(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: key }),
+  });
+
   return {
     services: query.data ?? [],
     isLoading: query.isLoading,
     createService: createMutation.mutateAsync,
     updateService: updateMutation.mutateAsync,
     deleteService: deleteMutation.mutateAsync,
+    cancelService: cancelMutation.mutateAsync,
+    reactivateService: reactivateMutation.mutateAsync,
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
   };

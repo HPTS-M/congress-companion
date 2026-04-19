@@ -73,15 +73,19 @@ export function ProviderModal({ open, onClose, onSave, provider, isSaving }: Pro
   }, [provider, reset]);
 
   const onSubmit = async (data: FormData) => {
-    await onSave({
-      company_name: data.company_name,
-      category: data.category,
-      contact_name: data.contact_name,
-      contact_email: data.contact_email,
-      contact_phone: data.contact_phone,
-      access_code: data.access_code,
-    });
-    onClose();
+    try {
+      await onSave({
+        company_name: data.company_name,
+        category: data.category,
+        contact_name: data.contact_name,
+        contact_email: data.contact_email,
+        contact_phone: data.contact_phone,
+        access_code: data.access_code,
+      });
+      onClose();
+    } catch {
+      // keep modal open so user can correct (e.g. duplicate email)
+    }
   };
 
   return (

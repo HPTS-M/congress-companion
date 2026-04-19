@@ -117,6 +117,10 @@ export default function ProviderLogin() {
         } as any)
         .eq('id', provider.id);
 
+      // Log activity (fire-and-forget)
+      const { providerPortalService } = await import('@/services/provider-portal.service');
+      providerPortalService.logActivity('login', { email: email.trim() }).catch(() => {});
+
       // Check if password needs to be changed
       if (!(provider as any).password_changed) {
         navigate(`/${eventSlug}/provider/change-password`, { replace: true });

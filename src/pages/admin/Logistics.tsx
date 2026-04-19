@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
   Plus, Search, Pencil, Trash2, Users, Ticket, Clock, CheckCircle2, XCircle,
-  Bus, UtensilsCrossed, Map, Sparkles,
+  Bus, UtensilsCrossed, Map, Sparkles, Ban, RotateCcw,
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
@@ -53,7 +53,7 @@ export default function AdminLogistics() {
   const { eventSlug } = useParams();
   const navigate = useNavigate();
   const { event } = useEvent();
-  const { services, isLoading, createService, updateService, deleteService, isCreating, isUpdating } = useAdminLogistics(event?.id);
+  const { services, isLoading, createService, updateService, deleteService, cancelService, reactivateService, isCreating, isUpdating } = useAdminLogistics(event?.id);
 
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState('all');
@@ -61,6 +61,7 @@ export default function AdminLogistics() {
   const [editing, setEditing] = useState<ServiceCatalogRow | null>(null);
   const [viewingAssignees, setViewingAssignees] = useState<ServiceCatalogRow | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<ServiceCatalogRow | null>(null);
 
   const stats = useMemo(() => {
     let total = 0, pending = 0, used = 0, cancelled = 0;
@@ -99,8 +100,13 @@ export default function AdminLogistics() {
         await createService(data);
         toast.success(t('logistics.createSuccess'));
       }
-    } catch {
-      toast.error(t('logistics.saveError'));
+    } catch (err: any) {
+      if (err?.message === 'DUPLICATE_NAME') {
+        toast.error(t('logistics.duplicateName'));
+      } else {
+        toast.error(t('logistics.saveError'));
+      }
+      throw err;
     }
   }, [editing, createService, updateService, t]);
 
@@ -115,6 +121,27 @@ export default function AdminLogistics() {
       setDeletingId(null);
     }
   }, [deletingId, deleteService, t]);
+
+  const handleCancelService = useCallback(async () => {
+    if (!cancellingId) return;
+    try {
+      await cancelService(cancellingId.id);
+      toast.success(t('logistics.cancelSuccess'));
+    } catch {
+      toast.error(t('logistics.cancelError'));
+    } finally {
+      setCancellingId(null);
+    }
+  }, [cancellingId, cancelService, t]);
+
+  const handleReactivate = useCallback(async (s: ServiceCatalogRow) => {
+    try {
+      await reactivateService(s.id);
+      toast.success(t('logistics.reactivateSuccess'));
+    } catch {
+      toast.error(t('logistics.saveError'));
+    }
+  }, [reactivateService, t]);
 
   const handleEdit = useCallback((s: ServiceCatalogRow) => {
     setEditing(s);
@@ -198,6 +225,7 @@ export default function AdminLogistics() {
               <TableHead>{t('logistics.colService')}</TableHead>
               <TableHead>{t('logistics.colCategory')}</TableHead>
               <TableHead>{t('logistics.colSchedule')}</TableHead>
+              <TableHead>{t('logistics.colServiceStatus')}</TableHead>
               <TableHead>{t('logistics.colTickets')}</TableHead>
               <TableHead className="text-right">{t('logistics.colActions')}</TableHead>
             </TableRow>
@@ -205,15 +233,18 @@ export default function AdminLogistics() {
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   {t('logistics.noServices')}
                 </TableCell>
               </TableRow>
             ) : pagination.paginatedItems.map((s) => {
               const Icon = TYPE_ICONS[s.service_type] ?? Ticket;
               const pendingCount = s.total_tickets - s.used_tickets - s.cancelled_tickets;
+              const eff = s.effective_status ?? 'scheduled';
+              const isCancelled = eff === 'cancelled';
+              const isCompleted = eff === 'completed';
               return (
-                <TableRow key={s.id}>
+                <TableRow key={s.id} className={isCancelled ? 'opacity-60' : ''}>
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${ICON_BG[s.service_type] ?? 'bg-muted text-muted-foreground'}`}>
@@ -236,6 +267,21 @@ export default function AdminLogistics() {
                       : '—'}
                   </TableCell>
                   <TableCell>
+                    {isCancelled ? (
+                      <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                        {t('logistics.serviceStatusCancelled')}
+                      </Badge>
+                    ) : isCompleted ? (
+                      <Badge className="bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                        {t('logistics.serviceStatusCompleted')}
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">
+                        {t('logistics.serviceStatusScheduled')}
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
                     <span className="text-sm font-medium text-foreground">
                       {s.used_tickets}/{s.total_tickets}
                     </span>
@@ -253,6 +299,15 @@ export default function AdminLogistics() {
                       <Button variant="ghost" size="icon" onClick={() => handleEdit(s)} title={t('sponsors.edit')}>
                         <Pencil className="h-4 w-4" />
                       </Button>
+                      {isCancelled ? (
+                        <Button variant="ghost" size="icon" onClick={() => handleReactivate(s)} title={t('logistics.reactivateService')}>
+                          <RotateCcw className="h-4 w-4" />
+                        </Button>
+                      ) : (
+                        <Button variant="ghost" size="icon" onClick={() => setCancellingId(s)} className="text-amber-600 hover:text-amber-600" title={t('logistics.cancelService')}>
+                          <Ban className="h-4 w-4" />
+                        </Button>
+                      )}
                       <Button variant="ghost" size="icon" onClick={() => setDeletingId(s.id)} className="text-destructive hover:text-destructive" title={t('sponsors.delete')}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -302,6 +357,24 @@ export default function AdminLogistics() {
             <AlertDialogCancel>{t('sponsors.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
               {t('sponsors.deleteButton')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Cancel service confirm */}
+      <AlertDialog open={!!cancellingId} onOpenChange={(o) => !o && setCancellingId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('logistics.cancelServiceTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('logistics.cancelServiceConfirm', { name: cancellingId?.name ?? '' })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('sponsors.cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCancelService} className="bg-amber-600 text-white hover:bg-amber-700">
+              {t('logistics.cancelService')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
