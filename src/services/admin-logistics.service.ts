@@ -11,6 +11,8 @@ export interface ServiceCatalogRow {
   valid_until: string | null;
   valid_day: number | null;
   created_at: string | null;
+  status: string | null; // 'scheduled' | 'cancelled'
+  effective_status: string | null; // 'scheduled' | 'completed' | 'cancelled'
   // computed
   total_tickets: number;
   used_tickets: number;
@@ -51,15 +53,15 @@ export interface UnassignedAttendee {
 
 export const adminLogisticsService = {
   async getAll(eventId: string): Promise<ServiceCatalogRow[]> {
-    const { data: catalog, error } = await supabase
-      .from('service_catalog')
+    const { data: catalog, error } = await (supabase as any)
+      .from('service_catalog_with_status')
       .select('*')
       .eq('event_id', eventId)
       .order('service_type')
       .order('name');
     if (error) throw new Error(error.message);
 
-    const ids = (catalog ?? []).map((c) => c.id);
+    const ids = (catalog ?? []).map((c: any) => c.id);
     if (ids.length === 0) return [];
 
     const { data: stats, error: statsErr } = await supabase
@@ -81,10 +83,26 @@ export const adminLogisticsService = {
       }
     }
 
-    return (catalog ?? []).map((c) => {
+    return (catalog ?? []).map((c: any) => {
       const counts = countsMap.get(c.id) ?? { total: 0, used: 0, cancelled: 0 };
       return { ...c, total_tickets: counts.total, used_tickets: counts.used, cancelled_tickets: counts.cancelled } as ServiceCatalogRow;
     });
+  },
+
+  async cancelService(id: string): Promise<void> {
+    const { error } = await (supabase as any)
+      .from('service_catalog')
+      .update({ status: 'cancelled' })
+      .eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+
+  async reactivateService(id: string): Promise<void> {
+    const { error } = await (supabase as any)
+      .from('service_catalog')
+      .update({ status: 'scheduled' })
+      .eq('id', id);
+    if (error) throw new Error(error.message);
   },
 
   async create(eventId: string, form: ServiceCatalogForm): Promise<void> {
