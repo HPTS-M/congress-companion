@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/table';
 import { writeExcelFile } from '@/lib/excel';
 import type { ProcessedRow } from './ImportCsvModal';
-import type { FieldError, FieldKey } from '@/lib/import-validators';
+import type { FieldError } from '@/lib/import-validators';
 
 interface Props {
   open: boolean;
@@ -25,19 +25,6 @@ function formatErrors(errors: FieldError[], t: (k: string) => string): string {
       return `${fieldLabel}: ${messageLabel}`;
     })
     .join('; ');
-}
-
-function fieldValue(row: ProcessedRow, field: FieldKey): string {
-  const v = row.validated;
-  switch (field) {
-    case 'full_name': return v.full_name;
-    case 'email': return v.email;
-    case 'external_credential_code': return v.external_credential_code;
-    case 'specialty': return v.specialty;
-    case 'institution': return v.institution;
-    case 'registration_status_id': return v.registration_status;
-    default: return '';
-  }
 }
 
 export function ImportErrorsModal({ open, onOpenChange, blockedRows }: Props) {
