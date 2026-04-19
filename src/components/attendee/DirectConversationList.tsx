@@ -12,7 +12,7 @@ import {
   useRejectConversation,
 } from '@/hooks/useMessaging';
 import { supabase } from '@/integrations/supabase/client';
-import { Search, Plus } from 'lucide-react';
+import { Search, Plus, Clock } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -23,6 +23,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { usePendingMessages } from '@/hooks/usePendingMessages';
 import type { DirectConversation } from '@/services/messaging.service';
 
 interface Props {
