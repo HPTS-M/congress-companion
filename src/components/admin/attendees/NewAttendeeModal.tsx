@@ -173,11 +173,19 @@ export function NewAttendeeModal({ open, onOpenChange, attendee }: Props) {
             specialty: values.specialty || null,
             institution: values.institution || null,
             registration_status: values.registration_status,
+            external_credential_code: externalCredentialsEnabled
+              ? (values.external_credential_code?.trim() || null)
+              : undefined,
           },
         });
         toast({ title: t('attendees.newAttendeeModal.updateSuccess') });
       } else {
-        const created = await createMutation.mutateAsync(values);
+        const created = await createMutation.mutateAsync({
+          ...values,
+          external_credential_code: externalCredentialsEnabled
+            ? (values.external_credential_code?.trim() || null)
+            : null,
+        });
         toast({
           title: t('attendees.newAttendeeModal.success'),
           description: t('attendees.newAttendeeModal.successCode', { code: created.credential_code }),
