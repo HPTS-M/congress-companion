@@ -102,7 +102,7 @@ const AttendeeRow = memo(function AttendeeRow({
           className="inline-flex items-center gap-1 font-mono text-xs text-muted-foreground hover:text-foreground"
           title={t('attendees.codeCopied')}
         >
-          {a.credential_code}
+          {displayedCode}
           <Copy className="h-3 w-3" />
         </button>
       </TableCell>
