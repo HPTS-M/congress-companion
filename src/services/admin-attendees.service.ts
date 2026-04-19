@@ -49,11 +49,18 @@ export interface AddServiceData {
   description?: string;
 }
 
+export interface AttendeeFilters {
+  specialties?: string[];
+  institutions?: string[];
+  hasServices?: 'yes' | 'no' | null;
+}
+
 export const adminAttendeesService = {
   getAttendees: async (
     eventId: string,
     search?: string,
     statusFilter?: string,
+    filters?: AttendeeFilters,
   ): Promise<AttendeeWithServices[]> => {
     let query = supabase
       .from('attendees')
@@ -66,6 +73,13 @@ export const adminAttendeesService = {
 
     if (statusFilter && statusFilter !== 'all') {
       query = query.eq('registration_status', statusFilter);
+    }
+
+    if (filters?.specialties?.length) {
+      query = query.in('specialty', filters.specialties);
+    }
+    if (filters?.institutions?.length) {
+      query = query.in('institution', filters.institutions);
     }
 
     if (search) {
@@ -98,10 +112,44 @@ export const adminAttendeesService = {
       }
     }
 
-    return (data ?? []).map((a) => ({
+    let result = (data ?? []).map((a) => ({
       ...(a as AttendeeRow),
       servicesCount: servicesCounts[a.id] ?? 0,
     }));
+
+    // Apply hasServices filter post-aggregation (cheap: already in memory)
+    if (filters?.hasServices === 'yes') {
+      result = result.filter((a) => a.servicesCount > 0);
+    } else if (filters?.hasServices === 'no') {
+      result = result.filter((a) => a.servicesCount === 0);
+    }
+
+    return result;
+  },
+
+  /** Distinct specialties + institutions for filter dropdowns. */
+  getFilterOptions: async (
+    eventId: string,
+  ): Promise<{ specialties: string[]; institutions: string[] }> => {
+    const { data, error } = await supabase
+      .from('attendees')
+      .select('specialty, institution')
+      .eq('event_id', eventId)
+      .is('deleted_at', null);
+
+    if (error) throw new Error(error.message);
+
+    const specialties = new Set<string>();
+    const institutions = new Set<string>();
+    (data ?? []).forEach((row) => {
+      if (row.specialty?.trim()) specialties.add(row.specialty.trim());
+      if (row.institution?.trim()) institutions.add(row.institution.trim());
+    });
+
+    return {
+      specialties: [...specialties].sort((a, b) => a.localeCompare(b)),
+      institutions: [...institutions].sort((a, b) => a.localeCompare(b)),
+    };
   },
 
   getCounts: async (eventId: string): Promise<AttendeeCounts> => {
