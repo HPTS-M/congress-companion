@@ -129,33 +129,49 @@ export default function DirectChatView({ conversation, onBack }: Props) {
     setInput('');
     setSending(true);
 
-    // Optimistic update
-    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const optimisticMsg: ChatMessage = {
-      id: tempId,
-      conversation_id: conversation.id,
-      sender_id: attendeeId,
-      content,
-      created_at: new Date().toISOString(),
-    };
-    queryClient.setQueryData<ChatMessage[]>(
-      ['direct-messages', conversation.id],
-      (old = []) => [...old, optimisticMsg]
-    );
-
     try {
-      await messagingService.sendMessage(conversation.id, attendeeId, content);
-    } catch {
-      // Rollback optimistic message
+      // OFFLINE → enqueue immediately. Worker will flush when reconnected.
+      if (!isOnline) {
+        enqueue({
+          conversationId: conversation.id,
+          senderId: attendeeId,
+          content,
+        });
+        return;
+      }
+
+      // ONLINE → try direct send with optimistic update.
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const optimisticMsg: ChatMessage = {
+        id: tempId,
+        conversation_id: conversation.id,
+        sender_id: attendeeId,
+        content,
+        created_at: new Date().toISOString(),
+      };
       queryClient.setQueryData<ChatMessage[]>(
         ['direct-messages', conversation.id],
-        (old = []) => old.filter(m => m.id !== tempId)
+        (old = []) => [...old, optimisticMsg]
       );
-      setInput(content);
+
+      try {
+        await messagingService.sendMessage(conversation.id, attendeeId, content);
+      } catch {
+        // Network/server error → rollback optimistic + enqueue for retry
+        queryClient.setQueryData<ChatMessage[]>(
+          ['direct-messages', conversation.id],
+          (old = []) => old.filter(m => m.id !== tempId)
+        );
+        enqueue({
+          conversationId: conversation.id,
+          senderId: attendeeId,
+          content,
+        });
+      }
     } finally {
       setSending(false);
     }
-  }, [input, sending, isPending, conversation.id, attendeeId, queryClient]);
+  }, [input, sending, isPending, isOnline, conversation.id, attendeeId, queryClient, enqueue]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -171,9 +187,40 @@ export default function DirectChatView({ conversation, onBack }: Props) {
     );
   };
 
-  // Group messages by date
-  const groupedMessages: { date: string; msgs: ChatMessage[] }[] = [];
-  messages.forEach(msg => {
+  // Pending msgs converted to ChatMessage shape (with kind tag) for unified rendering.
+  type DisplayMessage = ChatMessage & { __pending?: PendingMessage };
+  const pendingAsMessages: DisplayMessage[] = pending.map(p => ({
+    id: p.id,
+    conversation_id: p.conversationId,
+    sender_id: p.senderId,
+    content: p.content,
+    created_at: p.createdAt,
+    __pending: p,
+  }));
+
+  // Merge real + pending, dedupe by content+sender (in case realtime already delivered),
+  // sort by created_at.
+  const merged: DisplayMessage[] = [...messages.map(m => m as DisplayMessage), ...pendingAsMessages]
+    .reduce<DisplayMessage[]>((acc, m) => {
+      // If this is a pending msg and a real one with same sender+content already exists, drop it
+      if (m.__pending) {
+        const realExists = messages.some(
+          r => r.sender_id === m.sender_id && r.content === m.content
+        );
+        if (realExists) {
+          // Real arrived → clean up the pending entry async (don't block render)
+          setTimeout(() => removePending(m.__pending!.id), 0);
+          return acc;
+        }
+      }
+      acc.push(m);
+      return acc;
+    }, [])
+    .sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''));
+
+  // Group merged messages by date
+  const groupedMessages: { date: string; msgs: DisplayMessage[] }[] = [];
+  merged.forEach(msg => {
     const dateKey = msg.created_at ? format(new Date(msg.created_at), 'yyyy-MM-dd') : '';
     const last = groupedMessages[groupedMessages.length - 1];
     if (last?.date === dateKey) {
