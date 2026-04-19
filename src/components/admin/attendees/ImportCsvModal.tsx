@@ -67,7 +67,7 @@ async function downloadTemplate() {
     columns: [
       { header: 'Nombre completo', key: 'full_name', width: 30 },
       { header: 'Email', key: 'email', width: 30 },
-      { header: 'Código credencial', key: 'external_credential_code', width: 22 },
+      { header: 'Código del congreso', key: 'external_credential_code', width: 28 },
       { header: 'Especialidad', key: 'specialty', width: 20 },
       { header: 'Institución', key: 'institution', width: 25 },
       { header: 'Estado', key: 'registration_status_id', width: 10 },
@@ -76,7 +76,7 @@ async function downloadTemplate() {
       {
         full_name: 'Dr. Juan Pérez',
         email: 'juan@ejemplo.com',
-        external_credential_code: 'EXT-001234',
+        external_credential_code: 'CMP-12345',
         specialty: 'Cardiología',
         institution: 'Hospital General',
         registration_status_id: 1,
@@ -84,7 +84,7 @@ async function downloadTemplate() {
       {
         full_name: 'Dra. María López',
         email: 'maria@ejemplo.com',
-        external_credential_code: 'EXT-001235',
+        external_credential_code: 'CMP-67890',
         specialty: 'Neurología',
         institution: 'Clínica Central',
         registration_status_id: 2,
