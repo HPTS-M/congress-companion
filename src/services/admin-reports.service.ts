@@ -10,13 +10,32 @@ export interface AttendanceReport {
   total_interested: number;
 }
 
+export interface RatingComment {
+  author_name: string;
+  credential_code: string;
+  comment: string;
+  stars: number;
+  created_at: string | null;
+}
+
 export interface RatingsReport {
   session_id: string;
   title: string;
   speaker_name: string | null;
   avg_stars: number;
   total_ratings: number;
-  comments: string[];
+  comments: RatingComment[];
+}
+
+export interface PollResponseReport {
+  poll_id: string;
+  question: string;
+  poll_type: string;
+  author_name: string;
+  credential_code: string;
+  option_text: string | null;
+  text_response: string | null;
+  created_at: string | null;
 }
 
 export interface LogisticsReport {
@@ -42,7 +61,6 @@ export interface SponsorEngagementReport {
 
 export const adminReportsService = {
   getAttendance: async (eventId: string): Promise<AttendanceReport[]> => {
-    // Get activities
     const { data: activities, error: actErr } = await supabase
       .from('event_activities')
       .select('id, title, location, scheduled_date, start_time')
@@ -51,13 +69,11 @@ export const adminReportsService = {
       .order('start_time');
     if (actErr) throw new Error(actErr.message);
 
-    // Get checkins
     const { data: checkins, error: chkErr } = await supabase
       .from('attendee_checkins')
       .select('activity_id');
     if (chkErr) throw new Error(chkErr.message);
 
-    // Get interests
     const { data: interests, error: intErr } = await supabase
       .from('session_interests')
       .select('session_id')
@@ -92,7 +108,7 @@ export const adminReportsService = {
   getRatings: async (eventId: string): Promise<RatingsReport[]> => {
     const { data: ratings, error: ratErr } = await supabase
       .from('ratings')
-      .select('session_id, stars, comment')
+      .select('session_id, stars, comment, user_id, created_at')
       .eq('event_id', eventId);
     if (ratErr) throw new Error(ratErr.message);
 
@@ -102,16 +118,39 @@ export const adminReportsService = {
       .eq('event_id', eventId);
     if (actErr) throw new Error(actErr.message);
 
+    const userIds = Array.from(
+      new Set((ratings ?? []).map((r) => r.user_id).filter(Boolean) as string[])
+    );
+    const attMap = new Map<string, { full_name: string; credential_code: string }>();
+    if (userIds.length > 0) {
+      const { data: atts } = await supabase
+        .from('attendees')
+        .select('id, full_name, credential_code')
+        .in('id', userIds);
+      for (const a of atts ?? []) {
+        attMap.set(a.id, { full_name: a.full_name, credential_code: a.credential_code });
+      }
+    }
+
     const actMap = new Map<string, { title: string; speaker_name: string | null }>();
     for (const a of activities ?? []) {
       actMap.set(a.id, { title: a.title, speaker_name: a.speaker_name });
     }
 
-    const grouped = new Map<string, { stars: number[]; comments: string[] }>();
+    const grouped = new Map<string, { stars: number[]; comments: RatingComment[] }>();
     for (const r of ratings ?? []) {
       const g = grouped.get(r.session_id) ?? { stars: [], comments: [] };
       g.stars.push(r.stars);
-      if (r.comment) g.comments.push(r.comment);
+      if (r.comment) {
+        const author = attMap.get(r.user_id);
+        g.comments.push({
+          author_name: author?.full_name ?? '(asistente eliminado)',
+          credential_code: author?.credential_code ?? '',
+          comment: r.comment,
+          stars: r.stars,
+          created_at: r.created_at,
+        });
+      }
       grouped.set(r.session_id, g);
     }
 
@@ -131,6 +170,63 @@ export const adminReportsService = {
     }
 
     return results.sort((a, b) => b.avg_stars - a.avg_stars);
+  },
+
+  getPollResponses: async (eventId: string): Promise<PollResponseReport[]> => {
+    const { data: polls, error: pErr } = await supabase
+      .from('polls')
+      .select('id, question, poll_type')
+      .eq('event_id', eventId);
+    if (pErr) throw new Error(pErr.message);
+    const pollMap = new Map((polls ?? []).map((p) => [p.id, p]));
+    const pollIds = (polls ?? []).map((p) => p.id);
+    if (pollIds.length === 0) return [];
+
+    const { data: responses, error: rErr } = await supabase
+      .from('poll_responses')
+      .select('poll_id, attendee_id, option_id, text_response, created_at')
+      .in('poll_id', pollIds)
+      .order('created_at', { ascending: false });
+    if (rErr) throw new Error(rErr.message);
+
+    const optionIds = Array.from(
+      new Set((responses ?? []).map((r) => r.option_id).filter(Boolean) as string[])
+    );
+    const optMap = new Map<string, string>();
+    if (optionIds.length > 0) {
+      const { data: opts } = await supabase
+        .from('poll_options')
+        .select('id, option_text')
+        .in('id', optionIds);
+      for (const o of opts ?? []) optMap.set(o.id, o.option_text);
+    }
+
+    const attIds = Array.from(new Set((responses ?? []).map((r) => r.attendee_id)));
+    const attMap = new Map<string, { full_name: string; credential_code: string }>();
+    if (attIds.length > 0) {
+      const { data: atts } = await supabase
+        .from('attendees')
+        .select('id, full_name, credential_code')
+        .in('id', attIds);
+      for (const a of atts ?? []) {
+        attMap.set(a.id, { full_name: a.full_name, credential_code: a.credential_code });
+      }
+    }
+
+    return (responses ?? []).map((r) => {
+      const poll = pollMap.get(r.poll_id);
+      const att = attMap.get(r.attendee_id);
+      return {
+        poll_id: r.poll_id,
+        question: poll?.question ?? '',
+        poll_type: poll?.poll_type ?? '',
+        author_name: att?.full_name ?? '(asistente eliminado)',
+        credential_code: att?.credential_code ?? '',
+        option_text: r.option_id ? optMap.get(r.option_id) ?? null : null,
+        text_response: r.text_response,
+        created_at: r.created_at,
+      };
+    });
   },
 
   getLogistics: async (eventId: string): Promise<LogisticsReport[]> => {

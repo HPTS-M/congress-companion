@@ -11,6 +11,8 @@ export interface Poll {
   opens_at: string | null;
   closes_at: string | null;
   created_at: string | null;
+  updated_at?: string | null;
+  results_visibility?: string;
   session?: { title: string } | null;
   options?: PollOption[];
   response_count?: number;
@@ -21,6 +23,7 @@ export interface PollOption {
   poll_id: string;
   option_text: string;
   order_index: number;
+  is_active?: boolean;
 }
 
 export interface PollResponse {
@@ -47,9 +50,8 @@ export const adminPollsService = {
 
     if (error) throw new Error(error.message);
 
-    // Get response counts
     const pollIds = (polls || []).map(p => p.id);
-    let responseCounts: Record<string, number> = {};
+    const responseCounts: Record<string, number> = {};
 
     if (pollIds.length > 0) {
       const { data: responses } = await supabase
@@ -66,7 +68,7 @@ export const adminPollsService = {
 
     return (polls || []).map(p => ({
       ...p,
-      session: p.event_activities ? { title: (p.event_activities as any).title } : null,
+      session: p.event_activities ? { title: (p.event_activities as { title: string }).title } : null,
       response_count: responseCounts[p.id] || 0,
     }));
   },
@@ -97,7 +99,6 @@ export const adminPollsService = {
 
     if (error) throw new Error(error.message);
 
-    // Insert options
     if (options.length > 0) {
       const optionsData = options.map((text, idx) => ({
         poll_id: poll.id,
@@ -124,8 +125,102 @@ export const adminPollsService = {
     if (error) throw new Error(error.message);
   },
 
+  /**
+   * Update poll question, session and options.
+   * If the poll has responses, options that are removed are kept but marked
+   * is_active = false so historical counts remain valid. New options are inserted.
+   */
+  async updatePoll(
+    pollId: string,
+    data: {
+      question: string;
+      sessionId: string | null;
+      options: { id?: string; text: string }[];
+    }
+  ): Promise<void> {
+    const { error: upErr } = await supabase
+      .from('polls')
+      .update({ question: data.question, session_id: data.sessionId })
+      .eq('id', pollId);
+    if (upErr) throw new Error(upErr.message);
+
+    // Existing options
+    const { data: existing, error: exErr } = await supabase
+      .from('poll_options')
+      .select('id, option_text, order_index, is_active')
+      .eq('poll_id', pollId);
+    if (exErr) throw new Error(exErr.message);
+
+    const incomingIds = new Set(data.options.filter(o => o.id).map(o => o.id!));
+    const existingMap = new Map((existing ?? []).map(o => [o.id, o]));
+
+    // Are there responses? (for safety we don't delete options with responses)
+    const { data: resp, error: rErr } = await supabase
+      .from('poll_responses')
+      .select('option_id')
+      .eq('poll_id', pollId);
+    if (rErr) throw new Error(rErr.message);
+    const optionsWithResponses = new Set((resp ?? []).map(r => r.option_id).filter(Boolean) as string[]);
+
+    // Disable/delete removed options
+    for (const ex of existing ?? []) {
+      if (!incomingIds.has(ex.id)) {
+        if (optionsWithResponses.has(ex.id)) {
+          await supabase.from('poll_options').update({ is_active: false }).eq('id', ex.id);
+        } else {
+          await supabase.from('poll_options').delete().eq('id', ex.id);
+        }
+      }
+    }
+
+    // Update existing & insert new (re-activating an existing one if it was inactive)
+    for (let i = 0; i < data.options.length; i++) {
+      const o = data.options[i];
+      if (o.id && existingMap.has(o.id)) {
+        await supabase
+          .from('poll_options')
+          .update({ option_text: o.text, order_index: i, is_active: true })
+          .eq('id', o.id);
+      } else {
+        await supabase
+          .from('poll_options')
+          .insert({ poll_id: pollId, option_text: o.text, order_index: i });
+      }
+    }
+  },
+
+  async getPollForEdit(pollId: string): Promise<{
+    poll: Poll;
+    options: PollOption[];
+    response_count: number;
+  }> {
+    const { data: poll, error } = await supabase
+      .from('polls')
+      .select('*')
+      .eq('id', pollId)
+      .single();
+    if (error) throw new Error(error.message);
+
+    const { data: options } = await supabase
+      .from('poll_options')
+      .select('*')
+      .eq('poll_id', pollId)
+      .eq('is_active', true)
+      .order('order_index');
+
+    const { count } = await supabase
+      .from('poll_responses')
+      .select('id', { count: 'exact', head: true })
+      .eq('poll_id', pollId);
+
+    return {
+      poll: poll as Poll,
+      options: (options ?? []) as PollOption[],
+      response_count: count ?? 0,
+    };
+  },
+
   async deletePoll(pollId: string): Promise<void> {
-    // Delete responses first
     await supabase.from('poll_responses').delete().eq('poll_id', pollId);
     const { error } = await supabase.from('polls').delete().eq('id', pollId);
     if (error) throw new Error(error.message);
@@ -167,11 +262,10 @@ export const adminPollsService = {
 
     return {
       ...poll,
-      session: poll.event_activities ? { title: (poll.event_activities as any).title } : null,
+      session: poll.event_activities ? { title: (poll.event_activities as { title: string }).title } : null,
       options: enrichedOptions,
       total_responses: totalResponses,
-      responses: responses || [],
-    } as any;
+    } as PollWithResults;
   },
 
   async getTextResponses(pollId: string): Promise<{ attendee_id: string; attendee_name: string; credential_code: string; text_response: string; created_at: string }[]> {
@@ -271,8 +365,8 @@ export const adminPollsService = {
           createdBy
         );
         imported++;
-      } catch (err: any) {
-        errors.push({ row: i + 2, error: err.message || 'Unknown error' });
+      } catch (err) {
+        errors.push({ row: i + 2, error: err instanceof Error ? err.message : 'Unknown error' });
       }
     }
 
