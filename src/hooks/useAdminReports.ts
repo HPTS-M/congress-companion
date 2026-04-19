@@ -37,5 +37,12 @@ export function useAdminReports(eventId: string | undefined) {
     staleTime: 2 * 60 * 1000,
   });
 
-  return { summary, attendance, ratings, logistics, sponsorEngagement };
+  const pollResponses = useQuery({
+    queryKey: ['admin-reports-poll-responses', eventId],
+    queryFn: () => adminReportsService.getPollResponses(eventId!),
+    enabled: !!eventId,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  return { summary, attendance, ratings, logistics, sponsorEngagement, pollResponses };
 }
