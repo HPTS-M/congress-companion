@@ -67,6 +67,9 @@ interface ImportResult {
   warnings: number;
   blockedRows: ProcessedRow[];
   warningRows: ProcessedRow[];
+  updated?: number;
+  skipped?: number;
+  upsertErrors?: number;
 }
 
 async function downloadTemplate() {
@@ -558,6 +561,64 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
                   </span>
                 )}
               </div>
+
+              {/* Upsert classification summary */}
+              {(updatableCount > 0 || ambiguousCount > 0) && (
+                <Card className="border-primary/30">
+                  <CardContent className="p-3 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <Checkbox
+                        id="update-existing"
+                        checked={updateExisting}
+                        onCheckedChange={(v) => setUpdateExisting(v === true)}
+                        disabled={matchesLoading}
+                        className="mt-0.5"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <Label htmlFor="update-existing" className="text-sm font-medium cursor-pointer">
+                          {t('attendees.importModal.updateExisting')}
+                        </Label>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {t('attendees.importModal.updateExistingDescription')}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 text-xs pt-1">
+                      <span className="rounded-full bg-accent/15 text-accent px-2 py-0.5">
+                        {t('attendees.importModal.summaryNew', { count: newCount })}
+                      </span>
+                      {updatableCount > 0 && (
+                        <span className="rounded-full bg-primary/15 text-primary px-2 py-0.5">
+                          {t('attendees.importModal.summaryUpdatable', { count: updatableCount })}
+                        </span>
+                      )}
+                      {ambiguousCount > 0 && (
+                        <span className="rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-400 px-2 py-0.5">
+                          {t('attendees.importModal.summaryAmbiguous', { count: ambiguousCount })}
+                        </span>
+                      )}
+                    </div>
+
+                    {updateExisting && ambiguousCount > 0 && (
+                      <Button
+                        variant={allAmbiguousResolved ? 'outline' : 'default'}
+                        size="sm"
+                        className="w-full mt-2"
+                        onClick={() => setResolveModalOpen(true)}
+                      >
+                        <AlertTriangle className="mr-2 h-4 w-4" />
+                        {t('attendees.importModal.resolveButton', { count: ambiguousCount })}
+                      </Button>
+                    )}
+                    {updateExisting && ambiguousCount > 0 && !allAmbiguousResolved && (
+                      <p className="text-xs text-destructive">
+                        {t('attendees.importModal.needsResolution')}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
 
               <div className="text-sm font-medium text-foreground">{t('attendees.importModal.previewTitle')}</div>
               <div className="max-h-48 overflow-auto rounded border">
