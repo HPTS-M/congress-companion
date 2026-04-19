@@ -71,8 +71,12 @@ export function ServiceModal({ open, onClose, onSave, service, isSaving }: Props
   }, [service, form]);
 
   const handleSubmit = async (data: FormValues) => {
-    await onSave(data);
-    onClose();
+    try {
+      await onSave(data);
+      onClose();
+    } catch {
+      // keep modal open on error (e.g. duplicate name)
+    }
   };
 
   return (
