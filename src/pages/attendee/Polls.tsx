@@ -123,29 +123,62 @@ function RatingResults({ pollId }: { pollId: string }) {
 
 function ChoiceForm({ poll, onSubmit, isSubmitting }: {
   poll: AttendeePoll;
-  onSubmit: (optionId: string) => void;
+  onSubmit: (optionIds: string[]) => void;
   isSubmitting: boolean;
 }) {
   const { t } = useTranslation('common');
-  const [selected, setSelected] = useState<string>('');
+  const isMulti = poll.poll_type === 'multiple_choice';
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const toggle = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (isMulti) {
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+      } else {
+        next.clear();
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   return (
     <div className="space-y-3">
-      {poll.options.map(opt => (
-        <button
-          key={opt.id}
-          onClick={() => setSelected(opt.id)}
-          className={cn(
-            'w-full rounded-lg border-2 p-3 text-left text-sm font-medium transition-all',
-            selected === opt.id
-              ? 'border-primary bg-primary text-primary-foreground'
-              : 'border-border hover:border-primary/50'
-          )}
-        >
-          {opt.option_text}
-        </button>
-      ))}
-      <Button onClick={() => onSubmit(selected)} disabled={!selected || isSubmitting} className="w-full">
+      {isMulti && (
+        <p className="text-xs text-muted-foreground">{t('polls.multiSelectHint')}</p>
+      )}
+      {poll.options.map(opt => {
+        const isSelected = selected.has(opt.id);
+        return (
+          <button
+            key={opt.id}
+            onClick={() => toggle(opt.id)}
+            className={cn(
+              'w-full min-h-11 rounded-lg border-2 p-3 text-left text-sm font-medium transition-all flex items-center gap-3',
+              isSelected
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border hover:border-primary/50 dark:border-slate-700'
+            )}
+          >
+            {isMulti && (
+              <span className={cn(
+                'flex h-5 w-5 shrink-0 items-center justify-center rounded border-2',
+                isSelected ? 'border-primary-foreground bg-primary-foreground/20' : 'border-current'
+              )}>
+                {isSelected && <CheckCircle2 className="h-3.5 w-3.5" />}
+              </span>
+            )}
+            <span className="flex-1">{opt.option_text}</span>
+          </button>
+        );
+      })}
+      <Button
+        onClick={() => onSubmit(Array.from(selected))}
+        disabled={selected.size === 0 || isSubmitting}
+        className="w-full"
+      >
         <Send className="mr-2 h-4 w-4" />
         {t('polls.submitResponse')}
       </Button>
@@ -161,17 +194,21 @@ function RatingForm({ poll, onSubmit, isSubmitting }: {
   const { t } = useTranslation('common');
   const [selected, setSelected] = useState<string>('');
 
-  const ratingOptions = poll.options.length > 0
-    ? poll.options
-    : [1, 2, 3, 4, 5].map((n, i) => ({ id: `rating-${n}`, option_text: String(n), order_index: i }));
+  if (poll.options.length === 0) {
+    return (
+      <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+        {t('polls.malformed')}
+      </div>
+    );
+  }
 
-  const selectedNum = ratingOptions.find(o => o.id === selected);
+  const selectedNum = poll.options.find(o => o.id === selected);
   const labelKey = selectedNum ? RATING_LABELS[parseInt(selectedNum.option_text, 10)] : null;
 
   return (
     <div className="space-y-3">
       <div className="flex justify-center gap-2">
-        {ratingOptions.map(opt => (
+        {poll.options.map(opt => (
           <button
             key={opt.id}
             onClick={() => setSelected(opt.id)}
@@ -179,7 +216,7 @@ function RatingForm({ poll, onSubmit, isSubmitting }: {
               'flex h-14 w-14 flex-col items-center justify-center rounded-xl border-2 text-lg font-bold transition-all',
               selected === opt.id
                 ? 'border-amber-400 bg-amber-400 text-white shadow-md scale-110'
-                : 'border-border hover:border-amber-300'
+                : 'border-border hover:border-amber-300 dark:border-slate-700'
             )}
           >
             {opt.option_text}
@@ -227,7 +264,7 @@ function OpenTextForm({ onSubmit, isSubmitting }: {
 
 function PollCard({ poll, onSubmit, isSubmitting }: {
   poll: AttendeePoll;
-  onSubmit: (pollId: string, optionId: string | null, text: string | null) => Promise<void>;
+  onSubmit: (pollId: string, optionIds: string[] | null, text: string | null) => Promise<void>;
   isSubmitting: boolean;
 }) {
   const { t } = useTranslation('common');
@@ -242,10 +279,10 @@ function PollCard({ poll, onSubmit, isSubmitting }: {
 
   const typeKey = POLL_TYPE_KEYS[poll.poll_type] || 'polls.typeSingle';
 
-  const handleSubmit = async (optionId: string | null, text: string | null) => {
+  const handleSubmit = async (optionIds: string[] | null, text: string | null) => {
     try {
-      setSubmittedOptionId(optionId);
-      await onSubmit(poll.id, optionId, text);
+      setSubmittedOptionId(optionIds && optionIds.length > 0 ? optionIds[0] : null);
+      await onSubmit(poll.id, optionIds, text);
       setJustSubmitted(true);
       setShowAnswer(false);
     } catch {
@@ -295,14 +332,14 @@ function PollCard({ poll, onSubmit, isSubmitting }: {
             {isChoice && (
               <ChoiceForm
                 poll={poll}
-                onSubmit={optId => handleSubmit(optId, null)}
+                onSubmit={optIds => handleSubmit(optIds, null)}
                 isSubmitting={isSubmitting}
               />
             )}
             {isRating && (
               <RatingForm
                 poll={poll}
-                onSubmit={optId => handleSubmit(optId, null)}
+                onSubmit={optId => handleSubmit([optId], null)}
                 isSubmitting={isSubmitting}
               />
             )}
@@ -360,8 +397,8 @@ export default function AttendeePolls() {
           <PollCard
             key={poll.id}
             poll={poll}
-            onSubmit={(pollId, optionId, text) =>
-              submitResponse.mutateAsync({ pollId, optionId, textResponse: text })
+            onSubmit={(pollId, optionIds, text) =>
+              submitResponse.mutateAsync({ pollId, optionIds, textResponse: text })
             }
             isSubmitting={submitResponse.isPending}
           />

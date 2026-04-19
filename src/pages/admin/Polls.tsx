@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BarChart3, Plus, Play, Square, Eye, Trash2, Upload } from 'lucide-react';
+import { BarChart3, Plus, Play, Square, Eye, Trash2, Upload, Download, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,13 +10,16 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAdminPolls, useAdminPollResults } from '@/hooks/useAdminPolls';
 import { usePollRealtime } from '@/hooks/usePolls';
 import { adminPollsService } from '@/services/admin-polls.service';
+import { adminPollsExcelService } from '@/services/admin-polls-excel.service';
 import { ImportPollsModal } from '@/components/admin/polls/ImportPollsModal';
 import { useEvent } from '@/hooks/useEvent';
 import { useAuth } from '@/hooks/useAuth';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { usePagination } from '@/hooks/usePagination';
 import { DataTablePagination } from '@/components/ui/data-table-pagination';
@@ -64,6 +67,7 @@ function NewPollModal({
   const [options, setOptions] = useState(['', '']);
 
   const needsOptions = pollType === 'multiple_choice' || pollType === 'single_choice';
+  const isRatingType = pollType === 'rating_scale';
   const validOptions = options.filter(o => o.trim());
   const canSave = question.trim() && (!needsOptions || validOptions.length >= 2);
 
@@ -145,6 +149,11 @@ function NewPollModal({
               </Button>
             </div>
           )}
+          {isRatingType && (
+            <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
+              {t('polls.ratingAutoOptionsHint')}
+            </div>
+          )}
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>{t('polls.cancel')}</Button>
             <Button onClick={handleSave} disabled={!canSave || isSaving} className="bg-[hsl(var(--primary))]">
@@ -162,21 +171,49 @@ function ResultsModal({
   pollId,
   open,
   onOpenChange,
+  eventId,
+  eventCode,
 }: {
   pollId: string | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  eventId: string;
+  eventCode: string;
 }) {
   const { t } = useTranslation('admin');
+  const { toast } = useToast();
   const { data: results, isLoading, refetch } = useAdminPollResults(pollId);
+  const [isExporting, setIsExporting] = useState(false);
 
   const handleRealtime = useCallback(() => { refetch(); }, [refetch]);
   usePollRealtime(open ? pollId : null, handleRealtime);
+
+  const isOpenText = results?.poll_type === 'open_text';
+
+  const { data: textResponses, isLoading: textLoading } = useQuery({
+    queryKey: ['admin-poll-text-responses', pollId],
+    queryFn: () => adminPollsService.getTextResponses(pollId!),
+    enabled: !!pollId && open && isOpenText,
+    staleTime: 10_000,
+  });
 
   if (!pollId) return null;
 
   const isChoiceType = results?.poll_type === 'multiple_choice' || results?.poll_type === 'single_choice';
   const isRating = results?.poll_type === 'rating_scale';
+
+  const handleExportSingle = async () => {
+    if (!pollId) return;
+    setIsExporting(true);
+    try {
+      await adminPollsExcelService.exportSinglePoll(pollId, eventId, eventCode);
+      toast({ title: t('polls.exportSuccess') });
+    } catch (e) {
+      toast({ title: t('polls.exportError'), variant: 'destructive' });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -191,10 +228,18 @@ function ResultsModal({
           </div>
         ) : results ? (
           <div className="space-y-4">
-            <p className="text-lg font-semibold">{results.question}</p>
-            <p className="text-sm text-muted-foreground">
-              {t('polls.totalResponses')}: <span className="font-bold text-foreground">{results.total_responses}</span>
-            </p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <p className="text-lg font-semibold">{results.question}</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {t('polls.totalResponses')}: <span className="font-bold text-foreground">{results.total_responses}</span>
+                </p>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleExportSingle} disabled={isExporting}>
+                {isExporting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Download className="mr-1 h-4 w-4" />}
+                {t('polls.exportSingle')}
+              </Button>
+            </div>
 
             {isChoiceType && results.options?.map(opt => (
               <div key={opt.id} className="space-y-1">
@@ -230,8 +275,34 @@ function ResultsModal({
               </div>
             )}
 
-            {results.poll_type === 'open_text' && (
-              <p className="text-sm text-muted-foreground italic">{t('polls.openTextNote')}</p>
+            {isOpenText && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">
+                  {t('polls.openTextResponses', { count: textResponses?.length ?? 0 })}
+                </p>
+                {textLoading ? (
+                  <Skeleton className="h-24 w-full" />
+                ) : !textResponses || textResponses.length === 0 ? (
+                  <p className="text-sm text-muted-foreground italic">{t('polls.openTextEmpty')}</p>
+                ) : (
+                  <ScrollArea className="h-[280px] rounded-md border border-border dark:border-slate-700">
+                    <ul className="divide-y divide-border dark:divide-slate-700">
+                      {textResponses.map((r, idx) => (
+                        <li key={`${r.attendee_id}-${idx}`} className="p-3 space-y-1">
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span className="font-medium text-foreground">{r.attendee_name}</span>
+                            <span>{r.created_at ? new Date(r.created_at).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) : ''}</span>
+                          </div>
+                          <p className="text-sm whitespace-pre-wrap">{r.text_response}</p>
+                          {r.credential_code && (
+                            <p className="text-xs text-muted-foreground">{r.credential_code}</p>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </ScrollArea>
+                )}
+              </div>
             )}
           </div>
         ) : null}
@@ -276,6 +347,21 @@ export default function AdminPolls() {
   const [showNew, setShowNew] = useState(false);
   const [resultsId, setResultsId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [isExportingAll, setIsExportingAll] = useState(false);
+  const { toast } = useToast();
+
+  const handleExportAll = async () => {
+    if (!event?.id) return;
+    setIsExportingAll(true);
+    try {
+      await adminPollsExcelService.exportAllResponses(event.id, event.event_code ?? 'evento');
+      toast({ title: t('polls.exportSuccess') });
+    } catch (e) {
+      toast({ title: t('polls.exportError'), variant: 'destructive' });
+    } finally {
+      setIsExportingAll(false);
+    }
+  };
 
   const pagination = usePagination(polls, 10);
 
@@ -320,7 +406,11 @@ export default function AdminPolls() {
           <h1 className="text-2xl font-bold">{t('polls.title')}</h1>
           <p className="text-sm text-muted-foreground">{t('polls.subtitle')}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={handleExportAll} disabled={isExportingAll || polls.length === 0}>
+            {isExportingAll ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Download className="mr-1 h-4 w-4" />}
+            {t('polls.exportAll')}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
             <Upload className="mr-1 h-4 w-4" />{t('polls.importButton')}
           </Button>
@@ -436,6 +526,8 @@ export default function AdminPolls() {
         pollId={resultsId}
         open={!!resultsId}
         onOpenChange={v => { if (!v) setResultsId(null); }}
+        eventId={event?.id ?? ''}
+        eventCode={event?.event_code ?? 'evento'}
       />
 
       <ImportPollsModal

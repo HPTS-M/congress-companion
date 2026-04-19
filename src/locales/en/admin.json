@@ -1020,6 +1020,13 @@
     "resultsTitle": "Results",
     "totalResponses": "Total responses",
     "openTextNote": "Open text responses are not shown in this view",
+    "openTextResponses": "Written responses ({{count}})",
+    "openTextEmpty": "No written responses yet",
+    "exportAll": "Export responses",
+    "exportSingle": "Export this poll",
+    "exportSuccess": "File downloaded",
+    "exportError": "Export failed",
+    "ratingAutoOptionsHint": "The 5 options (1 to 5) are generated automatically on save.",
     "import": {
       "title": "Import Polls",
       "downloadTemplate": "Download template (.xlsx)",

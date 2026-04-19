@@ -72,19 +72,41 @@ export const pollsService = {
   async submitResponse(
     pollId: string,
     attendeeId: string,
-    optionId: string | null,
+    optionIds: string[] | null,
     textResponse: string | null
   ): Promise<void> {
-    const { error } = await supabase
+    // Validar voto duplicado a nivel app (ya que no hay UNIQUE en BD por multiple_choice)
+    const { data: existing } = await supabase
       .from('poll_responses')
-      .insert({
+      .select('id')
+      .eq('poll_id', pollId)
+      .eq('attendee_id', attendeeId)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      throw new Error('DUPLICATE_VOTE');
+    }
+
+    if (optionIds && optionIds.length > 0) {
+      // Una fila por opción seleccionada (soporta multiple_choice)
+      const rows = optionIds.map(optionId => ({
         poll_id: pollId,
         attendee_id: attendeeId,
         option_id: optionId,
+        text_response: null,
+      }));
+      const { error } = await supabase.from('poll_responses').insert(rows);
+      if (error) throw new Error(error.message);
+    } else {
+      // open_text
+      const { error } = await supabase.from('poll_responses').insert({
+        poll_id: pollId,
+        attendee_id: attendeeId,
+        option_id: null,
         text_response: textResponse,
       });
-
-    if (error) throw new Error(error.message);
+      if (error) throw new Error(error.message);
+    }
   },
 
   async getPollResults(pollId: string): Promise<PollResultOption[]> {
