@@ -201,6 +201,7 @@ export const adminAttendeesService = {
         institution: data.institution || null,
         registration_status: data.registration_status || 'confirmed',
         credential_code: '',
+        external_credential_code: data.external_credential_code || null,
       })
       .select()
       .single();
@@ -211,7 +212,7 @@ export const adminAttendeesService = {
 
   bulkCreateAttendees: async (
     eventId: string,
-    rows: { full_name: string; email: string; specialty?: string; institution?: string }[],
+    rows: BulkAttendeeRow[],
     registrationStatus: string = 'confirmed',
   ): Promise<{ inserted: number; errors: number; ids: string[] }> => {
     const inserts = rows.map((r) => ({
@@ -220,8 +221,9 @@ export const adminAttendeesService = {
       email: r.email,
       specialty: r.specialty || null,
       institution: r.institution || null,
-      registration_status: registrationStatus,
+      registration_status: r.registration_status || registrationStatus,
       credential_code: '',
+      external_credential_code: r.external_credential_code || null,
     }));
 
     const { data, error } = await supabase.from('attendees').insert(inserts).select('id');
@@ -229,6 +231,20 @@ export const adminAttendeesService = {
     if (error) throw new Error(error.message);
     const ids = (data ?? []).map((d) => d.id);
     return { inserted: ids.length, errors: rows.length - ids.length, ids };
+  },
+
+  updateAttendee: async (
+    attendeeId: string,
+    data: Partial<Pick<AttendeeRow, 'full_name' | 'email' | 'specialty' | 'institution' | 'registration_status' | 'external_credential_code'>>,
+  ): Promise<AttendeeRow> => {
+    const { data: attendee, error } = await supabase
+      .from('attendees')
+      .update(data)
+      .eq('id', attendeeId)
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return attendee;
   },
 
   updateAttendee: async (
