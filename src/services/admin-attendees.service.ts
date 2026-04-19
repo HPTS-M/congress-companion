@@ -247,20 +247,6 @@ export const adminAttendeesService = {
     return attendee;
   },
 
-  updateAttendee: async (
-    attendeeId: string,
-    data: Partial<Pick<AttendeeRow, 'full_name' | 'email' | 'specialty' | 'institution' | 'registration_status'>>,
-  ): Promise<AttendeeRow> => {
-    const { data: attendee, error } = await supabase
-      .from('attendees')
-      .update(data)
-      .eq('id', attendeeId)
-      .select()
-      .single();
-    if (error) throw new Error(error.message);
-    return attendee;
-  },
-
   updateAttendeeStatus: async (attendeeId: string, status: string): Promise<void> => {
     const { error } = await supabase
       .from('attendees')
