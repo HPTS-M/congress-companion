@@ -31,6 +31,7 @@ import {
   type FieldError,
 } from '@/lib/import-validators';
 import { ImportErrorsModal } from './ImportErrorsModal';
+import { ImportWarningsModal } from './ImportWarningsModal';
 
 interface Props {
   open: boolean;
@@ -43,6 +44,7 @@ export interface ProcessedRow {
   blocked: boolean;
   blockingErrors: FieldError[];
   permissiveErrors: FieldError[];
+  hasWarning?: boolean;
   duplicateInFile?: boolean;
   duplicateInDb?: boolean;
   duplicateExternalInFile?: boolean;
@@ -53,7 +55,9 @@ interface ImportResult {
   imported: number;
   blocked: number;
   permissiveFixed: number;
+  warnings: number;
   blockedRows: ProcessedRow[];
+  warningRows: ProcessedRow[];
 }
 
 async function downloadTemplate() {
@@ -107,6 +111,8 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [importStatus, setImportStatus] = useState<'confirmed' | 'pending'>('confirmed');
   const [errorsModalOpen, setErrorsModalOpen] = useState(false);
+  const [warningsModalOpen, setWarningsModalOpen] = useState(false);
+  const [confirmWarningsOpen, setConfirmWarningsOpen] = useState(false);
 
   const existingEmailSet = useMemo(
     () => new Set((existingEmails ?? []).map((e) => e.toLowerCase())),
@@ -153,10 +159,8 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
         if (existingExternalSet.has(k)) duplicateExternalInDb = true;
       }
 
-      // Duplicates are blocking
+      // Email duplicates → WARNING (admin decides). External code duplicates → BLOCKING.
       const extraBlocking: FieldError[] = [];
-      if (duplicateInFile) extraBlocking.push({ field: 'email', message: 'duplicate_in_file' });
-      if (duplicateInDb) extraBlocking.push({ field: 'email', message: 'duplicate_in_db' });
       if (duplicateExternalInFile)
         extraBlocking.push({ field: 'external_credential_code', message: 'duplicate_in_file' });
       if (duplicateExternalInDb)
@@ -164,6 +168,7 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
 
       const blockingErrors = [...classification.blockingErrors, ...extraBlocking];
       const blocked = blockingErrors.length > 0;
+      const hasWarning = !blocked && (duplicateInFile || duplicateInDb);
 
       return {
         rowNumber: idx + 2, // +2 = header row + 1-based
@@ -171,6 +176,7 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
         blocked,
         blockingErrors,
         permissiveErrors: classification.permissiveErrors,
+        hasWarning,
         duplicateInFile,
         duplicateInDb,
         duplicateExternalInFile,
@@ -181,6 +187,7 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
 
   const validRows = processedRows.filter((r) => !r.blocked);
   const blockedRows = processedRows.filter((r) => r.blocked);
+  const warningRows = processedRows.filter((r) => r.hasWarning);
   const rowsWithPermissiveErrors = validRows.filter((r) => r.permissiveErrors.length > 0);
 
   const handleFile = useCallback(async (file: File) => {
