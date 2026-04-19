@@ -3,6 +3,7 @@ import { Settings } from 'lucide-react';
 import { EventSettingsCard } from '@/components/admin/EventSettingsCard';
 import { EventBrandingCard } from '@/components/admin/EventBrandingCard';
 import { EventVisibilityCard } from '@/components/admin/EventVisibilityCard';
+import { EventDetailsCard } from '@/components/admin/EventDetailsCard';
 
 export default function EventConfig() {
   const { t } = useTranslation('admin');
@@ -19,6 +20,7 @@ export default function EventConfig() {
         </p>
       </div>
 
+      <EventDetailsCard />
       <EventBrandingCard />
       <EventSettingsCard />
       <EventVisibilityCard />

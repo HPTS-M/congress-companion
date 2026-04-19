@@ -1094,6 +1094,44 @@
     "visibility": {
       "title": "Module Visibility",
       "description": "Enable or disable attendee app modules. Disabled modules will not appear in navigation."
+    },
+    "details": {
+      "title": "Event Details",
+      "description": "Basic event information shown to attendees on the home screen.",
+      "fields": {
+        "name": "Event name",
+        "description": "Description",
+        "startDate": "Start date",
+        "endDate": "End date",
+        "venueName": "Venue name",
+        "venueAddress": "Address",
+        "capacity": "Maximum capacity"
+      },
+      "placeholders": {
+        "name": "E.g. National Cardiology Congress 2026",
+        "description": "Short event summary (optional)",
+        "pickDate": "Pick a date",
+        "venueName": "E.g. Convention Center",
+        "venueAddress": "Street, city, country",
+        "capacity": "E.g. 500"
+      },
+      "hints": {
+        "venueAddress": "Used to open the location in Google Maps from the attendee app.",
+        "capacity": "Total number of expected attendees."
+      },
+      "errors": {
+        "nameRequired": "Name is required (minimum 2 characters).",
+        "startRequired": "Start date is required.",
+        "endRequired": "End date is required.",
+        "endBeforeStart": "End date cannot be earlier than start date.",
+        "capacityInvalid": "Enter a valid number.",
+        "capacityPositive": "Capacity must be greater than 0."
+      },
+      "save": "Save changes",
+      "savedTitle": "Details updated",
+      "savedDescription": "Changes are now visible in the attendee app.",
+      "errorTitle": "Failed to save",
+      "errorDescription": "Could not save the changes. Please try again."
     }
   }
 }
