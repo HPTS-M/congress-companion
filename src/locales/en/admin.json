@@ -156,6 +156,8 @@
       "summaryBlocked": "❌ {{count}} blocked (not imported)",
       "summaryUpdated": "🔄 {{count}} updated",
       "summarySkipped": "⏭ {{count}} skipped",
+      "summaryUpsertErrors": "❌ {{count}} upsert errors",
+      "upsertSuccess": "{{inserted}} created · {{updated}} updated · {{skipped}} skipped",
       "downloadErrors": "Download error report",
       "viewBlockedRows": "View {{count}} blocked rows",
       "viewWarningRows": "View {{count}} warnings",
