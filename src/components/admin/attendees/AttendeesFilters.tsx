@@ -234,6 +234,7 @@ export function AttendeesFilters({ value, onChange, options, isLoading }: Props)
             selected={value.specialties}
             onChange={(specialties) => onChange({ ...value, specialties })}
             emptyLabel={t('attendees.filters.noSpecialties', { defaultValue: 'No specialties' })}
+            isLoading={isLoading}
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -246,6 +247,7 @@ export function AttendeesFilters({ value, onChange, options, isLoading }: Props)
             selected={value.institutions}
             onChange={(institutions) => onChange({ ...value, institutions })}
             emptyLabel={t('attendees.filters.noInstitutions', { defaultValue: 'No institutions' })}
+            isLoading={isLoading}
           />
         </div>
         <div className="flex flex-col gap-1">
