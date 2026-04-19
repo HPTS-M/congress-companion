@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      await sendInviteEmail(email, linkData.properties.action_link, resendApiKey);
+      await sendInviteEmail(email, linkData.properties.action_link, resendApiKey, accessCode);
 
       return new Response(
         JSON.stringify({ success: true, action: "resent" }),
@@ -181,7 +181,7 @@ Deno.serve(async (req) => {
           });
 
           if (!magicError && magicData?.properties?.action_link) {
-            await sendInviteEmail(email, magicData.properties.action_link, resendApiKey);
+            await sendInviteEmail(email, magicData.properties.action_link, resendApiKey, accessCode);
           }
 
           return new Response(
@@ -206,7 +206,7 @@ Deno.serve(async (req) => {
     });
     await adminClient.from("providers").update({ user_id: userId }).eq("id", provider_id);
 
-    await sendInviteEmail(email, inviteLink, resendApiKey);
+    await sendInviteEmail(email, inviteLink, resendApiKey, accessCode);
 
     return new Response(
       JSON.stringify({ success: true, user_id: userId, action: "invited" }),
