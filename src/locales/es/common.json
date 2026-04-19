@@ -126,6 +126,9 @@
     "ratingBad": "Malo",
     "ratingRegular": "Regular",
     "ratingGood": "Bueno",
-    "ratingExcellent": "Excelente"
+    "ratingExcellent": "Excelente",
+    "malformed": "Encuesta mal configurada. Contacta al organizador.",
+    "multiSelectHint": "Puedes seleccionar varias opciones",
+    "duplicateVote": "Ya respondiste esta encuesta"
   }
 }

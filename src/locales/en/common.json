@@ -126,6 +126,9 @@
     "ratingBad": "Bad",
     "ratingRegular": "Average",
     "ratingGood": "Good",
-    "ratingExcellent": "Excellent"
+    "ratingExcellent": "Excellent",
+    "malformed": "Poll misconfigured. Contact the organizer.",
+    "multiSelectHint": "You can select multiple options",
+    "duplicateVote": "You already answered this poll"
   }
 }

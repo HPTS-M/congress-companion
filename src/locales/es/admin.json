@@ -1020,6 +1020,13 @@
     "resultsTitle": "Resultados",
     "totalResponses": "Total respuestas",
     "openTextNote": "Las respuestas de texto abierto no se muestran en esta vista",
+    "openTextResponses": "Respuestas escritas ({{count}})",
+    "openTextEmpty": "Aún no hay respuestas escritas",
+    "exportAll": "Exportar respuestas",
+    "exportSingle": "Exportar esta encuesta",
+    "exportSuccess": "Archivo descargado",
+    "exportError": "Error al exportar",
+    "ratingAutoOptionsHint": "Las 5 opciones (1 a 5) se generan automáticamente al guardar.",
     "import": {
       "title": "Importar Encuestas",
       "downloadTemplate": "Descargar plantilla (.xlsx)",
