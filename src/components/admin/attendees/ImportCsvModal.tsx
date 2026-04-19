@@ -467,6 +467,18 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
                     <CheckCircle2 className="h-4 w-4" />
                     {t('attendees.importModal.summaryImported', { count: importResult.imported })}
                   </div>
+                  {(importResult.updated ?? 0) > 0 && (
+                    <div className="flex items-center gap-2 text-sm font-medium text-primary">
+                      <RefreshCw className="h-4 w-4" />
+                      {t('attendees.importModal.summaryUpdated', { count: importResult.updated })}
+                    </div>
+                  )}
+                  {(importResult.skipped ?? 0) > 0 && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <AlertTriangle className="h-4 w-4" />
+                      {t('attendees.importModal.summarySkipped', { count: importResult.skipped })}
+                    </div>
+                  )}
                   {importResult.permissiveFixed > 0 && (
                     <div className="flex items-center gap-2 text-sm text-amber-600">
                       <AlertTriangle className="h-4 w-4" />
@@ -477,6 +489,12 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
                     <div className="flex items-center gap-2 text-sm text-amber-600">
                       <AlertTriangle className="h-4 w-4" />
                       {t('attendees.importModal.summaryWarnings', { count: importResult.warnings })}
+                    </div>
+                  )}
+                  {(importResult.upsertErrors ?? 0) > 0 && (
+                    <div className="flex items-center gap-2 text-sm text-destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      {t('attendees.importModal.summaryUpsertErrors', { count: importResult.upsertErrors })}
                     </div>
                   )}
                   {importResult.blocked > 0 && (
@@ -721,9 +739,15 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
               <Button
                 className="w-full"
                 onClick={handleImportClick}
-                disabled={bulkMutation.isPending || sendInvitationsMutation.isPending || validRows.length === 0}
+                disabled={
+                  bulkMutation.isPending ||
+                  upsertMutation.isPending ||
+                  sendInvitationsMutation.isPending ||
+                  validRows.length === 0 ||
+                  (upsertEnabled && !allAmbiguousResolved)
+                }
               >
-                {bulkMutation.isPending || sendInvitationsMutation.isPending
+                {bulkMutation.isPending || upsertMutation.isPending || sendInvitationsMutation.isPending
                   ? t('attendees.importModal.importing')
                   : blockedRows.length > 0
                     ? t('attendees.importModal.importValidOnly', { count: validRows.length })
@@ -733,6 +757,13 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
           )}
         </DialogContent>
       </Dialog>
+
+      <ResolveAmbiguousImportModal
+        open={resolveModalOpen}
+        onOpenChange={setResolveModalOpen}
+        ambiguousRows={ambiguousRows}
+        onResolve={(map) => setResolutionsByRow(map)}
+      />
 
       <ImportErrorsModal
         open={errorsModalOpen}
