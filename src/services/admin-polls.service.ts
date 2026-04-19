@@ -174,8 +174,8 @@ export const adminPollsService = {
     } as any;
   },
 
-  async getTextResponses(pollId: string): Promise<{ attendee_id: string; text_response: string; created_at: string }[]> {
-    const { data, error } = await supabase
+  async getTextResponses(pollId: string): Promise<{ attendee_id: string; attendee_name: string; credential_code: string; text_response: string; created_at: string }[]> {
+    const { data: responses, error } = await supabase
       .from('poll_responses')
       .select('attendee_id, text_response, created_at')
       .eq('poll_id', pollId)
@@ -183,7 +183,27 @@ export const adminPollsService = {
       .order('created_at', { ascending: false });
 
     if (error) throw new Error(error.message);
-    return data || [];
+    const list = responses ?? [];
+    if (list.length === 0) return [];
+
+    const attendeeIds = Array.from(new Set(list.map(r => r.attendee_id)));
+    const { data: attendees } = await supabase
+      .from('attendees')
+      .select('id, full_name, credential_code')
+      .in('id', attendeeIds);
+
+    const attMap = new Map((attendees ?? []).map(a => [a.id, a]));
+
+    return list.map(r => {
+      const a = attMap.get(r.attendee_id);
+      return {
+        attendee_id: r.attendee_id,
+        attendee_name: a?.full_name ?? '(asistente eliminado)',
+        credential_code: a?.credential_code ?? '',
+        text_response: r.text_response ?? '',
+        created_at: r.created_at ?? '',
+      };
+    });
   },
 
   async getSessions(eventId: string) {

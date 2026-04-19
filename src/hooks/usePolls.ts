@@ -23,15 +23,20 @@ export function usePolls() {
   });
 
   const submitResponse = useMutation({
-    mutationFn: (data: { pollId: string; optionId: string | null; textResponse: string | null }) =>
-      pollsService.submitResponse(data.pollId, attendeeId, data.optionId, data.textResponse),
+    mutationFn: (data: { pollId: string; optionIds: string[] | null; textResponse: string | null }) =>
+      pollsService.submitResponse(data.pollId, attendeeId, data.optionIds, data.textResponse),
     onSuccess: () => {
       toast({ title: '✅ Respuesta enviada', description: 'Tu respuesta ha sido registrada.' });
       qc.invalidateQueries({ queryKey: ['attendee-polls', eventId, attendeeId] });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       console.error('Poll submit error:', error);
-      toast({ title: 'Error al enviar respuesta', description: error.message, variant: 'destructive' });
+      const isDuplicate = error.message === 'DUPLICATE_VOTE';
+      toast({
+        title: isDuplicate ? 'Ya respondiste esta encuesta' : 'Error al enviar respuesta',
+        description: isDuplicate ? 'Solo puedes responder una vez.' : error.message,
+        variant: 'destructive',
+      });
     },
   });
 
