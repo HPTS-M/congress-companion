@@ -409,9 +409,10 @@ export default function AdminPolls() {
   const { t, i18n } = useTranslation('admin');
   const { event } = useEvent();
   const { user } = useAuth();
-  const { polls, isLoading, sessions, createPoll, updateStatus, deletePoll } = useAdminPolls();
+  const { polls, isLoading, sessions, createPoll, updatePoll, updateStatus, deletePoll } = useAdminPolls();
   const qc = useQueryClient();
-  const [showNew, setShowNew] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editPollId, setEditPollId] = useState<string | null>(null);
   const [resultsId, setResultsId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [isExportingAll, setIsExportingAll] = useState(false);
