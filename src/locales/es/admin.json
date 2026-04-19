@@ -154,8 +154,22 @@
       "summaryBlocked": "❌ {{count}} bloqueados (no importados)",
       "downloadErrors": "Descargar reporte de errores",
       "viewBlockedRows": "Ver {{count}} filas bloqueadas",
+      "viewWarningRows": "Ver {{count}} advertencias",
       "columnStatus": "Estado",
       "columnIssue": "Detalle"
+    },
+    "importWarningsModal": {
+      "title": "Advertencias de importación",
+      "description": "{{count}} fila(s) tienen email duplicado (en el archivo o ya registrado en este evento). Se cargarán de todos modos si confirmas.",
+      "riskNote": "⚠️ Riesgo: dos asistentes diferentes podrían terminar usando el mismo correo. El código de credencial sí es único por persona y no se permite duplicar.",
+      "downloadExcel": "Descargar advertencias",
+      "colReason": "Motivo",
+      "confirm": "Continuar e importar",
+      "cancel": "Cancelar",
+      "reason": {
+        "duplicateEmailFile": "Email duplicado en el archivo",
+        "duplicateEmailDb": "Email ya registrado en el evento"
+      }
     },
     "importErrorsModal": {
       "title": "Filas bloqueadas",

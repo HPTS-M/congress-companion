@@ -154,8 +154,22 @@
       "summaryBlocked": "❌ {{count}} blocked (not imported)",
       "downloadErrors": "Download error report",
       "viewBlockedRows": "View {{count}} blocked rows",
+      "viewWarningRows": "View {{count}} warnings",
       "columnStatus": "Status",
       "columnIssue": "Details"
+    },
+    "importWarningsModal": {
+      "title": "Import warnings",
+      "description": "{{count}} row(s) have a duplicate email (within the file or already registered for this event). They will be imported anyway if you confirm.",
+      "riskNote": "⚠️ Risk: two different attendees could end up sharing the same email. The credential code is unique per person and cannot be duplicated.",
+      "downloadExcel": "Download warnings",
+      "colReason": "Reason",
+      "confirm": "Continue and import",
+      "cancel": "Cancel",
+      "reason": {
+        "duplicateEmailFile": "Duplicate email in file",
+        "duplicateEmailDb": "Email already registered for this event"
+      }
     },
     "importErrorsModal": {
       "title": "Blocked rows",

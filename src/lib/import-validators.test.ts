@@ -142,13 +142,24 @@ describe('import-validators · validateRow', () => {
 });
 
 describe('import-validators · classifyRow + applyNoAplica', () => {
-  it('blocks when name/email invalid', () => {
+  it('blocks when name invalid (full_name required)', () => {
     const validated = validateRow(
       normalizeRow({ 'Nombre completo': '', Email: 'bad', Estado: '1' }),
       { externalCredentialsRequired: false },
     );
     const cls = classifyRow(validated, { externalCredentialsEnabled: false });
     expect(cls.blocked).toBe(true);
+    expect(cls.blockingErrors.some((e) => e.field === 'full_name')).toBe(true);
+  });
+
+  it('email format invalid is blocking', () => {
+    const validated = validateRow(
+      normalizeRow({ 'Nombre completo': 'Juan Pérez', Email: 'not-an-email', Estado: '1' }),
+      { externalCredentialsRequired: false },
+    );
+    const cls = classifyRow(validated, { externalCredentialsEnabled: false });
+    expect(cls.blocked).toBe(true);
+    expect(cls.blockingErrors.some((e) => e.field === 'email')).toBe(true);
   });
 
   it('does NOT block on permissive errors only — applies NO APLICA', () => {
@@ -170,7 +181,7 @@ describe('import-validators · classifyRow + applyNoAplica', () => {
     expect(fixed.institution).toBe('NO APLICA');
   });
 
-  it('blocks when external code required and invalid', () => {
+  it('blocks when external code required and invalid (always blocking)', () => {
     const validated = validateRow(
       normalizeRow({
         'Nombre completo': 'Juan Pérez',
