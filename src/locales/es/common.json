@@ -62,6 +62,7 @@
     "specialty": "Especialidad",
     "institution": "Institución",
     "credentialCode": "Código de credencial",
+    "congressCode": "Código del congreso",
     "notAssigned": "No asignado",
     "specialtyPlaceholder": "Ingresa tu especialidad",
     "institutionPlaceholder": "Ingresa tu institución",
