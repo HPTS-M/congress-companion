@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useEvent } from '@/hooks/useEvent';
 import { useAdminReports } from '@/hooks/useAdminReports';
@@ -8,10 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Users, Calendar, Star, Ticket, Download, FileSpreadsheet, Eye, ClipboardCheck } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Users, Calendar, Star, Ticket, Download, FileSpreadsheet, Eye, ClipboardCheck, BarChart3 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { toast } from '@/hooks/use-toast';
-import type { AttendanceReport, RatingsReport, LogisticsReport, SponsorEngagementReport } from '@/services/admin-reports.service';
+import type { AttendanceReport, RatingsReport, LogisticsReport, SponsorEngagementReport, PollResponseReport } from '@/services/admin-reports.service';
 import { usePagination } from '@/hooks/usePagination';
 import { DataTablePagination } from '@/components/ui/data-table-pagination';
 
