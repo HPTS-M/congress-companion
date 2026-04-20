@@ -44,9 +44,6 @@ export default function Home() {
   const dateLocale = i18n.language === 'es' ? es : enUS;
   const startDate = event?.start_date ? format(new Date(event.start_date), 'dd MMM yyyy', { locale: dateLocale }) : '';
   const endDate = event?.end_date ? format(new Date(event.end_date), 'dd MMM yyyy', { locale: dateLocale }) : '';
-
-  const bannerSrc = bannerUrl || '/logo-congreso.png';
-
   return (
     <div className="flex flex-col pt-0">
       {/* Hero: banner card if admin uploaded a distinct promo banner,
