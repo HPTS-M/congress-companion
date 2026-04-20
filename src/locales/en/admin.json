@@ -782,7 +782,14 @@
       "emailFormat": "Invalid email",
       "urlFormat": "Invalid URL (must start with http:// or https://)",
       "descriptionMax": "Description cannot exceed 500 characters",
-      "fixErrors": "Fix the errors before saving"
+      "fixErrors": "Fix the errors before saving",
+      "fileTypeLogo": "Logo must be PNG, JPG or WEBP.",
+      "fileTypeMaterials": "Materials must be a PDF file.",
+      "fileSizeLogo": "Logo cannot exceed 2 MB.",
+      "fileSizeMaterials": "Materials cannot exceed 10 MB.",
+      "fileEmpty": "The file is empty or corrupted.",
+      "uploadVerificationFailed": "Upload could not be verified. Please try again.",
+      "uploadSuccess": "File uploaded successfully."
     },
     "duplicate": {
       "foundTitle": "Duplicate sponsor",
