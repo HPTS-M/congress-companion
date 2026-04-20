@@ -296,7 +296,7 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
                 {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-1.5">
                   <Label>{t('sponsors.fieldLevel')}</Label>
                   <Select value={level} onValueChange={setLevel}>
