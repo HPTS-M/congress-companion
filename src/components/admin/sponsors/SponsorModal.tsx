@@ -21,6 +21,17 @@ import { toast } from 'sonner';
 import { adminSponsorsService, type SponsorRow, type SponsorFormData } from '@/services/admin-sponsors.service';
 import { useAdminSponsors } from '@/hooks/useAdminSponsors';
 import { SponsorMaterialPreviewModal } from './SponsorMaterialPreviewModal';
+import {
+  validateFile,
+  formatFileSize,
+  SPONSOR_LOGO_MIME,
+  SPONSOR_LOGO_EXT,
+  SPONSOR_LOGO_MAX,
+  SPONSOR_MATERIALS_MIME,
+  SPONSOR_MATERIALS_EXT,
+  SPONSOR_MATERIALS_MAX,
+  type FileValidationResult,
+} from '@/lib/file-validation';
 
 interface Props {
   open: boolean;
@@ -157,9 +168,40 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
     [name, level, category, description, standLocation, websiteUrl, contactEmail, whatsapp, whatsappMessage, videoUrl, linkedin, instagram]
   );
 
+  const handleLogoSelect = useCallback((file: File | null) => {
+    if (!file) { setLogoFile(null); return; }
+    const result = validateFile(file, SPONSOR_LOGO_MIME, SPONSOR_LOGO_EXT, SPONSOR_LOGO_MAX);
+    if (!result.ok) {
+      toast.error(t(`sponsors.validation.${logoErrorKey(result)}`));
+      if (logoRef.current) logoRef.current.value = '';
+      return;
+    }
+    setLogoFile(file);
+    setRemoveLogo(false);
+  }, [t]);
+
+  const handleMaterialsSelect = useCallback((file: File | null) => {
+    if (!file) { setMaterialsFile(null); return; }
+    const result = validateFile(file, SPONSOR_MATERIALS_MIME, SPONSOR_MATERIALS_EXT, SPONSOR_MATERIALS_MAX);
+    if (!result.ok) {
+      toast.error(t(`sponsors.validation.${materialsErrorKey(result)}`));
+      if (materialsRef.current) materialsRef.current.value = '';
+      return;
+    }
+    setMaterialsFile(file);
+    setRemoveMaterials(false);
+  }, [t]);
+
   const performSave = useCallback(async (force = false) => {
-    if (logoFile && logoFile.size > 2 * 1024 * 1024) { toast.error(t('sponsors.logoTooLarge')); return; }
-    if (materialsFile && materialsFile.size > 10 * 1024 * 1024) { toast.error(t('sponsors.materialsTooLarge')); return; }
+    // Defense in depth: re-validate before upload (handlers should already have caught these)
+    if (logoFile) {
+      const r = validateFile(logoFile, SPONSOR_LOGO_MIME, SPONSOR_LOGO_EXT, SPONSOR_LOGO_MAX);
+      if (!r.ok) { toast.error(t(`sponsors.validation.${logoErrorKey(r)}`)); return; }
+    }
+    if (materialsFile) {
+      const r = validateFile(materialsFile, SPONSOR_MATERIALS_MIME, SPONSOR_MATERIALS_EXT, SPONSOR_MATERIALS_MAX);
+      if (!r.ok) { toast.error(t(`sponsors.validation.${materialsErrorKey(r)}`)); return; }
+    }
 
     try {
       // Duplicate check on create
@@ -171,14 +213,14 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
         }
       }
 
-      // Parallel uploads
-      const [logoPath, materialsPath] = await Promise.all([
+      // Parallel uploads with post-upload verification (inside service)
+      const [logoUpload, materialsUpload] = await Promise.all([
         logoFile ? adminSponsorsService.uploadFile(eventId, logoFile, 'logo') : Promise.resolve(null),
         materialsFile ? adminSponsorsService.uploadFile(eventId, materialsFile, 'materials') : Promise.resolve(null),
       ]);
 
-      const finalLogoUrl = logoPath ?? (removeLogo ? null : currentLogoPath);
-      const finalMaterialsUrl = materialsPath ?? (removeMaterials ? null : currentMaterialsPath);
+      const finalLogoUrl = logoUpload?.path ?? (removeLogo ? null : currentLogoPath);
+      const finalMaterialsUrl = materialsUpload?.path ?? (removeMaterials ? null : currentMaterialsPath);
       const form = buildForm(finalLogoUrl, finalMaterialsUrl);
 
       if (isEdit && sponsor) {
@@ -190,8 +232,13 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
       }
       onSaved();
       onClose();
-    } catch {
-      toast.error(t(isEdit ? 'sponsors.editError' : 'sponsors.createError'));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '';
+      if (msg === 'upload_verification_failed') {
+        toast.error(t('sponsors.validation.uploadVerificationFailed'));
+      } else {
+        toast.error(t(isEdit ? 'sponsors.editError' : 'sponsors.createError'));
+      }
     }
   }, [logoFile, materialsFile, isEdit, eventId, name, removeLogo, currentLogoPath, removeMaterials, currentMaterialsPath, buildForm, sponsor, updateSponsor, createSponsor, onSaved, onClose, t]);
 
