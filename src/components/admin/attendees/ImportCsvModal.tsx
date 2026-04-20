@@ -131,6 +131,10 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
     id: string; full_name: string; email: string; credential_code: string;
     external_credential_code: string | null; created_at: string | null;
   }>>>({});
+  const [matchesByExternalCode, setMatchesByExternalCode] = useState<Record<string, {
+    id: string; full_name: string; email: string; credential_code: string;
+    external_credential_code: string | null;
+  }>>({});
   const [matchesLoading, setMatchesLoading] = useState(false);
   const [resolutionsByRow, setResolutionsByRow] = useState<AmbiguousResolutionMap>({});
   const [resolveModalOpen, setResolveModalOpen] = useState(false);
