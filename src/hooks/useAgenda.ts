@@ -2,13 +2,25 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { agendaService } from '@/services/agenda.service';
 import type { EventActivity, SessionInterest } from '@/types';
 import { useMemo } from 'react';
+import { useRealtimeInvalidate } from '@/hooks/useRealtimeInvalidate';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 
 export function useActivities(eventId: string | undefined) {
+  const isOnline = useOnlineStatus();
+
+  useRealtimeInvalidate({
+    channelName: `event-activities-${eventId}`,
+    table: 'event_activities',
+    filter: eventId ? `event_id=eq.${eventId}` : undefined,
+    queryKeys: [['activities', eventId]],
+    enabled: !!eventId && isOnline,
+  });
+
   const query = useQuery({
     queryKey: ['activities', eventId],
     queryFn: () => agendaService.getActivities(eventId!),
     enabled: !!eventId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30_000,
   });
 
   const grouped = useMemo(() => {
@@ -30,11 +42,21 @@ export function useActivities(eventId: string | undefined) {
 }
 
 export function useSessionInterests(eventId: string | undefined) {
+  const isOnline = useOnlineStatus();
+
+  useRealtimeInvalidate({
+    channelName: `session-interests-${eventId}`,
+    table: 'session_interests',
+    filter: eventId ? `event_id=eq.${eventId}` : undefined,
+    queryKeys: [['session-interests', eventId]],
+    enabled: !!eventId && isOnline,
+  });
+
   const query = useQuery({
     queryKey: ['session-interests', eventId],
     queryFn: () => agendaService.getInterestCounts(eventId!),
     enabled: !!eventId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30_000,
   });
 
   const countMap = query.data ?? new Map<string, number>();
@@ -47,7 +69,7 @@ export function useUserInterests(eventId: string | undefined, attendeeId: string
     queryKey: ['user-interests', eventId, attendeeId],
     queryFn: () => agendaService.getUserInterests(eventId!, attendeeId!),
     enabled: !!eventId && !!attendeeId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30_000,
   });
 
   const sessionIds = useMemo(
@@ -59,11 +81,24 @@ export function useUserInterests(eventId: string | undefined, attendeeId: string
 }
 
 export function useUserCheckins(attendeeId: string | undefined) {
+  const isOnline = useOnlineStatus();
+
+  useRealtimeInvalidate({
+    channelName: `user-checkins-${attendeeId}`,
+    table: 'attendee_checkins',
+    filter: attendeeId ? `attendee_id=eq.${attendeeId}` : undefined,
+    queryKeys: [
+      ['user-checkins', attendeeId],
+      ['recent-checkins', attendeeId],
+    ],
+    enabled: !!attendeeId && isOnline,
+  });
+
   const query = useQuery({
     queryKey: ['user-checkins', attendeeId],
     queryFn: () => agendaService.getUserCheckins(attendeeId!),
     enabled: !!attendeeId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30_000,
   });
 
   const checkedInIds = useMemo(
