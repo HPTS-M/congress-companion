@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import * as bcrypt from 'https://deno.land/x/bcrypt@v0.4.1/mod.ts';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
+import { buildEventUrl } from '../_shared/build-event-url.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -173,7 +174,7 @@ Deno.serve(async (req) => {
       return jsonResponse(500, { error: 'RESEND_API_KEY not configured' });
     }
 
-    const appUrl = (Deno.env.get('APP_URL') || 'https://congress-companion.vercel.app').replace(/\/+$/, '');
+    const eventLoginUrl = buildEventUrl(event.event_code);
 
     // 7. Process each eligible attendee
     let sent = 0;
@@ -208,7 +209,7 @@ Deno.serve(async (req) => {
           event.name,
           event.event_code,
           plainCode,
-          appUrl,
+          eventLoginUrl,
         );
 
         const resendResponse = await fetch('https://api.resend.com/emails', {
