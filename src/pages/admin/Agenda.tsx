@@ -122,6 +122,7 @@ export default function AdminAgenda() {
       requires_checkin: data.requires_checkin as boolean,
       capacity: (data.capacity as string) ? parseInt(data.capacity as string) : null,
       speaker_photo_url: (data.speaker_photo_url as string | null) ?? null,
+      status: (data.is_cancelled as boolean) ? 'cancelled' : null,
     };
 
     try {
