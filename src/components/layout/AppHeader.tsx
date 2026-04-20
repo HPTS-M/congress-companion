@@ -7,6 +7,7 @@ import { useUnreadAnnouncements } from '@/hooks/useUnreadAnnouncements';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 interface AppHeaderProps {
   onMenuOpen: () => void;
