@@ -212,39 +212,12 @@ export default function AdminDocuments() {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="sm" onClick={() => setCompletenessOpen(true)}>
-                  <ClipboardCheck className="mr-1 h-4 w-4" />
-                  {t('documents.completenessCheck')}
+                <Button variant="outline" size="sm" onClick={() => setBulkUploadOpen(true)}>
+                  <UploadCloud className="mr-1 h-4 w-4" />
+                  {t('documents.bulkUpload.button')}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>{t('documents.tooltip.completeness')}</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" size="sm" onClick={handleExportXls}>
-                  <FileSpreadsheet className="mr-1 h-4 w-4" />
-                  {t('documents.exportXls')}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t('documents.tooltip.exportXls')}</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleBulkExportZip}
-                  disabled={!!bulkExportProgress || !documents || documents.length === 0}
-                >
-                  <Archive className="mr-1 h-4 w-4" />
-                  {bulkExportProgress
-                    ? t('documents.bulkExporting', { current: bulkExportProgress.current, total: bulkExportProgress.total })
-                    : t('documents.bulkExport')}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t('documents.tooltip.bulkExport')}</TooltipContent>
+              <TooltipContent>{t('documents.bulkUpload.tooltip')}</TooltipContent>
             </Tooltip>
 
             <Tooltip>
