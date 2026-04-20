@@ -115,7 +115,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginWithCode = useCallback(async (accessCode: string, eventCode: string, forceLogin = false) => {
     const result = await authService.verifyAccessCode(accessCode, eventCode, forceLogin);
-    await authService.establishSession(result.email, result.email_otp);
+    await authService.establishSession(result.email, {
+      tokenHash: result.token_hash,
+      emailOtp: result.email_otp,
+    });
     // Session marker is already set by the edge function
   }, []);
 
