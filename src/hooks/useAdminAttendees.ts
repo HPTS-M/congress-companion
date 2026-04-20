@@ -289,7 +289,24 @@ export function useSendInvitations() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['admin-attendee-detail'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-attendees'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-pending-invitations'] }),
       ]);
     },
+  });
+}
+
+/**
+ * IDs of attendees in the current event with no invitation yet AND a valid email.
+ * Used to power the "Retry pending credentials" action.
+ */
+export function usePendingInvitations() {
+  const { event } = useEvent();
+  const eventId = event?.id ?? '';
+
+  return useQuery({
+    queryKey: ['admin-pending-invitations', eventId],
+    queryFn: () => adminAttendeesService.getPendingInvitationIds(eventId),
+    enabled: !!eventId,
+    staleTime: 30_000,
   });
 }
