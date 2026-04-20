@@ -1,53 +1,77 @@
 
 
-## Bug fix: claves i18n faltantes en la pantalla de respuesta de encuestas
+## Bug fix: el badge rojo de anuncios no se limpia en móvil
 
 ### Diagnóstico
 
-En `/{evento}/polls`, después de enviar una respuesta, la tarjeta muestra textos crudos como `polls.responseSent` y `polls.resultsPrivate` en vez del label público. La causa NO es el `poll_type` (verificado en BD: solo hay valores válidos `single_choice`, `multiple_choice`, `rating_scale`, `open_text`, y la traducción de tipo en la cabecera funciona).
+El badge de anuncios solo se limpia cuando el usuario hace click en el ícono de campana (🔔) del `AppHeader`, porque ese es el único lugar que invoca `announcements.markAsSeen()`:
 
-La causa real es que `src/pages/attendee/Polls.tsx` invoca dos claves i18n que **no existen** en `src/locales/{es,en}/common.json`:
+```tsx
+// src/components/layout/AppHeader.tsx (línea 31-34)
+const handleBellClick = (): void => {
+  announcements.markAsSeen();
+  navigate(`/${eventSlug}/announcements`);
+};
+```
 
-| Llamada en código | Estado en `common.json` |
-|---|---|
-| `t('polls.responseSent')` (línea 218) | ❌ Falta — existe `polls.answered` |
-| `t('polls.resultsPrivate')` (línea 220) | ❌ Falta por completo |
+En **desktop** funciona porque el usuario ve el header arriba y hace click en la campana → se limpia.
 
-Cuando i18next no encuentra una clave, devuelve la clave cruda como string. El usuario ve `polls.responseSent` en pantalla, que parece un "nombre técnico de campo".
+En **móvil** el flujo natural es:
+1. Abre el menú hamburguesa (≡) en el header.
+2. Toca "Anuncios" → `HamburgerMenu.handleNavigate('/announcements')` navega directo, **sin llamar `markAsSeen()`**.
+3. Llega a `/announcements`. La página renderiza la lista pero **nunca llama `markAsSeen()`** tampoco.
+
+Resultado: el badge rojo persiste en el header aunque el usuario ya esté viendo los anuncios. Mismo bug aplica si llega vía deep link, refresh o cualquier otra ruta de entrada.
+
+### Causa raíz (una sola)
+
+`markAsSeen` está acoplado al click del ícono en lugar de al hecho de **ver la página de anuncios**. La fuente de verdad correcta es: "el usuario abrió `/announcements`" → marcar como visto.
+
+### Solución
+
+Mover (y mantener) la llamada a `markAsSeen()` al montaje de la página `/announcements`. Eso cubre los 3 caminos de entrada (campana del header, hamburguesa móvil, navegación directa por URL) con una sola línea de código.
 
 ### Cambios
 
-**1. `src/locales/es/common.json` — añadir claves faltantes en la sección `polls`:**
+**1. `src/pages/attendee/Announcements.tsx`** — agregar `useEffect` que llama `markAsSeen()` cuando hay `eventId` y los anuncios terminaron de cargar (para que `count` ya refleje el estado correcto antes de marcar):
 
-```json
-"responseSent": "Respuesta enviada",
-"resultsPrivate": "Los resultados solo los ve el organizador"
+```tsx
+import { useEffect, useState } from 'react';
+import { useUnreadAnnouncements } from '@/hooks/useUnreadAnnouncements';
+
+// dentro del componente:
+const { markAsSeen } = useUnreadAnnouncements(eventId);
+
+useEffect(() => {
+  if (!eventId || isLoading) return;
+  markAsSeen();
+}, [eventId, isLoading, markAsSeen]);
 ```
 
-**2. `src/locales/en/common.json` — paridad:**
+`markAsSeen` ya está envuelto en `useCallback` con dependencias estables, así que el efecto corre una sola vez por visita a la página.
 
-```json
-"responseSent": "Response sent",
-"resultsPrivate": "Results are only visible to the organizer"
-```
-
-**3. (Opcional, limpieza) `src/pages/attendee/Polls.tsx`** — `polls.answered` queda huérfano si nadie más lo usa. Lo dejamos por compatibilidad (es texto válido y podría reaparecer en otra vista). No se borra.
+**2. `src/components/layout/AppHeader.tsx`** — sin cambios funcionales necesarios. La llamada en `handleBellClick` puede quedarse (es redundante pero inofensiva: `localStorage.setItem` con la misma key dos veces seguidas no rompe nada y sigue dando feedback inmediato al click). Lo dejamos como está para no introducir regresiones en desktop.
 
 ### No se modifica
 
-- `POLL_TYPE_KEYS` y la lógica que mapea `poll_type` → label: ya funciona correctamente (verificado en BD y en el namespace `common`).
-- Backend, RLS, hooks, servicios: el bug es 100% de capa i18n.
-- Otras pantallas (admin, reports, session detail drawer): sus claves de tipo de encuesta están correctas y completas.
+- `useUnreadAnnouncements`: la lógica de polling, `localStorage`, query invalidation y migración desde la key legacy ya funciona correctamente.
+- `HamburgerMenu`: no necesita lógica de notificaciones, solo navega.
+- Backend, RLS, servicios, hooks de mensajes: fuera de alcance.
 
 ### Resultado esperado
 
-- Tras enviar respuesta, el asistente ve "Respuesta enviada" + "Los resultados solo los ve el organizador" en lugar de las claves crudas.
-- Funciona en español e inglés.
-- Cero impacto en otros módulos.
+| Escenario | Antes | Después |
+|---|---|---|
+| Desktop — click campana | ✅ se limpia | ✅ se limpia |
+| Móvil — hamburguesa → Anuncios | ❌ persiste | ✅ se limpia |
+| Cualquier dispositivo — URL directa `/announcements` | ❌ persiste | ✅ se limpia |
+| Cualquier dispositivo — refresh estando en Anuncios | ❌ persiste | ✅ se limpia |
 
-### Verificación post-deploy (1 paso)
+### Verificación post-deploy
 
-1. Loguear como asistente del evento `ACQFH-2026`.
-2. Ir a `/{evento}/polls`, responder cualquier encuesta activa.
-3. Confirmar que el bloque post-envío muestra textos legibles, no claves con punto.
+1. Login asistente en `ACQFH-2026` desde móvil (viewport 375px).
+2. Confirmar badge rojo visible en la campana del header (si hay anuncios sin leer).
+3. Abrir hamburguesa → tocar "Anuncios".
+4. Volver atrás (o ir a Inicio) → confirmar que el badge ya no aparece.
+5. Repetir en desktop por regresión: click directo en campana → badge se limpia igual que antes.
 
