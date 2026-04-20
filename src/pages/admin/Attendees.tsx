@@ -131,6 +131,10 @@ export default function AdminAttendees() {
   // Persistent across pages — Set of attendee IDs
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkSendModal, setShowBulkSendModal] = useState(false);
+  // Snapshot of selected attendees at the moment the bulk-send modal opens.
+  // Prevents losing rows when the user changes filters/pages after selecting
+  // (selectedIds persists across pages, but `attendees` only holds current view).
+  const [bulkSendSnapshot, setBulkSendSnapshot] = useState<AttendeeWithServices[]>([]);
 
   // ---------------- Data ----------------
   const { attendees, isLoading, isFetching, isRefetching, counts, isCountsLoading, refetch } =
@@ -183,9 +187,18 @@ export default function AdminAttendees() {
     setQualityFilterLabel('');
   }, []);
 
-  const handleBulkSendCredentials = () => {
+  const handleBulkSendCredentials = async () => {
     if (selectedIds.size === 0 || !event?.id) return;
-    setShowBulkSendModal(true);
+    // Snapshot selected attendees from the full event dataset (not just the
+    // current visible/paginated view) so the modal breakdown is always complete.
+    try {
+      const ids = Array.from(selectedIds);
+      const snapshot = await adminAttendeesService.getAttendeesByIds(ids, event.id);
+      setBulkSendSnapshot(snapshot);
+      setShowBulkSendModal(true);
+    } catch {
+      toast({ title: t('attendees.invitationFailed'), variant: 'destructive' });
+    }
   };
 
   const confirmBulkSend = async (validIds: string[]) => {
@@ -545,7 +558,7 @@ export default function AdminAttendees() {
       <BulkSendCredentialsModal
         open={showBulkSendModal}
         onOpenChange={setShowBulkSendModal}
-        selectedAttendees={displayedAttendees.filter((a) => selectedIds.has(a.id))}
+        selectedAttendees={bulkSendSnapshot}
         isSending={sendInvitationsMutation.isPending}
         onConfirm={confirmBulkSend}
       />

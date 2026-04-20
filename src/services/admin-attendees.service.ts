@@ -66,6 +66,28 @@ export interface AttendeeFilters {
 }
 
 export const adminAttendeesService = {
+  /**
+   * Fetch a specific subset of attendees by ID for the given event.
+   * Used to build a complete snapshot for bulk actions when the user's
+   * selection spans pages/filters that may no longer be in the active view.
+   */
+  getAttendeesByIds: async (
+    ids: string[],
+    eventId: string,
+  ): Promise<AttendeeWithServices[]> => {
+    if (ids.length === 0) return [];
+    const { data, error } = await supabase
+      .from('attendees')
+      .select(
+        'id, event_id, full_name, email, credential_code, external_credential_code, registration_status, specialty, institution, phone, registration_date, invitation_sent_at, created_at, user_id',
+      )
+      .eq('event_id', eventId)
+      .is('deleted_at', null)
+      .in('id', ids);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((a) => ({ ...(a as AttendeeRow), servicesCount: 0 }));
+  },
+
   getAttendees: async (
     eventId: string,
     search?: string,
@@ -784,5 +806,8 @@ export interface SendInvitationFailure {
 export interface SendInvitationsResult {
   sent: number;
   failed: number;
+  /** Server-side count of recipients excluded (cancelled / invalid email). */
+  skipped?: number;
+  skippedDetails?: { id: string; reason: string }[];
   errors?: SendInvitationFailure[];
 }
