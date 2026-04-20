@@ -103,6 +103,13 @@
     "copyAddress": "Copy address",
     "addressCopied": "Address copied"
   },
+  "header": {
+    "tooltips": {
+      "language": "Change language",
+      "announcements": "Announcements",
+      "profile": "My Profile"
+    }
+  },
   "notifications": {
     "title": "Notifications",
     "empty": "No notifications",
