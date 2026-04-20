@@ -748,7 +748,10 @@ export const adminAttendeesService = {
       .filter((c) => c.length > 0);
   },
 
-  sendInvitations: async (attendeeIds: string[], eventId: string): Promise<{ sent: number; failed: number }> => {
+  sendInvitations: async (
+    attendeeIds: string[],
+    eventId: string,
+  ): Promise<SendInvitationsResult> => {
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData?.session?.access_token;
     if (!token) throw new Error('Not authenticated');
@@ -772,3 +775,14 @@ export const adminAttendeesService = {
     return response.json();
   },
 };
+
+export interface SendInvitationFailure {
+  id: string;
+  error: string;
+}
+
+export interface SendInvitationsResult {
+  sent: number;
+  failed: number;
+  errors?: SendInvitationFailure[];
+}

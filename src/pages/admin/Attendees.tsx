@@ -23,6 +23,7 @@ import { NewAttendeeModal } from '@/components/admin/attendees/NewAttendeeModal'
 import { ImportCsvModal } from '@/components/admin/attendees/ImportCsvModal';
 import { DeleteAttendeeDialog } from '@/components/admin/attendees/DeleteAttendeeDialog';
 import { DataQualityPanel } from '@/components/admin/attendees/DataQualityPanel';
+import { BulkSendCredentialsModal } from '@/components/admin/attendees/BulkSendCredentialsModal';
 import { DataTablePagination } from '@/components/ui/data-table-pagination';
 import { usePagination } from '@/hooks/usePagination';
 import { cn } from '@/lib/utils';
@@ -129,6 +130,7 @@ export default function AdminAttendees() {
   const [isExporting, setIsExporting] = useState(false);
   // Persistent across pages — Set of attendee IDs
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBulkSendModal, setShowBulkSendModal] = useState(false);
 
   // ---------------- Data ----------------
   const { attendees, isLoading, isFetching, isRefetching, counts, isCountsLoading, refetch } =
@@ -181,14 +183,28 @@ export default function AdminAttendees() {
     setQualityFilterLabel('');
   }, []);
 
-  const handleBulkSendCredentials = async () => {
+  const handleBulkSendCredentials = () => {
     if (selectedIds.size === 0 || !event?.id) return;
+    setShowBulkSendModal(true);
+  };
+
+  const confirmBulkSend = async (validIds: string[]) => {
+    if (validIds.length === 0 || !event?.id) return;
     try {
-      const result = await sendInvitationsMutation.mutateAsync(Array.from(selectedIds));
-      toast({
-        title: t('attendees.bulkSendSuccess', { count: result.sent }),
-        description: result.failed > 0 ? t('attendees.bulkSendFailed', { count: result.failed }) : undefined,
-      });
+      const result = await sendInvitationsMutation.mutateAsync(validIds);
+      if (result.failed === 0) {
+        toast({
+          title: t('attendees.bulkSendSuccess', { count: result.sent }),
+        });
+      } else {
+        const firstError = result.errors?.[0]?.error;
+        toast({
+          title: t('attendees.bulkSendPartial', { sent: result.sent, failed: result.failed }),
+          description: firstError ? t('attendees.bulkSendFirstError', { error: firstError }) : undefined,
+          variant: 'destructive',
+        });
+      }
+      setShowBulkSendModal(false);
       setSelectedIds(new Set());
     } catch {
       toast({ title: t('attendees.invitationFailed'), variant: 'destructive' });
@@ -433,8 +449,14 @@ export default function AdminAttendees() {
               onClick={handleBulkSendCredentials}
               disabled={sendInvitationsMutation.isPending}
             >
-              <Mail className="mr-2 h-3.5 w-3.5" />
-              {sendInvitationsMutation.isPending ? t('attendees.sendingInvitation') : t('attendees.bulkSendCredentials')}
+              {sendInvitationsMutation.isPending ? (
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Mail className="mr-2 h-3.5 w-3.5" />
+              )}
+              {sendInvitationsMutation.isPending
+                ? t('attendees.sendingInvitation')
+                : `${t('attendees.bulkSendCredentials')} (${selectedIds.size})`}
             </Button>
             <Button
               size="sm"
@@ -517,6 +539,15 @@ export default function AdminAttendees() {
       <DeleteAttendeeDialog
         attendee={deleteAttendee}
         onClose={() => setDeleteAttendee(null)}
+      />
+
+      {/* Bulk send credentials confirmation modal */}
+      <BulkSendCredentialsModal
+        open={showBulkSendModal}
+        onOpenChange={setShowBulkSendModal}
+        selectedAttendees={displayedAttendees.filter((a) => selectedIds.has(a.id))}
+        isSending={sendInvitationsMutation.isPending}
+        onConfirm={confirmBulkSend}
       />
 
       {/* Deactivate / Reactivate confirmation */}
