@@ -69,7 +69,7 @@ export function AppHeader({ onMenuOpen }: AppHeaderProps) {
         <Button variant="ghost" size="icon" onClick={toggleLanguage} className="text-white hover:bg-white/10">
           <Globe className="h-4 w-4" />
         </Button>
-        <Button variant="ghost" size="icon" className="relative text-white hover:bg-white/10" onClick={handleBellClick} aria-label="Announcements">
+        <Button variant="ghost" size="icon" className="relative text-white hover:bg-white/10 md:hidden" onClick={handleBellClick} aria-label="Announcements">
           <Bell className="h-4 w-4" />
           {announcements.count > 0 && (
             <span className="absolute right-0.5 top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
@@ -80,7 +80,7 @@ export function AppHeader({ onMenuOpen }: AppHeaderProps) {
         <Button
           variant="ghost"
           size="icon"
-          className="relative text-white hover:bg-white/10"
+          className="relative text-white hover:bg-white/10 md:hidden"
           onClick={handleMessagingClick}
           aria-label={tMessaging('headerTooltip')}
           title={!isOnline ? t('offlineBanner.headerDot') : tMessaging('headerTooltip')}
