@@ -31,12 +31,19 @@ export function usePolls() {
     },
     onError: (error: Error) => {
       console.error('Poll submit error:', error);
-      const isDuplicate = error.message === 'DUPLICATE_VOTE';
-      toast({
-        title: isDuplicate ? 'Ya respondiste esta encuesta' : 'Error al enviar respuesta',
-        description: isDuplicate ? 'Solo puedes responder una vez.' : error.message,
-        variant: 'destructive',
-      });
+      const msg = error.message || '';
+      const isDuplicate = msg === 'DUPLICATE_VOTE';
+      const isRlsBlock = /row-level security|violates? .* policy|permission denied/i.test(msg);
+      let title = 'Error al enviar respuesta';
+      let description = msg;
+      if (isDuplicate) {
+        title = 'Ya respondiste esta encuesta';
+        description = 'Solo puedes responder una vez.';
+      } else if (isRlsBlock) {
+        title = 'Tu sesión no permite votar';
+        description = 'Vuelve a iniciar sesión con tu código de acceso e inténtalo de nuevo.';
+      }
+      toast({ title, description, variant: 'destructive' });
     },
   });
 

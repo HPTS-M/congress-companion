@@ -102,7 +102,13 @@ export const pollsService = {
         text_response: null,
       }));
       const { error } = await supabase.from('poll_responses').insert(rows);
-      if (error) throw new Error(error.message);
+      if (error) {
+        // 23505 = unique_violation → el asistente ya votó esa opción
+        if ((error as { code?: string }).code === '23505') {
+          throw new Error('DUPLICATE_VOTE');
+        }
+        throw new Error(error.message);
+      }
     } else {
       // open_text
       const { error } = await supabase.from('poll_responses').insert({
@@ -111,7 +117,12 @@ export const pollsService = {
         option_id: null,
         text_response: textResponse,
       });
-      if (error) throw new Error(error.message);
+      if (error) {
+        if ((error as { code?: string }).code === '23505') {
+          throw new Error('DUPLICATE_VOTE');
+        }
+        throw new Error(error.message);
+      }
     }
   },
 
