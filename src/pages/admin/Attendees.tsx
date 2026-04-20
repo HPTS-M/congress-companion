@@ -375,7 +375,28 @@ export default function AdminAttendees() {
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <Mail className="mr-2 h-4 w-4" />
+          )}
+          {failedInvitationIds.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={handleRetryFailedInvitations}
+              disabled={sendInvitationsMutation.isPending}
+              className="border-destructive/40 text-destructive hover:bg-destructive/10"
+              title={t('attendees.invitations.retryFailedTitle', {
+                defaultValue: 'Resend credentials to attendees whose last attempt failed',
+              })}
+            >
+              {sendInvitationsMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Mail className="mr-2 h-4 w-4" />
               )}
+              {t('attendees.invitations.retryFailed', {
+                count: failedInvitationIds.length,
+                defaultValue: 'Retry failed ({{count}})',
+              })}
+            </Button>
+          )}
               {t('attendees.retryPendingInvitations', {
                 count: pendingInvitationIds.length,
                 defaultValue: 'Retry pending ({{count}})',
@@ -622,6 +643,7 @@ export default function AdminAttendees() {
         selectedAttendees={bulkSendSnapshot}
         isSending={sendInvitationsMutation.isPending}
         onConfirm={confirmBulkSend}
+        failedIds={failedIdsSet}
       />
 
       {/* Deactivate / Reactivate confirmation */}

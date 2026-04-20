@@ -344,6 +344,25 @@
     "retryPendingConfirm": "Send credentials to {{count}} attendee(s) without an invitation?",
     "noInvitationBadge": "No invitation",
     "noInvitationTooltip": "No credential email has been sent yet",
+    "invitations": {
+      "history": "Send history",
+      "noHistory": "No send attempts recorded yet",
+      "failed": "Failed in previous send",
+      "retryFailed": "Retry failed ({{count}})",
+      "retryFailedTitle": "Resend credentials to attendees whose last attempt failed",
+      "statusSent": "Sent",
+      "statusFailed": "Failed",
+      "statusSkipped": "Skipped",
+      "reason": {
+        "rate_limited": "Rate limit reached",
+        "invalid_recipient": "Invalid or rejected recipient",
+        "resend_error": "Email service error",
+        "db_error": "Database error",
+        "cancelled": "Attendee cancelled",
+        "invalid_email": "Invalid email",
+        "unknown": "Unknown reason"
+      }
+    },
     "bulkSendModal": {
       "title": "Send credentials by email",
       "summary": "You selected {{count}} attendee(s). Review the breakdown before sending.",

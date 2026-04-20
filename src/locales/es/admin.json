@@ -344,6 +344,25 @@
     "retryPendingConfirm": "¿Enviar credenciales a {{count}} asistente(s) sin invitación?",
     "noInvitationBadge": "Sin invitación",
     "noInvitationTooltip": "Aún no se ha enviado el correo de credenciales",
+    "invitations": {
+      "history": "Historial de envíos",
+      "noHistory": "Sin intentos de envío registrados",
+      "failed": "Fallidos en envío anterior",
+      "retryFailed": "Reenviar fallidos ({{count}})",
+      "retryFailedTitle": "Reenviar credenciales a quienes fallaron en el último intento",
+      "statusSent": "Enviado",
+      "statusFailed": "Fallido",
+      "statusSkipped": "Omitido",
+      "reason": {
+        "rate_limited": "Límite de envío alcanzado",
+        "invalid_recipient": "Destinatario inválido o rechazado",
+        "resend_error": "Error del servicio de correo",
+        "db_error": "Error de base de datos",
+        "cancelled": "Asistente cancelado",
+        "invalid_email": "Email inválido",
+        "unknown": "Razón desconocida"
+      }
+    },
     "bulkSendModal": {
       "title": "Enviar credenciales por correo",
       "summary": "Has seleccionado {{count}} asistente(s). Revisa el desglose antes de enviar.",
