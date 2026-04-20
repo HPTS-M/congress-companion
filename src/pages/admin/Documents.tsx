@@ -427,10 +427,12 @@ export default function AdminDocuments() {
           event={event}
         />
 
-        <CompletenessCheckModal
-          open={completenessOpen}
-          onClose={() => setCompletenessOpen(false)}
-          documents={documents ?? []}
+        <BulkUploadDocumentsModal
+          open={bulkUploadOpen}
+          onClose={() => setBulkUploadOpen(false)}
+          eventId={eventId ?? ''}
+          activities={activities ?? []}
+          onUploaded={invalidate}
         />
 
         <DocumentPreviewModal
