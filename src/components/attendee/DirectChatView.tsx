@@ -71,10 +71,11 @@ export default function DirectChatView({ conversation, onBack }: Props) {
   const isPending = conversation.status === 'pending';
   const isInitiator = conversation.initiated_by === attendeeId;
 
-  // Scroll to bottom
+  // Scroll to bottom (also when pending messages are added)
+  const mergedLengthRef = useRef(0);
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length]);
+  }, [messages.length, pending.length]);
 
   // Realtime for direct messages — subscribe whenever conversation exists.
   // We re-subscribe on `attendee:reconnected` to recover from dropped channels
