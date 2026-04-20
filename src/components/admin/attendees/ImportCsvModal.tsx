@@ -70,6 +70,14 @@ interface ImportResult {
   updated?: number;
   skipped?: number;
   upsertErrors?: number;
+  /** Credentials emailed successfully. */
+  invitationsSent?: number;
+  /** Credential emails that failed (after retries). */
+  invitationsFailed?: number;
+  /** Recipients excluded server-side (cancelled / invalid email). */
+  invitationsSkipped?: number;
+  /** First-failure reason for at-a-glance debugging in the toast. */
+  invitationsFirstError?: string;
 }
 
 async function downloadTemplate() {
@@ -420,11 +428,23 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
         });
         setProgress(80);
 
-        if (importStatus === 'confirmed' && upsertResult.insertedIds.length > 0) {
+        // Always send credential emails (regardless of pending/confirmed):
+        // pending attendees auto-confirm on first login via verify-access-code.
+        let invitationsSent = 0;
+        let invitationsFailed = 0;
+        let invitationsSkipped = 0;
+        let invitationsFirstError: string | undefined;
+        if (upsertResult.insertedIds.length > 0) {
           try {
-            await sendInvitationsMutation.mutateAsync(upsertResult.insertedIds);
+            const sendRes = await sendInvitationsMutation.mutateAsync(upsertResult.insertedIds);
+            invitationsSent = sendRes.sent;
+            invitationsFailed = sendRes.failed;
+            invitationsSkipped = sendRes.skipped ?? 0;
+            invitationsFirstError = sendRes.errors?.[0]?.error;
           } catch (invErr) {
             console.error('Failed to send invitations:', invErr);
+            invitationsFailed = upsertResult.insertedIds.length;
+            invitationsFirstError = (invErr as Error).message;
           }
         }
         setProgress(100);
@@ -439,14 +459,20 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
           warnings: warningRows.length,
           blockedRows,
           warningRows,
+          invitationsSent,
+          invitationsFailed,
+          invitationsSkipped,
+          invitationsFirstError,
         });
 
         toast({
-          title: t('attendees.importModal.upsertSuccess', {
-            inserted: upsertResult.inserted,
-            updated: upsertResult.updated,
-            skipped: upsertResult.skipped,
+          title: t('attendees.importModal.detailedResult', {
+            imported: upsertResult.inserted,
+            sent: invitationsSent,
+            failed: invitationsFailed,
+            defaultValue: 'Imported: {{imported}} · Sent: {{sent}} · Failed: {{failed}}',
           }),
+          variant: invitationsFailed > 0 ? 'destructive' : 'default',
         });
         return;
       }
@@ -460,11 +486,22 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
       });
       setProgress(80);
 
-      if (importStatus === 'confirmed' && result.ids.length > 0) {
+      // Always send credential emails after bulk insert.
+      let invitationsSent = 0;
+      let invitationsFailed = 0;
+      let invitationsSkipped = 0;
+      let invitationsFirstError: string | undefined;
+      if (result.ids.length > 0) {
         try {
-          await sendInvitationsMutation.mutateAsync(result.ids);
+          const sendRes = await sendInvitationsMutation.mutateAsync(result.ids);
+          invitationsSent = sendRes.sent;
+          invitationsFailed = sendRes.failed;
+          invitationsSkipped = sendRes.skipped ?? 0;
+          invitationsFirstError = sendRes.errors?.[0]?.error;
         } catch (invErr) {
           console.error('Failed to send invitations:', invErr);
+          invitationsFailed = result.ids.length;
+          invitationsFirstError = (invErr as Error).message;
         }
       }
       setProgress(100);
@@ -476,9 +513,21 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
         warnings: warningRows.length,
         blockedRows,
         warningRows,
+        invitationsSent,
+        invitationsFailed,
+        invitationsSkipped,
+        invitationsFirstError,
       });
 
-      toast({ title: t('attendees.importModal.success', { count: result.inserted }) });
+      toast({
+        title: t('attendees.importModal.detailedResult', {
+          imported: result.inserted,
+          sent: invitationsSent,
+          failed: invitationsFailed,
+          defaultValue: 'Imported: {{imported}} · Sent: {{sent}} · Failed: {{failed}}',
+        }),
+        variant: invitationsFailed > 0 ? 'destructive' : 'default',
+      });
     } catch {
       toast({ title: t('attendees.newAttendeeModal.error'), variant: 'destructive' });
       setProgress(0);
@@ -547,6 +596,40 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
                     <div className="flex items-center gap-2 text-sm text-destructive">
                       <AlertCircle className="h-4 w-4" />
                       {t('attendees.importModal.summaryBlocked', { count: importResult.blocked })}
+                    </div>
+                  )}
+                  {(importResult.invitationsSent ?? 0) > 0 && (
+                    <div className="flex items-center gap-2 text-sm text-accent">
+                      <CheckCircle2 className="h-4 w-4" />
+                      {t('attendees.importModal.summaryInvitationsSent', {
+                        count: importResult.invitationsSent,
+                        defaultValue: '{{count}} credential email(s) sent',
+                      })}
+                    </div>
+                  )}
+                  {(importResult.invitationsFailed ?? 0) > 0 && (
+                    <div className="flex flex-col gap-1 text-sm text-destructive">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4" />
+                        {t('attendees.importModal.summaryInvitationsFailed', {
+                          count: importResult.invitationsFailed,
+                          defaultValue: '{{count}} credential email(s) failed',
+                        })}
+                      </div>
+                      {importResult.invitationsFirstError && (
+                        <div className="pl-6 text-xs text-muted-foreground break-words">
+                          {importResult.invitationsFirstError}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {(importResult.invitationsSkipped ?? 0) > 0 && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <AlertTriangle className="h-4 w-4" />
+                      {t('attendees.importModal.summaryInvitationsSkipped', {
+                        count: importResult.invitationsSkipped,
+                        defaultValue: '{{count}} skipped (cancelled / invalid email)',
+                      })}
                     </div>
                   )}
                 </CardContent>

@@ -1,6 +1,6 @@
 import { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Eye, Pencil, Trash2, Copy, RefreshCw, Ban, RotateCcw } from 'lucide-react';
+import { Eye, Pencil, Trash2, Copy, RefreshCw, Ban, RotateCcw, Mail } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -107,7 +107,24 @@ const AttendeeRow = memo(function AttendeeRow({
         </button>
       </TableCell>
       <TableCell className="text-sm text-muted-foreground">{a.email}</TableCell>
-      <TableCell><StatusBadge status={a.registration_status} /></TableCell>
+      <TableCell>
+        <div className="flex flex-col gap-1">
+          <StatusBadge status={a.registration_status} />
+          {!a.invitation_sent_at &&
+            a.registration_status !== 'cancelled' &&
+            a.email && (
+              <span
+                className="inline-flex w-fit items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                title={t('attendees.noInvitationTooltip', {
+                  defaultValue: 'No credential email has been sent yet',
+                })}
+              >
+                <Mail className="h-2.5 w-2.5" />
+                {t('attendees.noInvitationBadge', { defaultValue: 'No invitation' })}
+              </span>
+            )}
+        </div>
+      </TableCell>
       <TableCell className="text-center">
         <Badge variant="secondary" className="text-xs">{a.servicesCount}</Badge>
       </TableCell>

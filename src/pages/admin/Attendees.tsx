@@ -13,7 +13,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
-import { useAdminAttendees, useSendInvitations, useDeleteAttendee, useUpdateAttendeeStatus, useAttendeeFilterOptions } from '@/hooks/useAdminAttendees';
+import { useAdminAttendees, useSendInvitations, useDeleteAttendee, useUpdateAttendeeStatus, useAttendeeFilterOptions, usePendingInvitations } from '@/hooks/useAdminAttendees';
 import { adminAttendeesService, type AttendeeWithServices, type AttendeeFilters } from '@/services/admin-attendees.service';
 import { useEvent } from '@/hooks/useEvent';
 import { writeExcelFile } from '@/lib/excel';
@@ -143,6 +143,33 @@ export default function AdminAttendees() {
   const sendInvitationsMutation = useSendInvitations();
   const deleteMutation = useDeleteAttendee();
   const updateStatusMutation = useUpdateAttendeeStatus();
+  const { data: pendingInvitationIds = [] } = usePendingInvitations();
+
+  const handleRetryPendingInvitations = useCallback(async () => {
+    if (pendingInvitationIds.length === 0) return;
+    if (!window.confirm(
+      t('attendees.retryPendingConfirm', {
+        count: pendingInvitationIds.length,
+        defaultValue: 'Send credentials to {{count}} attendee(s) without an invitation yet?',
+      }),
+    )) return;
+    try {
+      const result = await sendInvitationsMutation.mutateAsync(pendingInvitationIds);
+      if (result.failed === 0) {
+        toast({ title: t('attendees.bulkSendSuccess', { count: result.sent }) });
+      } else {
+        toast({
+          title: t('attendees.bulkSendPartial', { sent: result.sent, failed: result.failed }),
+          description: result.errors?.[0]?.error
+            ? t('attendees.bulkSendFirstError', { error: result.errors[0].error })
+            : undefined,
+          variant: 'destructive',
+        });
+      }
+    } catch {
+      toast({ title: t('attendees.invitationFailed'), variant: 'destructive' });
+    }
+  }, [pendingInvitationIds, sendInvitationsMutation, t]);
 
   const handleRefresh = useCallback(() => {
     refetch();
@@ -321,6 +348,27 @@ export default function AdminAttendees() {
           <Button variant="outline" size="icon" onClick={handleRefresh} title={t('attendees.refresh')} disabled={isRefetching}>
             <RefreshCw className={cn('h-4 w-4', isRefetching && 'animate-spin')} />
           </Button>
+          {pendingInvitationIds.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={handleRetryPendingInvitations}
+              disabled={sendInvitationsMutation.isPending}
+              className="border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10"
+              title={t('attendees.retryPendingTitle', {
+                defaultValue: 'Send credential emails to attendees without an invitation',
+              })}
+            >
+              {sendInvitationsMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Mail className="mr-2 h-4 w-4" />
+              )}
+              {t('attendees.retryPendingInvitations', {
+                count: pendingInvitationIds.length,
+                defaultValue: 'Retry pending ({{count}})',
+              })}
+            </Button>
+          )}
           <Button variant="outline" onClick={handleExportExcel} disabled={isExporting}>
             <Download className="mr-2 h-4 w-4" />
             {isExporting ? t('attendees.exporting') : t('attendees.exportCsv')}
