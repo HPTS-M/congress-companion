@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { measure } from '@/lib/perf';
 
 const LEVEL_ORDER = ['gold', 'silver', 'bronze', 'exhibitor'];
 const BUCKET = 'event-sponsors';
@@ -35,29 +36,41 @@ export interface Sponsor {
 
 export const sponsorsService = {
   getByEvent: async (eventId: string): Promise<Sponsor[]> => {
-    const { data, error } = await supabase
-      .from('sponsors')
-      .select('*')
-      .eq('event_id', eventId)
-      .order('name');
+    return measure('list.sponsors', async () => {
+      const { data, error } = await supabase
+        .from('sponsors')
+        .select('*')
+        .eq('event_id', eventId)
+        .order('name');
 
-    if (error) throw new Error(error.message);
+      if (error) throw new Error(error.message);
 
-    const sorted = (data as Sponsor[]).sort((a, b) => {
-      const levelDiff = LEVEL_ORDER.indexOf(a.level) - LEVEL_ORDER.indexOf(b.level);
-      if (levelDiff !== 0) return levelDiff;
-      return a.name.localeCompare(b.name);
+      const sorted = (data as Sponsor[]).sort((a, b) => {
+        const levelDiff = LEVEL_ORDER.indexOf(a.level) - LEVEL_ORDER.indexOf(b.level);
+        if (levelDiff !== 0) return levelDiff;
+        return a.name.localeCompare(b.name);
+      });
+
+      // Flatten signed-URL generation into a single Promise.all over BOTH urls
+      // for ALL sponsors, instead of N rounds of 2 sequential awaits.
+      const urlJobs: Promise<string | null>[] = [];
+      const indexMap: { idx: number; field: 'logo_url' | 'materials_url' }[] = [];
+      sorted.forEach((s, idx) => {
+        urlJobs.push(resolveStorageUrl(s.logo_url));
+        indexMap.push({ idx, field: 'logo_url' });
+        urlJobs.push(resolveStorageUrl(s.materials_url));
+        indexMap.push({ idx, field: 'materials_url' });
+      });
+
+      const resolvedUrls = await Promise.all(urlJobs);
+      const out = sorted.map((s) => ({ ...s }));
+      resolvedUrls.forEach((url, i) => {
+        const meta = indexMap[i];
+        out[meta.idx][meta.field] = url;
+      });
+
+      return out;
     });
-
-    const resolved = await Promise.all(
-      sorted.map(async (s) => ({
-        ...s,
-        logo_url: await resolveStorageUrl(s.logo_url),
-        materials_url: await resolveStorageUrl(s.materials_url),
-      }))
-    );
-
-    return resolved;
   },
 
   getById: async (sponsorId: string): Promise<Sponsor> => {
@@ -70,10 +83,15 @@ export const sponsorsService = {
     if (error) throw new Error(error.message);
     const sponsor = data as Sponsor;
 
+    const [logoUrl, materialsUrl] = await Promise.all([
+      resolveStorageUrl(sponsor.logo_url),
+      resolveStorageUrl(sponsor.materials_url),
+    ]);
+
     return {
       ...sponsor,
-      logo_url: await resolveStorageUrl(sponsor.logo_url),
-      materials_url: await resolveStorageUrl(sponsor.materials_url),
+      logo_url: logoUrl,
+      materials_url: materialsUrl,
     };
   },
 };

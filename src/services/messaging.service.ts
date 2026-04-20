@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { measure } from '@/lib/perf';
 
 export interface ChatMessage {
   id: string;
@@ -22,6 +23,29 @@ export interface DirectConversation {
   other_name: string;
   other_id: string;
 }
+
+interface DirectConversationRow {
+  id: string;
+  status: string;
+  initiated_by: string;
+  participant_id: string;
+  last_message_at: string | null;
+  last_message_preview: string | null;
+  created_at: string | null;
+  other_id: string;
+  other_name: string | null;
+}
+
+interface UnreadCounts {
+  pendingInvites: number;
+  unreadMessages: number;
+}
+
+// Loose RPC type because supabase generated types do not include our new functions.
+type RpcCaller = (
+  fn: string,
+  args: Record<string, unknown>
+) => Promise<{ data: unknown; error: { message: string } | null }>;
 
 export const messagingService = {
   async getMessages(conversationId: string): Promise<ChatMessage[]> {
@@ -49,13 +73,19 @@ export const messagingService = {
   },
 
   async getAttendeeNames(eventId: string): Promise<Record<string, string>> {
-    const { data } = await (supabase as any)
+    const { data } = await (supabase as unknown as {
+      from: (t: string) => {
+        select: (s: string) => {
+          eq: (k: string, v: string) => Promise<{ data: { id: string; full_name: string }[] | null }>;
+        };
+      };
+    })
       .from('public_attendee_directory')
       .select('id, full_name')
       .eq('event_id', eventId);
 
     const map: Record<string, string> = {};
-    (data ?? []).forEach((a: any) => {
+    (data ?? []).forEach((a) => {
       map[a.id] = a.full_name;
     });
     return map;
@@ -63,49 +93,56 @@ export const messagingService = {
 
   // ── Direct Chat ─────────────────────────────────────────────
   async getDirectConversations(eventId: string, attendeeId: string): Promise<DirectConversation[]> {
-    const { data, error } = await supabase
-      .from('chat_conversations')
-      .select('id, event_id, initiated_by, participant_id, status, last_message_at, last_message_preview, deleted_by_initiator, deleted_by_participant')
-      .eq('event_id', eventId)
-      .eq('conversation_type', 'direct')
-      .neq('status', 'deleted')
-      .or(`initiated_by.eq.${attendeeId},participant_id.eq.${attendeeId}`)
-      .order('last_message_at', { ascending: false, nullsFirst: false });
+    return measure('list.directConversations', async () => {
+      const { data, error } = await (supabase as unknown as { rpc: RpcCaller }).rpc(
+        'get_my_direct_conversations',
+        { _event_id: eventId, _attendee_id: attendeeId }
+      );
 
-    if (error) throw new Error(error.message);
+      if (error) throw new Error(error.message);
+      const rows = (data as DirectConversationRow[] | null) ?? [];
 
-    // Filter out convos soft-deleted by this user
-    const filtered = (data ?? []).filter((c: any) => {
-      const isInitiator = c.initiated_by === attendeeId;
-      if (isInitiator && c.deleted_by_initiator) return false;
-      if (!isInitiator && c.deleted_by_participant) return false;
-      return true;
+      return rows.map((c) => ({
+        id: c.id,
+        event_id: eventId,
+        initiated_by: c.initiated_by,
+        participant_id: c.participant_id,
+        status: c.status,
+        last_message_at: c.last_message_at,
+        last_message_preview: c.last_message_preview,
+        deleted_by_initiator: false,
+        deleted_by_participant: false,
+        other_id: c.other_id,
+        other_name: c.other_name ?? 'Asistente',
+      }));
     });
+  },
 
-    // Collect other-side attendee IDs to resolve names
-    const otherIds = filtered.map((c: any) =>
-      c.initiated_by === attendeeId ? c.participant_id : c.initiated_by
-    );
-    const uniqueIds = [...new Set(otherIds)];
+  /**
+   * Server-side count of pending invites + unread direct messages.
+   * Replaces the client-side approach that downloaded every conversation.
+   */
+  async getUnreadCounts(
+    eventId: string,
+    attendeeId: string,
+    lastSeen: Date
+  ): Promise<UnreadCounts> {
+    return measure('count.messages', async () => {
+      const { data, error } = await (supabase as unknown as { rpc: RpcCaller }).rpc(
+        'count_unread_messages',
+        {
+          _event_id: eventId,
+          _attendee_id: attendeeId,
+          _last_seen: lastSeen.toISOString(),
+        }
+      );
 
-    let nameMap: Record<string, string> = {};
-    if (uniqueIds.length > 0) {
-      const { data: attendees } = await (supabase as any)
-        .from('public_attendee_directory')
-        .select('id, full_name')
-        .in('id', uniqueIds);
-      (attendees ?? []).forEach((a: any) => {
-        nameMap[a.id] = a.full_name;
-      });
-    }
-
-    return filtered.map((c: any) => {
-      const otherId = c.initiated_by === attendeeId ? c.participant_id : c.initiated_by;
+      if (error) throw new Error(error.message);
+      const payload = (data as { pending_invites?: number; unread_messages?: number } | null) ?? {};
       return {
-        ...c,
-        other_name: nameMap[otherId] || 'Asistente',
-        other_id: otherId,
-      } as DirectConversation;
+        pendingInvites: payload.pending_invites ?? 0,
+        unreadMessages: payload.unread_messages ?? 0,
+      };
     });
   },
 
@@ -150,10 +187,9 @@ export const messagingService = {
     if (error) throw new Error(error.message);
   },
 
-  async deleteConversation(conversationId: string, attendeeId: string, isInitiator: boolean): Promise<void> {
+  async deleteConversation(conversationId: string, _attendeeId: string, isInitiator: boolean): Promise<void> {
     const field = isInitiator ? 'deleted_by_initiator' : 'deleted_by_participant';
 
-    // First set the flag
     const { error } = await supabase
       .from('chat_conversations')
       .update({ [field]: true })
@@ -161,7 +197,6 @@ export const messagingService = {
 
     if (error) throw new Error(error.message);
 
-    // Check if both deleted, then mark as deleted
     const { data } = await supabase
       .from('chat_conversations')
       .select('deleted_by_initiator, deleted_by_participant')

@@ -1,12 +1,14 @@
 import { createRoot } from 'react-dom/client';
 import * as Sentry from '@sentry/react';
 import { initSentry } from '@/lib/sentry';
+import { initWebVitals } from '@/lib/perf';
 import App from './App.tsx';
 import './index.css';
 import './lib/i18n';
 
 // Initialize Sentry after React is loaded to avoid duplicate React instances
 initSentry();
+initWebVitals();
 
 // Build marker for cache debugging
 // @ts-ignore — injected by Vite define
