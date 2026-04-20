@@ -9,7 +9,7 @@ export interface AttendeePoll {
   session?: { title: string } | null;
   options: { id: string; option_text: string; order_index: number }[];
   response_count: number;
-  my_response?: { option_id: string | null; text_response: string | null } | null;
+  my_response?: { option_ids: string[]; text_response: string | null } | null;
 }
 
 export interface PollResultOption {
