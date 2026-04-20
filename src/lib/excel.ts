@@ -47,7 +47,7 @@ export async function readExcelFile<T extends Record<string, unknown> = Record<s
     headers.forEach((header, idx) => {
       if (!header) return;
       const cell = row.getCell(idx + 1);
-      let value = cell.value;
+      let value: unknown = cell.value;
 
       // Handle ExcelJS rich text
       if (value && typeof value === 'object' && 'richText' in value) {
