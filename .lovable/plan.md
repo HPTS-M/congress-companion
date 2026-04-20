@@ -1,218 +1,163 @@
 
 
-## Plan: Auditoría y optimización de rendimiento — listados y notificaciones
+## Plan: Corregir rutas duplicadas y consistencia en envío de credenciales
 
-### Diagnóstico (hallazgos concretos)
+### Diagnóstico
 
-Audité los flujos de listados (Anuncios, Mensajería, Sponsors, Tickets, Contactos, Polls, Documentos, Agenda) y el sistema de notificaciones (header + sidebar). Encontré **8 cuellos de botella reales** que degradan la experiencia, especialmente en redes 3G/4G y al volver del background:
+**Problema 1 — Rutas duplicadas tipo `/ACQFH-2026/ACQFH-2026`**
 
-| # | Módulo | Problema | Impacto |
-|---|---|---|---|
-| 1 | `useUnreadAnnouncements` + `useUnreadMessages` | Cada uno hace polling cada **30 s** y descarga la lista completa de anuncios/conversaciones para contar localmente. Se ejecutan 2× (header + sidebar) por estar duplicados los hooks | ~4 fetches/min innecesarios por asistente, payload grande |
-| 2 | `AppHeader` + `AttendeeSidebar` | Llaman los mismos hooks `useUnread*` por separado en lugar de compartir caché → React Query los deduplica pero igualmente cada componente se re-renderiza independiente | Re-renders extra |
-| 3 | `sponsorsService.getByEvent` | Genera signed URLs en serie con `Promise.all(sorted.map(...))` pero cada `resolveStorageUrl` espera al storage. Para 20 sponsors = 40 signed URLs (logo + materials) creadas en el cliente al cargar la pantalla | 800-1500ms en cargar Comercial |
-| 4 | `messagingService.getDirectConversations` | Filtra `deleted_by_*` en el cliente después de traer todas las filas, y luego hace **una query adicional** a `public_attendee_directory` para resolver nombres | Doble round-trip por entrar a Mensajería |
-| 5 | `pollsService.getActivePolls` | Hace **4 queries secuenciales** (polls, options, all_responses, my_responses). `all_responses` trae **todas las respuestas de todos los asistentes** solo para contarlas en JS | O(N×M) descarga, escala mal con votantes |
-| 6 | `AttendeeOfflineBanner` | Al reconectar invalida **7 query keys** simultáneamente sin filtrar por evento → revalida data de todos los eventos cacheados en memoria | Spike de red al reconectar |
-| 7 | `attendee-services` realtime | `useTickets` se suscribe a **toda la tabla `service_tickets`** sin filtro porque no tiene `attendee_id`. Cualquier cambio de cualquier ticket en la BD invalida la query del asistente | Re-fetch innecesario en eventos grandes |
-| 8 | `App.tsx` QueryClient | `staleTime: 5 min` global pero hooks individuales sobrescriben con 15s/30s. No hay `gcTime` definido → caché crece sin límite | Memory pressure en sesiones largas |
+El helper `buildEventUrl` en `supabase/functions/_shared/build-event-url.ts` ya intenta defenderse de un `APP_URL` mal configurado, pero tiene **dos limitaciones**:
+
+1. Solo elimina **una** ocurrencia trailing del `event_code` (`/ACQFH-2026$`). Si el secret quedó como `https://congress-connect-app.lovable.app/ACQFH-2026/`, primero se quita la barra y luego SÍ se quita el código → OK. Pero si quedó `…lovable.app/ACQFH-2026/ACQFH-2026` (caso reportado), solo limpia el último y devuelve `…lovable.app/ACQFH-2026/ACQFH-2026` de nuevo (duplicado).
+2. **Otras dos edge functions construyen URLs sin usar este helper**:
+   - `create-staff-user`: `${appUrl}/${event_code}/staff` — si `APP_URL` ya tiene un slug, queda duplicado.
+   - `create-provider-user`: `${appUrl}/provider` — mismo riesgo.
+
+Las únicas funciones que SÍ usan el helper son `send-invitation-email` y `regenerate-access-code`.
+
+**Problema 2 — Algunos asistentes no reciben el correo**
+
+Revisando `send-invitation-email`:
+- ✅ Hay reintentos con backoff (500/1500/4000 ms) para 429 y 5xx.
+- ✅ Hay clasificación de errores (rate_limited, invalid_recipient, db_error, resend_error).
+- ✅ Se procesan en chunks de 20 con `Promise.allSettled`.
+- ⚠️ **Pero los fallos solo se registran en `console.log`** — no hay tabla de auditoría. Si Resend devuelve un fallo permanente (invalid_recipient, dominio bloqueado), el frontend solo ve un contador `failed: N` y un array `errors[]`, pero **el usuario admin no tiene forma de revisar después qué pasó**.
+- ⚠️ El campo `invitation_sent_at` se actualiza **antes** de enviar el correo (línea 156). Esto es correcto para que la credencial sea válida, pero **pinta como "enviado" incluso a quien nunca recibió el email**. El admin ve el badge "Invitado" en la UI y asume que llegó.
+- ⚠️ No hay forma de **reintentar solo los fallidos** desde la UI de admin — hay que volver a seleccionarlos manualmente, y el sistema los considera "ya invitados".
+
+**Causa raíz combinada**: Falta una **bitácora persistente** de envíos (éxito/fallo + razón) y un mecanismo de **reintento dirigido** a los que fallaron.
 
 ### Decisión
 
-Aplicar 3 grupos de optimizaciones en orden de impacto:
+Tres cambios quirúrgicos:
 
-**A. Notificaciones (header + sidebar)** — eliminar polling redundante, mover el conteo al servidor.
+**A. URL robusto** — endurecer `buildEventUrl` para limpiar **cualquier número** de duplicaciones del `event_code` y usarlo en TODAS las edge functions que generan URLs.
 
-**B. Servicios de listado** — reducir round-trips, paralelizar signed URLs, evitar descargar datos que solo se cuentan.
+**B. Bitácora de envíos** — crear tabla `invitation_send_log` que registre cada intento (timestamp, attendee_id, status, reason, retries). El admin puede consultarla desde el modal de envío.
 
-**C. Reconexión y caché** — invalidar de forma quirúrgica, definir TTL/GC explícitos.
-
-Y dejar todo medible para validar en el servidor de producción (En Vivo).
-
----
+**C. Reintento dirigido** — agregar acción "Reenviar fallidos" en el modal `BulkSendCredentialsModal` que filtra por `invitation_send_log.status = 'failed'` (o sin registro alguno) y dispara solo esos.
 
 ### Cambios concretos
 
-#### A. Sistema de notificaciones — del lado servidor
+#### A. URLs (no requiere migración)
 
-**A1. Nuevas RPCs (migration)**
+**`supabase/functions/_shared/build-event-url.ts`** — endurecer:
+- Reemplazar el regex `replace` por un loop `while` que quite TODAS las ocurrencias trailing de `/${eventCode}` (case-insensitive), no solo una.
+- Mismo tratamiento para trailing slashes intermedias.
+- Resultado: aunque `APP_URL` quede como `…lovable.app/ACQFH-2026/ACQFH-2026/`, devuelve `…lovable.app/ACQFH-2026`.
 
+**`supabase/functions/create-staff-user/index.ts`**
+- Importar `buildEventUrl` y reemplazar la línea 113 `\`${appUrl}/${event?.event_code ?? ''}/staff\`` por `\`${buildEventUrl(event.event_code)}/staff\``.
+
+**`supabase/functions/create-provider-user/index.ts`**
+- Reemplazar la línea 107 por una función similar. Como aquí no hay `event_code` en scope (es `/provider`), basta con un helper `buildBaseUrl()` que solo limpia trailing slashes y posibles slugs accidentales del `APP_URL` — devolver siempre la base limpia.
+
+#### B. Bitácora de envíos (requiere migración)
+
+**Nueva tabla `invitation_send_log`**:
 ```sql
--- Conteo de anuncios no leídos contra timestamp del cliente
-CREATE OR REPLACE FUNCTION public.count_unread_announcements(
-  _event_id uuid,
-  _last_seen timestamptz
-) RETURNS integer
-LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = public AS $$
-  SELECT COUNT(*)::int
-  FROM public.announcements
-  WHERE event_id = _event_id
-    AND _event_id IN (SELECT public.get_my_event_ids())
-    AND sent_at IS NOT NULL
-    AND sent_at > _last_seen;
-$$;
+CREATE TABLE public.invitation_send_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  attendee_id uuid REFERENCES attendees(id) ON DELETE CASCADE NOT NULL,
+  event_id uuid REFERENCES events(id) ON DELETE CASCADE NOT NULL,
+  status text NOT NULL CHECK (status IN ('sent', 'failed', 'skipped')),
+  reason text,                  -- 'rate_limited' | 'invalid_recipient' | 'db_error' | 'resend_error' | 'cancelled' | 'invalid_email'
+  error_message text,
+  retries integer DEFAULT 0,
+  attempted_by uuid REFERENCES auth.users(id),
+  attempted_at timestamptz NOT NULL DEFAULT now()
+);
 
--- Conteo de invitaciones pendientes + mensajes no leídos
-CREATE OR REPLACE FUNCTION public.count_unread_messages(
-  _event_id uuid,
-  _attendee_id uuid,
-  _last_seen timestamptz
-) RETURNS jsonb
-LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = public AS $$
-  SELECT jsonb_build_object(
-    'pending_invites', (
-      SELECT COUNT(*)::int FROM chat_conversations
-      WHERE event_id = _event_id AND conversation_type = 'direct'
-        AND status = 'pending' AND participant_id = _attendee_id
-        AND deleted_by_participant = false
-    ),
-    'unread_messages', (
-      SELECT COUNT(*)::int FROM chat_conversations
-      WHERE event_id = _event_id AND conversation_type = 'direct'
-        AND status = 'active'
-        AND (initiated_by = _attendee_id OR participant_id = _attendee_id)
-        AND last_message_at IS NOT NULL
-        AND last_message_at > _last_seen
+CREATE INDEX idx_invitation_log_attendee_attempted ON invitation_send_log(attendee_id, attempted_at DESC);
+CREATE INDEX idx_invitation_log_event_status ON invitation_send_log(event_id, status, attempted_at DESC);
+
+ALTER TABLE invitation_send_log ENABLE ROW LEVEL SECURITY;
+
+-- Solo admin/superuser de la org del evento puede leer
+CREATE POLICY "Admins read own org invitation logs"
+  ON invitation_send_log FOR SELECT TO authenticated
+  USING (event_id IN (
+    SELECT e.id FROM events e
+    WHERE has_role(auth.uid(), 'superuser'::app_role)
+       OR has_org_role(auth.uid(), 'admin'::app_role, e.organization_id)
+  ));
+
+-- Solo edge functions (service_role) escriben
+CREATE POLICY "Service writes invitation logs"
+  ON invitation_send_log FOR INSERT TO service_role
+  WITH CHECK (true);
+```
+
+**Modificar `send-invitation-email/index.ts`** — al final de cada `sendOneInvitation` y para cada skipped recipient, hacer `INSERT` en `invitation_send_log` con el resultado. Mismo cambio en `regenerate-access-code`.
+
+**Nueva RPC para conteo rápido**:
+```sql
+CREATE FUNCTION get_failed_invitation_attendee_ids(_event_id uuid)
+RETURNS SETOF uuid LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  -- Asistentes cuyo último intento falló o que nunca tuvieron intento exitoso
+  SELECT DISTINCT a.id
+  FROM attendees a
+  WHERE a.event_id = _event_id
+    AND a.deleted_at IS NULL
+    AND a.registration_status != 'cancelled'
+    AND a.email IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM invitation_send_log l
+      WHERE l.attendee_id = a.id AND l.status = 'sent'
     )
-  );
+    AND EXISTS (
+      SELECT 1 FROM invitation_send_log l
+      WHERE l.attendee_id = a.id AND l.status = 'failed'
+    );
 $$;
 ```
 
-Payload reducido de ~50 KB (lista completa) a ~50 bytes (un entero/JSON).
+#### C. Reintento dirigido (UI admin)
 
-**A2. Refactor de hooks**
+**`src/services/admin-attendees.service.ts`**:
+- Nueva función `getFailedInvitationIds(eventId)` que llama la RPC anterior.
+- Nueva función `getInvitationLog(attendeeId)` que devuelve los últimos 10 intentos para un asistente (para mostrar en el detail drawer).
 
-- `useUnreadAnnouncements` → llamar la RPC en lugar de descargar la lista. Mantener `staleTime: 30s` y eliminar `refetchInterval` (la realtime subscription de `announcements` ya invalida cuando entra uno nuevo).
-- `useUnreadMessages` → mismo patrón con la nueva RPC. Eliminar polling.
-- Aprovechar la realtime existente (`useRealtimeInvalidate` sobre `announcements` y `chat_conversations`) que ya invalida estas keys: con eso el badge se actualiza en push, sin polling.
+**`src/components/admin/attendees/BulkSendCredentialsModal.tsx`**:
+- Agregar nueva categoría en el breakdown: "Fallidos en envío anterior" con conteo y opción a incluirlos.
+- Si solo hay fallidos seleccionados, el botón principal cambia a "Reintentar envío".
 
-**A3. Índices nuevos para soportar los conteos**
+**`src/components/admin/attendees/AttendeeDetailDrawer.tsx`**:
+- Agregar mini-sección "Historial de envíos" con los últimos 3 intentos (timestamp + status + reason).
 
-```sql
-CREATE INDEX IF NOT EXISTS idx_announcements_event_sent_at
-  ON public.announcements(event_id, sent_at DESC) WHERE sent_at IS NOT NULL;
+**`src/pages/admin/Attendees.tsx`**:
+- En la barra de acciones masivas, nuevo botón "Reenviar fallidos" que:
+  1. Llama `getFailedInvitationIds` para obtener los ids
+  2. Si hay > 0, abre `BulkSendCredentialsModal` con esos preseleccionados.
 
-CREATE INDEX IF NOT EXISTS idx_chat_conversations_participant_status
-  ON public.chat_conversations(event_id, participant_id, status, last_message_at DESC);
+#### D. i18n
 
-CREATE INDEX IF NOT EXISTS idx_chat_conversations_initiator
-  ON public.chat_conversations(event_id, initiated_by, status, last_message_at DESC);
-```
+Añadir las nuevas claves en `src/locales/es/admin.json` y `src/locales/en/admin.json`:
+- `invitations.failed`: "Fallidos en envío anterior" / "Failed in previous send"
+- `invitations.retryFailed`: "Reenviar fallidos" / "Retry failed"
+- `invitations.history`: "Historial de envíos" / "Send history"
+- `invitations.statusSent`, `invitations.statusFailed`, etc.
 
-#### B. Servicios de listado
+### Sin cambios en
 
-**B1. Sponsors** — paralelizar generación de signed URLs y cachear el resultado por sesión:
-- `sponsorsService.getByEvent` ya usa `Promise.all`, pero cada item dispara 2 llamadas seriadas a Storage. Cambiar a `Promise.all` plano sobre TODOS los URLs (una sola tanda en vez de N×2).
-- Aumentar `staleTime` de `useSponsors` de 30s a 5 min — los sponsors casi no cambian durante el evento.
+- Flujo de autenticación (`verify-access-code`) — no toca URLs ni envía emails.
+- Schema de `attendees` — `invitation_sent_at` se mantiene como timestamp del **último intento** (no del último éxito); los detalles finos viven en el log.
+- Resend / configuración del dominio — la integración funciona; el problema real es la falta de visibilidad post-envío.
 
-**B2. Mensajería** — un solo round-trip:
-- Crear RPC `get_my_direct_conversations(_event_id, _attendee_id)` que hace el JOIN con `public_attendee_directory` en SQL y aplica el filtro `deleted_by_*` antes de devolver. Reemplaza 2 queries + filter cliente por 1 query.
+### Resultado esperado
 
-**B3. Polls** — RPC agregada:
-- Reemplazar las 4 queries de `getActivePolls` por una sola RPC `get_active_polls_with_counts(_event_id, _attendee_id)` que devuelve `polls + options + response_count + my_response` en un payload (los counts se calculan en SQL con `GROUP BY`, no se descargan respuestas individuales).
-
-**B4. Tickets realtime** — restringir suscripción:
-- Cambiar la realtime de `service_tickets` (sin filtro) a una invalidación por evento de `attendee_services` solamente. Si necesitamos `is_used` en tiempo real, hacer un join en el `select` y bastar con la suscripción a `attendee_services`.
-
-**B5. Documentos** — sin cambios de código pero sí índice:
-```sql
-CREATE INDEX IF NOT EXISTS idx_documents_event_created_at
-  ON public.documents(event_id, created_at DESC);
-```
-
-#### C. Reconexión y caché
-
-**C1. `AttendeeOfflineBanner` reconnect** — invalidación quirúrgica:
-- Solo invalidar las query keys del **evento actual** (leer `eventSlug` del context). Reduce el spike de red al reconectar.
-- Dispatch `attendee:reconnected` se mantiene (las realtime channels lo necesitan).
-
-**C2. QueryClient global** (`App.tsx`):
-```ts
-new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 60_000,           // baja de 5 min a 1 min — más fresh sin pegarle al server
-      gcTime: 10 * 60_000,         // colectar caché vieja a los 10 min
-      retry: 1,
-      refetchOnReconnect: 'always',
-      refetchOnWindowFocus: false, // evita doble fetch al volver de background
-    },
-  },
-});
-```
-
-#### D. Instrumentación para validación en producción
-
-**D1. Helper `lib/perf.ts`** — pequeña utilidad que envuelve queries críticas y emite breadcrumbs a Sentry con duración y tamaño de payload:
-
-```ts
-export async function measure<T>(label: string, fn: () => Promise<T>): Promise<T> {
-  const t0 = performance.now();
-  try {
-    const result = await fn();
-    Sentry.addBreadcrumb({
-      category: 'perf', level: 'info',
-      message: `${label} ${(performance.now() - t0).toFixed(0)}ms`,
-      data: { duration_ms: performance.now() - t0 },
-    });
-    return result;
-  } catch (e) {
-    Sentry.captureException(e, { tags: { perf_label: label } });
-    throw e;
-  }
-}
-```
-
-Aplicarla en los 5 servicios refactorizados (announcements, messaging, polls, sponsors, tickets).
-
-**D2. Web Vitals (sin libs nuevas)** — emitir en `main.tsx` `LCP`, `INP`, `CLS` usando `PerformanceObserver` nativo y enviar a Sentry como custom metrics. Cero overhead en build.
-
-**D3. Validación en producción (En Vivo)** — protocolo:
-1. Login asistente en `https://congress-connect-app.lovable.app/ACQFH-2026` desde Chrome DevTools con throttling **Slow 4G**.
-2. Recorrer cada listado (Agenda, Tickets, Comercial, Contactos, Documentos, Mensajería, Anuncios, Polls) y registrar:
-   - Time to first byte de la query principal (visible en Network tab → tiempo de la query Supabase)
-   - Render-to-interactive (clic en cualquier elemento responde < 100ms)
-   - Tamaño del payload por endpoint
-3. Verificar en el dashboard de Sentry → "Performance" que aparezcan las custom metrics `perf.list.announcements`, `perf.list.sponsors`, etc., con p95 < 800ms.
-4. Apagar/encender red 3 veces seguidas → confirmar que el banner ámbar aparece, se sincroniza en < 2s, y no hay spike de >5 requests simultáneos en Network.
-5. Comparar con baseline pre-cambios (capturar antes de aplicar cambios para tener métrica comparable).
-
-### Cambios fuera de alcance (intencionalmente)
-
-- No se toca el flujo de autenticación ni el de credenciales (ya cubierto en planes anteriores).
-- No se introduce paginación nueva — los listados actuales no exceden 100 items por evento. Si crece en el futuro, agregar paginación es un cambio aislado.
-- No se reemplaza TanStack Query — sigue siendo la pieza correcta.
-
-### Detalles técnicos (para revisión técnica del equipo)
-
-**Migrations**
-1. Crear funciones `count_unread_announcements`, `count_unread_messages`, `get_my_direct_conversations`, `get_active_polls_with_counts`.
-2. Crear índices: `idx_announcements_event_sent_at`, `idx_chat_conversations_participant_status`, `idx_chat_conversations_initiator`, `idx_documents_event_created_at`.
-3. Permisos: GRANT EXECUTE de las 4 RPCs a `authenticated`.
-
-**Archivos modificados**
-- `src/services/announcements.service.ts` — añadir `getUnreadCount(eventId, lastSeen)` que llama RPC.
-- `src/services/messaging.service.ts` — refactor `getDirectConversations` para usar RPC; añadir `getUnreadCounts`.
-- `src/services/polls.service.ts` — refactor `getActivePolls` a una RPC.
-- `src/services/sponsors.service.ts` — paralelizar signed URLs.
-- `src/hooks/useUnreadAnnouncements.ts` — RPC + sin polling.
-- `src/hooks/useUnreadMessages.ts` — RPC + sin polling.
-- `src/hooks/useTickets.ts` — quitar suscripción global a `service_tickets`.
-- `src/hooks/useSponsors.ts` — `staleTime: 5 min`.
-- `src/components/layout/AttendeeOfflineBanner.tsx` — invalidar solo queries del evento actual.
-- `src/App.tsx` — config QueryClient.
-- `src/lib/perf.ts` — nuevo helper.
-- `src/main.tsx` — Web Vitals observer.
-
-**Resultados esperados (métricas objetivo)**
-| Métrica | Antes (estimado) | Después (objetivo) |
+| Problema | Antes | Después |
 |---|---|---|
-| Carga de Comercial (Slow 4G) | 1500-2500 ms | < 800 ms |
-| Carga de Mensajería (Slow 4G) | 800-1200 ms | < 400 ms |
-| Polling de notificaciones | 4 req/min × asistente | 0 req/min (push only) |
-| Payload de unread-messages | ~30 KB | ~80 bytes |
-| Spike de red al reconectar | 7-10 reqs simultáneos | 2-3 reqs (solo evento actual) |
-| LCP (Slow 4G, página listado) | ~3.5 s | < 2.5 s |
+| URL `…/ACQFH-2026/ACQFH-2026` | Se filtra solo 1 nivel; staff/provider no se filtran nunca | TODAS las URLs limpian cualquier nivel de duplicación |
+| Asistente sin email | Aparece "Invitado" en la UI sin forma de saber qué pasó | Aparece historial con razón ("invalid_recipient", "rate_limited") |
+| Reintento masivo | Hay que reseleccionar manualmente y desactivar el filtro "ya invitado" | Botón "Reenviar fallidos" hace el filtro automático |
+| Auditoría | Solo en logs de edge function (24h de retención) | Tabla persistente con índices, RLS, consultable desde UI |
+
+### Verificación post-deploy
+
+1. **URL fix**: temporalmente setear `APP_URL = https://congress-connect-app.lovable.app/ACQFH-2026/ACQFH-2026/` en secrets → enviar invitación de prueba a 1 asistente → confirmar que el link en el email es `…lovable.app/ACQFH-2026` (sin duplicar). Restaurar el secret correcto.
+2. **Bitácora**: enviar invitación a 3 asistentes (1 con email válido, 1 con email inexistente tipo `noexiste@dominio-falso.xyz`, 1 cancelado) → consultar `SELECT * FROM invitation_send_log WHERE event_id = '…' ORDER BY attempted_at DESC LIMIT 10` → confirmar que aparecen 3 filas con `status` correcto.
+3. **Reintento dirigido**: en la pantalla de admin → click "Reenviar fallidos" → confirmar que el modal preselecciona solo a los del paso 2 que fallaron.
+4. **Historial en detail drawer**: abrir detail drawer de un asistente con 2+ intentos → confirmar que ve los últimos intentos con timestamp y razón.
+5. **Staff y provider**: invitar 1 staff y 1 provider con el `APP_URL` correcto → confirmar que sus links son `…lovable.app/ACQFH-2026/staff` y `…lovable.app/provider` respectivamente (sin duplicaciones).
 
