@@ -806,5 +806,8 @@ export interface SendInvitationFailure {
 export interface SendInvitationsResult {
   sent: number;
   failed: number;
+  /** Server-side count of recipients excluded (cancelled / invalid email). */
+  skipped?: number;
+  skippedDetails?: { id: string; reason: string }[];
   errors?: SendInvitationFailure[];
 }
