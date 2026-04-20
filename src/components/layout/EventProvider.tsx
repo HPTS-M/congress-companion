@@ -2,16 +2,32 @@ import { Outlet, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useEventLoader, EventContext } from '@/hooks/useEvent';
 import { useAgendaRealtime } from '@/hooks/useAdminAgenda';
+import { useRealtimeInvalidate } from '@/hooks/useRealtimeInvalidate';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export function EventProvider() {
   const { eventSlug = '' } = useParams<{ eventSlug: string }>();
   const { data: event, isLoading, error } = useEventLoader(eventSlug);
   const { t } = useTranslation();
+  const isOnline = useOnlineStatus();
 
   // Global agenda realtime sync — invalidates every dependent query
   // (admin + attendee views) when sessions change anywhere in the event.
   useAgendaRealtime(event?.id);
+
+  // Mobile-first: realtime sync of the event row itself.
+  // When the admin flips a setting toggle (qr_enabled, messaging_enabled, etc.),
+  // every connected attendee's cache is invalidated within ~1s, so the bottom
+  // nav and feature visibility update without waiting for staleTime to expire.
+  useRealtimeInvalidate({
+    channelName: `event-row-${event?.id ?? 'none'}`,
+    table: 'events',
+    filter: event?.id ? `id=eq.${event.id}` : undefined,
+    event: 'UPDATE',
+    queryKeys: [['event', eventSlug]],
+    enabled: !!event?.id && isOnline,
+  });
 
   if (isLoading) {
     return (
