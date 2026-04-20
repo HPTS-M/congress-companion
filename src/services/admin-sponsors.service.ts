@@ -100,13 +100,18 @@ export const adminSponsorsService = {
     file: File,
     prefix: string,
   ): Promise<{ path: string; size: number }> {
-    const ext = file.name.split('.').pop() ?? '';
+    const ext = (file.name.split('.').pop() ?? '').toLowerCase();
     const filename = `${prefix}-${Date.now()}.${ext}`;
     const path = `${eventId}/${filename}`;
 
+    // Some files (Windows/Edge) come with file.type === ''. Force an explicit
+    // contentType so Supabase Storage doesn't reject the upload.
+    const fallbackType = prefix === 'materials' ? 'application/pdf' : `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+    const contentType = file.type || fallbackType;
+
     const { error } = await supabase.storage
       .from(BUCKET)
-      .upload(path, file, { upsert: true });
+      .upload(path, file, { upsert: true, contentType });
     if (error) throw new Error(error.message);
 
     // Best-effort post-upload verification (non-destructive).
