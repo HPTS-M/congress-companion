@@ -495,6 +495,7 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog open={confirmRegenAccess} onOpenChange={setConfirmRegenAccess}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('attendees.detail.regenerateAccessCode')}</AlertDialogTitle>
