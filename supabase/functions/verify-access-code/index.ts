@@ -39,7 +39,9 @@ const requestSchema = z
     { message: 'Code required' },
   );
 
-const RATE_LIMIT_MAX = 5;
+// Increased from 5 → 10 to accommodate mobile users behind CGNAT,
+// where many real users may share the same egress IP.
+const RATE_LIMIT_MAX = 10;
 const RATE_LIMIT_WINDOW_MINUTES = 15;
 
 function getClientIp(req: Request): string {
@@ -83,7 +85,7 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Rate limiting
+    // --- Rate limiting (composite key: ip + event_code, only failed attempts counted) ---
     const clientIp = getClientIp(req);
     const windowStart = new Date(Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60 * 1000).toISOString();
 
@@ -91,6 +93,7 @@ Deno.serve(async (req) => {
       .from('access_attempts')
       .select('*', { count: 'exact', head: true })
       .eq('ip_address', clientIp)
+      .eq('event_code', event_code)
       .gte('attempted_at', windowStart);
 
     if (countError) {
@@ -101,9 +104,16 @@ Deno.serve(async (req) => {
       return jsonError(429, 'Too many attempts. Try again later.');
     }
 
-    await supabaseAdmin
-      .from('access_attempts')
-      .insert({ ip_address: clientIp, event_code });
+    // Helper: log a failed attempt only (successful logins are NOT counted).
+    const logFailedAttempt = async () => {
+      try {
+        await supabaseAdmin
+          .from('access_attempts')
+          .insert({ ip_address: clientIp, event_code });
+      } catch (e) {
+        console.error('Failed to log attempt:', (e as Error).message);
+      }
+    };
 
     if (Math.random() < 0.01) {
       supabaseAdmin.rpc('cleanup_old_attempts').then(() => {}).catch(() => {});
@@ -119,6 +129,7 @@ Deno.serve(async (req) => {
 
     if (eventError || !event) {
       console.error('Event lookup error:', eventError?.message);
+      await logFailedAttempt();
       return jsonError(404, 'Event not found');
     }
 
@@ -130,6 +141,7 @@ Deno.serve(async (req) => {
     if (external_credential_code) {
       // External-code login path: only allowed if the toggle is enabled
       if (!externalEnabled) {
+        await logFailedAttempt();
         return jsonError(401, 'Invalid code');
       }
 
@@ -179,16 +191,19 @@ Deno.serve(async (req) => {
     }
 
     if (!matchedAttendee) {
+      await logFailedAttempt();
       return jsonError(401, 'Invalid code');
     }
 
     if (matchedAttendee.registration_status === 'cancelled') {
+      await logFailedAttempt();
       return jsonError(403, 'Registration cancelled');
     }
 
     // Block if session already active unless force_login is set
     if (matchedAttendee.last_session_id) {
       if (!force_login) {
+        // Conflict is not a fraudulent attempt — do not count toward rate limit.
         return jsonError(409, 'Session already active');
       }
       await supabaseAdmin
@@ -249,7 +264,9 @@ Deno.serve(async (req) => {
         .maybeSingle();
     }
 
-    // Generate magic link
+    // --- Generate magic link ---
+    // We ALWAYS extract token_hash from action_link (universal, PKCE-compatible)
+    // and OPTIONALLY include email_otp when Supabase emits it (legacy fallback).
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'magiclink',
       email: matchedAttendee.email,
@@ -266,12 +283,36 @@ Deno.serve(async (req) => {
       .update({ last_session_id: sessionMarker })
       .eq('id', matchedAttendee.id);
 
-    const emailOtp = linkData.properties?.email_otp;
+    // Extract token_hash (modern, universal path — works on mobile + desktop).
+    // Prefer hashed_token property; fall back to parsing action_link query string.
+    let tokenHash: string | null =
+      (linkData.properties as Record<string, any> | undefined)?.hashed_token ?? null;
 
-    const responsePayload = {
+    if (!tokenHash) {
+      const actionLink = linkData.properties?.action_link;
+      if (actionLink) {
+        try {
+          const url = new URL(actionLink);
+          tokenHash = url.searchParams.get('token');
+        } catch (e) {
+          console.error('Failed to parse action_link:', (e as Error).message);
+        }
+      }
+    }
+
+    const emailOtp = linkData.properties?.email_otp || null;
+
+    // Must have at least one verification mechanism
+    if (!tokenHash && !emailOtp) {
+      console.error('Neither token_hash nor email_otp returned by generateLink');
+      return jsonError(500, 'Server error');
+    }
+
+    const responsePayload: Record<string, any> = {
       success: true,
       email: matchedAttendee.email,
       session_marker: sessionMarker,
+      type: 'magiclink',
       attendee: {
         id: matchedAttendee.id,
         full_name: matchedAttendee.full_name,
@@ -289,30 +330,11 @@ Deno.serve(async (req) => {
       },
     };
 
-    if (!emailOtp) {
-      const actionLink = linkData.properties?.action_link;
-      if (!actionLink) {
-        return jsonError(500, 'Server error');
-      }
-
-      const url = new URL(actionLink);
-      const tokenHash = url.searchParams.get('token');
-
-      return new Response(
-        JSON.stringify({
-          ...responsePayload,
-          token_hash: tokenHash,
-          type: 'magiclink',
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    if (tokenHash) responsePayload.token_hash = tokenHash;
+    if (emailOtp) responsePayload.email_otp = emailOtp;
 
     return new Response(
-      JSON.stringify({
-        ...responsePayload,
-        email_otp: emailOtp,
-      }),
+      JSON.stringify(responsePayload),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (err) {

@@ -89,7 +89,9 @@
     "welcomeBack": "¡Bienvenido de vuelta!",
     "loggingIn": "Iniciando sesión...",
     "or": "o",
-    "sessionExpired": "Tu sesión ha expirado. Ingresa tu código nuevamente."
+    "sessionExpired": "Tu sesión ha expirado. Ingresa tu código nuevamente.",
+    "tooManyAttempts": "Demasiados intentos. Intenta más tarde.",
+    "loginGenericError": "No pudimos validar tu código. Verifica que esté correcto e intenta de nuevo."
   },
   "home": {
     "title": "Inicio",

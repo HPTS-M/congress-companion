@@ -89,7 +89,9 @@
     "welcomeBack": "Welcome back!",
     "loggingIn": "Logging in...",
     "or": "or",
-    "sessionExpired": "Your session has expired. Please enter your code again."
+    "sessionExpired": "Your session has expired. Please enter your code again.",
+    "tooManyAttempts": "Too many attempts. Please try again later.",
+    "loginGenericError": "We couldn't validate your code. Check it and try again."
   },
   "home": {
     "title": "Home",

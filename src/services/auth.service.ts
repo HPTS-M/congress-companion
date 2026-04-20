@@ -34,8 +34,10 @@ export const authService = {
 
     return data as {
       success: boolean;
-      email_otp: string;
       email: string;
+      type?: 'magiclink';
+      token_hash?: string;
+      email_otp?: string;
       attendee: {
         id: string;
         full_name: string;
@@ -55,17 +57,36 @@ export const authService = {
   },
 
   /**
-   * Establish Supabase session using OTP from edge function.
+   * Establish Supabase session using either token_hash (preferred, universal/PKCE)
+   * or email_otp (legacy fallback). At least one must be provided.
    */
-  establishSession: async (email: string, emailOtp: string) => {
-    const { data, error } = await supabase.auth.verifyOtp({
-      email,
-      token: emailOtp,
-      type: 'magiclink',
-    });
+  establishSession: async (
+    email: string,
+    opts: { tokenHash?: string | null; emailOtp?: string | null }
+  ) => {
+    // Preferred: token_hash works across all browsers (mobile + desktop) and is
+    // the modern PKCE-compatible flow recommended by Supabase.
+    if (opts.tokenHash) {
+      const { data, error } = await supabase.auth.verifyOtp({
+        token_hash: opts.tokenHash,
+        type: 'magiclink',
+      });
+      if (error) throw error;
+      return data;
+    }
 
-    if (error) throw error;
-    return data;
+    // Legacy fallback: email + 6-digit OTP.
+    if (opts.emailOtp) {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token: opts.emailOtp,
+        type: 'magiclink',
+      });
+      if (error) throw error;
+      return data;
+    }
+
+    throw new Error('No auth token returned');
   },
 
   /**

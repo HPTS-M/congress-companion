@@ -54,7 +54,7 @@ export default function AttendeeLogin() {
         'Registration cancelled': t('auth.registrationCancelled'),
         'Too many attempts. Try again later.': t('auth.tooManyAttempts', 'Demasiados intentos. Intenta más tarde.'),
       };
-      setLoginError(messages[errorMsg] || t('error'));
+      setLoginError(messages[errorMsg] || t('auth.loginGenericError'));
       setSessionConflict(false);
     }
   };
