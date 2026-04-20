@@ -34,7 +34,7 @@ function buildEmailHtml(
   eventName: string,
   eventCode: string,
   accessCode: string,
-  appUrl: string,
+  loginUrl: string,
 ): string {
   return `
 <!DOCTYPE html>
@@ -60,7 +60,7 @@ function buildEmailHtml(
       </div>
       
       <div style="text-align:center;margin:0 0 24px;">
-        <a href="${appUrl}/${eventCode}" style="display:inline-block;background:linear-gradient(135deg,#1A56A0,#00B89F);color:#fff;text-decoration:none;padding:12px 32px;border-radius:8px;font-weight:600;font-size:14px;">Open Event App</a>
+        <a href="${loginUrl}" style="display:inline-block;background:linear-gradient(135deg,#1A56A0,#00B89F);color:#fff;text-decoration:none;padding:12px 32px;border-radius:8px;font-weight:600;font-size:14px;">Open Event App</a>
       </div>
       
       <p style="color:#94a3b8;font-size:12px;margin:0;text-align:center;">This code is personal and non-transferable. Do not share it with others.</p>
