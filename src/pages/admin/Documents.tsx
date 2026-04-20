@@ -7,12 +7,12 @@ import {
   useDeleteDocument,
   useBulkDeleteDocuments,
 } from '@/hooks/useAdminDocuments';
-import { adminDocumentsService, type DocumentWithSession } from '@/services/admin-documents.service';
+import { type DocumentWithSession } from '@/services/admin-documents.service';
 import { UploadDocumentModal } from '@/components/admin/documents/UploadDocumentModal';
+import { BulkUploadDocumentsModal } from '@/components/admin/documents/BulkUploadDocumentsModal';
 import { EditDocumentModal } from '@/components/admin/documents/EditDocumentModal';
 import { DocumentIndexModal } from '@/components/admin/documents/DocumentIndexModal';
 import { DocumentQualityPanel } from '@/components/admin/documents/DocumentQualityPanel';
-import { CompletenessCheckModal } from '@/components/admin/documents/CompletenessCheckModal';
 import { DocumentPreviewModal } from '@/components/admin/documents/DocumentPreviewModal';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -30,15 +30,13 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
-  Plus, Download, Pencil, Trash2, FileText, Search, List, ClipboardCheck,
-  RefreshCw, Eye, FileSpreadsheet, Archive,
+  Plus, Pencil, Trash2, FileText, Search, List,
+  RefreshCw, Eye, UploadCloud,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient, useIsFetching } from '@tanstack/react-query';
 import { usePagination } from '@/hooks/usePagination';
 import { DataTablePagination } from '@/components/ui/data-table-pagination';
-import { writeExcelFile } from '@/lib/excel';
-import JSZip from 'jszip';
 
 const TYPE_COLORS: Record<string, string> = {
   pdf: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300',
@@ -94,15 +92,14 @@ export default function AdminDocuments() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<typeof FILTERS[number]>('all');
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
   const [editDoc, setEditDoc] = useState<DocumentWithSession | null>(null);
   const [previewDoc, setPreviewDoc] = useState<DocumentWithSession | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DocumentWithSession | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [indexOpen, setIndexOpen] = useState(false);
-  const [completenessOpen, setCompletenessOpen] = useState(false);
   const [qualityFilterIds, setQualityFilterIds] = useState<string[] | null>(null);
   const [qualityFilterLabel, setQualityFilterLabel] = useState('');
-  const [bulkExportProgress, setBulkExportProgress] = useState<{ current: number; total: number } | null>(null);
 
   const filtered = useMemo(() => {
     if (!documents) return [];
