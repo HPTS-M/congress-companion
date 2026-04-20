@@ -65,6 +65,17 @@ export interface AttendeeFilters {
   hasServices?: 'yes' | 'no' | null;
 }
 
+export interface InvitationLogEntry {
+  id: string;
+  attendee_id: string;
+  event_id: string;
+  status: 'sent' | 'failed' | 'skipped';
+  reason: string | null;
+  error_message: string | null;
+  retries: number;
+  attempted_at: string;
+}
+
 export const adminAttendeesService = {
   /**
    * Fetch a specific subset of attendees by ID for the given event.
