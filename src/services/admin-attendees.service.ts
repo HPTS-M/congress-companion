@@ -770,37 +770,137 @@ export const adminAttendeesService = {
       .filter((c) => c.length > 0);
   },
 
+  /**
+   * Send credential emails. Auto-paginates `attendeeIds` in chunks of 50
+   * (matching the edge function's per-request cap) and aggregates results.
+   * Each request has an explicit 50s timeout via AbortController so a
+   * stuck chunk can't block the rest of the batch.
+   */
   sendInvitations: async (
     attendeeIds: string[],
     eventId: string,
   ): Promise<SendInvitationsResult> => {
+    if (attendeeIds.length === 0) {
+      return { sent: 0, failed: 0 };
+    }
+
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData?.session?.access_token;
     if (!token) throw new Error('Not authenticated');
 
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const response = await fetch(`${supabaseUrl}/functions/v1/send-invitation-email`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-      },
-      body: JSON.stringify({ attendee_ids: attendeeIds, event_id: eventId }),
-    });
+    const url = `${supabaseUrl}/functions/v1/send-invitation-email`;
 
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.error || 'Failed to send invitations');
+    const CHUNK_SIZE = 50;
+    const REQUEST_TIMEOUT_MS = 50_000;
+
+    const aggregated: Required<Pick<SendInvitationsResult, 'sent' | 'failed'>> & {
+      skipped: number;
+      skippedDetails: { id: string; reason: string }[];
+      errors: SendInvitationFailure[];
+    } = {
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+      skippedDetails: [],
+      errors: [],
+    };
+
+    for (let i = 0; i < attendeeIds.length; i += CHUNK_SIZE) {
+      const chunk = attendeeIds.slice(i, i + CHUNK_SIZE);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({ attendee_ids: chunk, event_id: eventId }),
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          // Mark every attendee in this chunk as failed so the admin sees
+          // which ones need a manual retry.
+          aggregated.failed += chunk.length;
+          chunk.forEach((id) =>
+            aggregated.errors.push({
+              id,
+              error: `HTTP ${response.status}: ${errData.error ?? 'request_failed'}`,
+            }),
+          );
+          continue;
+        }
+
+        const result = (await response.json()) as SendInvitationsResult;
+        aggregated.sent += result.sent ?? 0;
+        aggregated.failed += result.failed ?? 0;
+        aggregated.skipped += result.skipped ?? 0;
+        if (result.skippedDetails?.length) aggregated.skippedDetails.push(...result.skippedDetails);
+        if (result.errors?.length) aggregated.errors.push(...result.errors);
+      } catch (err) {
+        const isAbort = (err as Error).name === 'AbortError';
+        aggregated.failed += chunk.length;
+        chunk.forEach((id) =>
+          aggregated.errors.push({
+            id,
+            error: isAbort ? 'timeout' : `network_error: ${(err as Error).message}`,
+          }),
+        );
+      } finally {
+        clearTimeout(timeoutId);
+      }
     }
 
-    return response.json();
+    return {
+      sent: aggregated.sent,
+      failed: aggregated.failed,
+      skipped: aggregated.skipped || undefined,
+      skippedDetails: aggregated.skippedDetails.length ? aggregated.skippedDetails : undefined,
+      errors: aggregated.errors.length ? aggregated.errors : undefined,
+    };
+  },
+
+  /**
+   * IDs of attendees who never received a credential email.
+   * Filters out cancelled and missing/invalid emails so the admin only
+   * sees actionable candidates for "Retry pending credentials".
+   */
+  getPendingInvitationIds: async (eventId: string): Promise<string[]> => {
+    const { data, error } = await supabase
+      .from('attendees')
+      .select('id, email, registration_status')
+      .eq('event_id', eventId)
+      .is('deleted_at', null)
+      .is('invitation_sent_at', null);
+
+    if (error) throw new Error(error.message);
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return (data ?? [])
+      .filter(
+        (a) =>
+          a.registration_status !== 'cancelled' &&
+          a.email &&
+          EMAIL_RE.test(a.email.trim()),
+      )
+      .map((a) => a.id);
   },
 };
 
 export interface SendInvitationFailure {
   id: string;
+  /** Raw technical message — useful for logs. */
   error: string;
+  /**
+   * Stable, human-readable failure category from the edge function.
+   * Optional because timeouts/HTTP errors raised client-side don't set it.
+   */
+  reason?: 'rate_limited' | 'invalid_recipient' | 'resend_error' | 'db_error' | 'unknown';
 }
 
 export interface SendInvitationsResult {
