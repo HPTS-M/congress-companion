@@ -13,7 +13,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
-import { useAdminAttendees, useSendInvitations, useDeleteAttendee, useUpdateAttendeeStatus, useAttendeeFilterOptions, usePendingInvitations } from '@/hooks/useAdminAttendees';
+import { useAdminAttendees, useSendInvitations, useDeleteAttendee, useUpdateAttendeeStatus, useAttendeeFilterOptions, usePendingInvitations, useFailedInvitations } from '@/hooks/useAdminAttendees';
 import { adminAttendeesService, type AttendeeWithServices, type AttendeeFilters } from '@/services/admin-attendees.service';
 import { useEvent } from '@/hooks/useEvent';
 import { writeExcelFile } from '@/lib/excel';
@@ -144,6 +144,19 @@ export default function AdminAttendees() {
   const deleteMutation = useDeleteAttendee();
   const updateStatusMutation = useUpdateAttendeeStatus();
   const { data: pendingInvitationIds = [] } = usePendingInvitations();
+  const { data: failedInvitationIds = [] } = useFailedInvitations();
+  const failedIdsSet = useMemo(() => new Set(failedInvitationIds), [failedInvitationIds]);
+
+  const handleRetryFailedInvitations = useCallback(async () => {
+    if (failedInvitationIds.length === 0 || !event?.id) return;
+    try {
+      const snapshot = await adminAttendeesService.getAttendeesByIds(failedInvitationIds, event.id);
+      setBulkSendSnapshot(snapshot);
+      setShowBulkSendModal(true);
+    } catch {
+      toast({ title: t('attendees.invitationFailed'), variant: 'destructive' });
+    }
+  }, [failedInvitationIds, event?.id, t]);
 
   const handleRetryPendingInvitations = useCallback(async () => {
     if (pendingInvitationIds.length === 0) return;

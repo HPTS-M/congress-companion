@@ -198,19 +198,26 @@ export function BulkSendCredentialsModal({
             </div>
             <ScrollArea className="max-h-48 rounded-md border">
               <ul className="divide-y">
-                {previewList.map((a) => (
-                  <li key={a.id} className="flex items-center justify-between gap-2 px-3 py-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{a.full_name}</p>
-                      <p className="truncate text-xs text-muted-foreground">{a.email}</p>
-                    </div>
-                    {a.invitation_sent_at && (
-                      <Badge variant="secondary" className="shrink-0 text-[10px]">
-                        {t('attendees.bulkSendModal.resendBadge')}
-                      </Badge>
-                    )}
-                  </li>
-                ))}
+                {previewList.map((a) => {
+                  const isFailed = failedIds?.has(a.id);
+                  return (
+                    <li key={a.id} className="flex items-center justify-between gap-2 px-3 py-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{a.full_name}</p>
+                        <p className="truncate text-xs text-muted-foreground">{a.email}</p>
+                      </div>
+                      {isFailed ? (
+                        <Badge variant="destructive" className="shrink-0 text-[10px]">
+                          {t('attendees.invitations.statusFailed')}
+                        </Badge>
+                      ) : a.invitation_sent_at ? (
+                        <Badge variant="secondary" className="shrink-0 text-[10px]">
+                          {t('attendees.bulkSendModal.resendBadge')}
+                        </Badge>
+                      ) : null}
+                    </li>
+                  );
+                })}
                 {hiddenCount > 0 && (
                   <li className="px-3 py-2 text-center text-xs text-muted-foreground">
                     {t('attendees.bulkSendModal.andMore', { count: hiddenCount })}
