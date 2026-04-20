@@ -428,11 +428,23 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
         });
         setProgress(80);
 
-        if (importStatus === 'confirmed' && upsertResult.insertedIds.length > 0) {
+        // Always send credential emails (regardless of pending/confirmed):
+        // pending attendees auto-confirm on first login via verify-access-code.
+        let invitationsSent = 0;
+        let invitationsFailed = 0;
+        let invitationsSkipped = 0;
+        let invitationsFirstError: string | undefined;
+        if (upsertResult.insertedIds.length > 0) {
           try {
-            await sendInvitationsMutation.mutateAsync(upsertResult.insertedIds);
+            const sendRes = await sendInvitationsMutation.mutateAsync(upsertResult.insertedIds);
+            invitationsSent = sendRes.sent;
+            invitationsFailed = sendRes.failed;
+            invitationsSkipped = sendRes.skipped ?? 0;
+            invitationsFirstError = sendRes.errors?.[0]?.error;
           } catch (invErr) {
             console.error('Failed to send invitations:', invErr);
+            invitationsFailed = upsertResult.insertedIds.length;
+            invitationsFirstError = (invErr as Error).message;
           }
         }
         setProgress(100);
@@ -447,14 +459,20 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
           warnings: warningRows.length,
           blockedRows,
           warningRows,
+          invitationsSent,
+          invitationsFailed,
+          invitationsSkipped,
+          invitationsFirstError,
         });
 
         toast({
-          title: t('attendees.importModal.upsertSuccess', {
-            inserted: upsertResult.inserted,
-            updated: upsertResult.updated,
-            skipped: upsertResult.skipped,
+          title: t('attendees.importModal.detailedResult', {
+            imported: upsertResult.inserted,
+            sent: invitationsSent,
+            failed: invitationsFailed,
+            defaultValue: 'Imported: {{imported}} · Sent: {{sent}} · Failed: {{failed}}',
           }),
+          variant: invitationsFailed > 0 ? 'destructive' : 'default',
         });
         return;
       }
@@ -468,11 +486,22 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
       });
       setProgress(80);
 
-      if (importStatus === 'confirmed' && result.ids.length > 0) {
+      // Always send credential emails after bulk insert.
+      let invitationsSent = 0;
+      let invitationsFailed = 0;
+      let invitationsSkipped = 0;
+      let invitationsFirstError: string | undefined;
+      if (result.ids.length > 0) {
         try {
-          await sendInvitationsMutation.mutateAsync(result.ids);
+          const sendRes = await sendInvitationsMutation.mutateAsync(result.ids);
+          invitationsSent = sendRes.sent;
+          invitationsFailed = sendRes.failed;
+          invitationsSkipped = sendRes.skipped ?? 0;
+          invitationsFirstError = sendRes.errors?.[0]?.error;
         } catch (invErr) {
           console.error('Failed to send invitations:', invErr);
+          invitationsFailed = result.ids.length;
+          invitationsFirstError = (invErr as Error).message;
         }
       }
       setProgress(100);
@@ -484,9 +513,21 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
         warnings: warningRows.length,
         blockedRows,
         warningRows,
+        invitationsSent,
+        invitationsFailed,
+        invitationsSkipped,
+        invitationsFirstError,
       });
 
-      toast({ title: t('attendees.importModal.success', { count: result.inserted }) });
+      toast({
+        title: t('attendees.importModal.detailedResult', {
+          imported: result.inserted,
+          sent: invitationsSent,
+          failed: invitationsFailed,
+          defaultValue: 'Imported: {{imported}} · Sent: {{sent}} · Failed: {{failed}}',
+        }),
+        variant: invitationsFailed > 0 ? 'destructive' : 'default',
+      });
     } catch {
       toast({ title: t('attendees.newAttendeeModal.error'), variant: 'destructive' });
       setProgress(0);
