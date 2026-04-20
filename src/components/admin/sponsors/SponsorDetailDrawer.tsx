@@ -199,12 +199,27 @@ export function SponsorDetailDrawer({ open, onClose, sponsor }: Props) {
                 <div className="flex items-center gap-2 text-sm"><Play className="h-4 w-4 text-muted-foreground" /> <a href={sponsor.video_url} target="_blank" rel="noopener noreferrer" className="text-primary underline truncate">{sponsor.video_url}</a></div>
               )}
               {sponsor.materials_url && (
-                <div className="flex items-center gap-2 text-sm">
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-foreground">{t('sponsors.hasMaterials')}</span>
-                  <Button variant="ghost" size="sm" onClick={() => setPreviewOpen(true)} className="ml-auto">
-                    <Eye className="mr-1 h-3 w-3" /> {t('sponsors.preview.open')}
-                  </Button>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-foreground">{t('sponsors.hasMaterials')}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewOpen(true)}
+                    className="w-full flex items-center gap-3 rounded-lg border border-border bg-card hover:bg-muted/50 transition-colors p-3 text-left"
+                  >
+                    <div className="h-12 w-12 rounded-md bg-red-100 dark:bg-red-900/30 flex items-center justify-center shrink-0">
+                      <FileText className="h-6 w-6 text-red-600 dark:text-red-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {(sponsor.materials_url.split('/').pop() ?? 'document.pdf')}
+                      </p>
+                      <p className="text-xs text-muted-foreground">PDF · {t('sponsors.preview.open')}</p>
+                    </div>
+                    <Eye className="h-4 w-4 text-muted-foreground shrink-0" />
+                  </button>
                 </div>
               )}
             </TabsContent>
