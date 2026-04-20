@@ -22,6 +22,8 @@ interface BulkSendCredentialsModalProps {
   selectedAttendees: AttendeeWithServices[];
   isSending: boolean;
   onConfirm: (validIds: string[]) => Promise<void> | void;
+  /** Optional set of attendee IDs whose last invitation attempt failed. */
+  failedIds?: Set<string>;
 }
 
 const PREVIEW_LIMIT = 10;
@@ -37,6 +39,7 @@ export function BulkSendCredentialsModal({
   selectedAttendees,
   isSending,
   onConfirm,
+  failedIds,
 }: BulkSendCredentialsModalProps) {
   const { t } = useTranslation('admin');
   const [resendInvited, setResendInvited] = useState(false);
@@ -48,6 +51,7 @@ export function BulkSendCredentialsModal({
     const cancelled: AttendeeWithServices[] = [];
     const alreadyInvited: AttendeeWithServices[] = [];
     const readyFirstTime: AttendeeWithServices[] = [];
+    const failed: AttendeeWithServices[] = [];
 
     for (const a of selectedAttendees) {
       if (a.registration_status === 'cancelled') {
@@ -58,19 +62,24 @@ export function BulkSendCredentialsModal({
         noEmail.push(a);
         continue;
       }
+      if (failedIds?.has(a.id)) {
+        failed.push(a);
+        continue;
+      }
       if (a.invitation_sent_at) {
         alreadyInvited.push(a);
       } else {
         readyFirstTime.push(a);
       }
     }
-    return { noEmail, cancelled, alreadyInvited, readyFirstTime };
-  }, [selectedAttendees]);
+    return { noEmail, cancelled, alreadyInvited, readyFirstTime, failed };
+  }, [selectedAttendees, failedIds]);
 
   const recipientsToSend = useMemo(() => {
+    // Always include first-timers and previously failed; add already-invited only on opt-in
     return resendInvited
-      ? [...breakdown.readyFirstTime, ...breakdown.alreadyInvited]
-      : breakdown.readyFirstTime;
+      ? [...breakdown.readyFirstTime, ...breakdown.failed, ...breakdown.alreadyInvited]
+      : [...breakdown.readyFirstTime, ...breakdown.failed];
   }, [breakdown, resendInvited]);
 
   const previewList = showAll ? recipientsToSend : recipientsToSend.slice(0, PREVIEW_LIMIT);

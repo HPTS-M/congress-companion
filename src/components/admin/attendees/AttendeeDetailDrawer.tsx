@@ -555,3 +555,73 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
     </>
   );
 }
+
+function InvitationHistorySection({ attendeeId }: { attendeeId: string }) {
+  const { t } = useTranslation('admin');
+  const { data: log = [], isLoading } = useInvitationLog(attendeeId);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold text-foreground">{t('attendees.invitations.history')}</h3>
+        <Skeleton className="h-16 w-full" />
+      </div>
+    );
+  }
+
+  if (log.length === 0) {
+    return (
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold text-foreground">{t('attendees.invitations.history')}</h3>
+        <p className="text-xs text-muted-foreground">{t('attendees.invitations.noHistory')}</p>
+      </div>
+    );
+  }
+
+  // Show latest 3
+  const latest = log.slice(0, 3);
+  return (
+    <div className="space-y-2">
+      <h3 className="text-sm font-semibold text-foreground">{t('attendees.invitations.history')}</h3>
+      <ul className="space-y-1.5">
+        {latest.map((entry) => {
+          const statusKey =
+            entry.status === 'sent'
+              ? 'attendees.invitations.statusSent'
+              : entry.status === 'failed'
+                ? 'attendees.invitations.statusFailed'
+                : 'attendees.invitations.statusSkipped';
+          const dotClass =
+            entry.status === 'sent'
+              ? 'bg-accent'
+              : entry.status === 'failed'
+                ? 'bg-destructive'
+                : 'bg-muted-foreground';
+          const reasonKey = entry.reason ? `attendees.invitations.reason.${entry.reason}` : null;
+          const reasonText = reasonKey ? t(reasonKey, { defaultValue: entry.reason ?? '' }) : '';
+          return (
+            <li
+              key={entry.id}
+              className="flex items-start gap-2 rounded-md border bg-muted/30 px-2.5 py-2 text-xs"
+            >
+              <span className={cn('mt-1 h-2 w-2 shrink-0 rounded-full', dotClass)} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium text-foreground">{t(statusKey)}</span>
+                  <span className="text-muted-foreground tabular-nums">
+                    {format(new Date(entry.attempted_at), 'dd/MM HH:mm')}
+                  </span>
+                </div>
+                {reasonText && (
+                  <p className="mt-0.5 text-muted-foreground truncate" title={entry.error_message ?? undefined}>
+                    {reasonText}
+                  </p>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
