@@ -30,7 +30,11 @@ export function useEventLoader(eventSlug: string) {
       return data as CongressEvent;
     },
     enabled: !!eventSlug,
-    staleTime: 10 * 60 * 1000, // 10 minutes
+    // Mobile-first: short cache so admin toggles propagate to attendees fast.
+    // Combined with realtime subscription in EventProvider for instant updates.
+    staleTime: 60_000, // 60 seconds
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: 'always',
     retry: false,
   });
 }

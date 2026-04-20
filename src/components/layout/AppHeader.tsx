@@ -49,9 +49,22 @@ export function AppHeader({ onMenuOpen }: AppHeaderProps) {
       className="fixed top-0 left-0 right-0 z-50 flex h-14 items-center justify-between px-3 md:h-16 md:px-4"
       style={{ background: 'linear-gradient(135deg, hsl(var(--header-start)), hsl(var(--header-end)))' }}
     >
-      {/* Left — hamburger (mobile only) */}
-      <Button variant="ghost" size="icon" onClick={onMenuOpen} className="text-white hover:bg-white/10 md:hidden">
+      {/* Left — hamburger (mobile only). Shows aggregated dot when items
+           hidden inside the menu (e.g. announcements/contacts) have unread. */}
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={onMenuOpen}
+        className="relative text-white hover:bg-white/10 md:hidden"
+        aria-label={announcements.count + messages.count > 0 ? t('notifications.title') : undefined}
+      >
         <Menu className="h-5 w-5" />
+        {(announcements.count > 0 || messages.count > 0) && (
+          <span
+            className="absolute right-1.5 top-1.5 flex h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-white/40"
+            aria-hidden="true"
+          />
+        )}
       </Button>
       {/* Spacer for desktop when hamburger is hidden */}
       <div className="hidden md:block w-10" />
