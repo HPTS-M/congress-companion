@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Calendar, MapPin, Users, ExternalLink, Copy, Check } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
 import { useEvent, useEventSettings } from '@/hooks/useEvent';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
