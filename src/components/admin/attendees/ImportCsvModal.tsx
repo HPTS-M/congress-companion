@@ -184,11 +184,13 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
         if (existingExternalSet.has(k)) duplicateExternalInDb = true;
       }
 
-      // Email duplicates → WARNING (admin decides). External code duplicates → BLOCKING.
+      // Email duplicates → WARNING (admin decides). External code duplicates → BLOCKING,
+      // EXCEPT when "update existing" is enabled and the duplicate exists in DB
+      // (in that case the row will be auto-updated against the existing attendee).
       const extraBlocking: FieldError[] = [];
       if (duplicateExternalInFile)
         extraBlocking.push({ field: 'external_credential_code', message: 'duplicate_in_file' });
-      if (duplicateExternalInDb)
+      if (duplicateExternalInDb && !updateExisting)
         extraBlocking.push({ field: 'external_credential_code', message: 'duplicate_in_db' });
 
       const blockingErrors = [...classification.blockingErrors, ...extraBlocking];
@@ -208,7 +210,7 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
         duplicateExternalInDb,
       };
     });
-  }, [rawRows, existingEmailSet, existingExternalSet, externalCredentialsEnabled]);
+  }, [rawRows, existingEmailSet, existingExternalSet, externalCredentialsEnabled, updateExisting]);
 
   const validRows = processedRows.filter((r) => !r.blocked);
   const blockedRows = processedRows.filter((r) => r.blocked);
