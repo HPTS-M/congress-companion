@@ -471,7 +471,30 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={confirmRegenAccess} onOpenChange={setConfirmRegenAccess}>
+      <AlertDialog open={confirmRegenCredential} onOpenChange={setConfirmRegenCredential}>
+        <AlertDialogContent className="w-[calc(100%-1.5rem)] max-w-md p-4 sm:p-6">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-base sm:text-lg">
+              {t('attendees.detail.regenerateCredentialDialog.title')}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm">
+              {t('attendees.detail.regenerateCredentialDialog.message')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2">
+            <AlertDialogCancel className="w-full sm:w-auto mt-0">
+              {t('attendees.detail.regenerateCredentialDialog.cancel')}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRegenerate}
+              className="w-full sm:w-auto bg-primary text-primary-foreground"
+            >
+              {t('attendees.detail.regenerateCredentialDialog.confirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('attendees.detail.regenerateAccessCode')}</AlertDialogTitle>
