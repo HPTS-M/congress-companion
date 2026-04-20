@@ -12,8 +12,12 @@ export default function Home() {
   const { t, i18n } = useTranslation();
   const { event } = useEvent();
   const settings = useEventSettings();
-  const { bannerUrl } = settings;
+  const { bannerUrl, headerLogoUrl } = settings;
   const [copied, setCopied] = useState(false);
+
+  // Avoid duplicating the header logo: only show banner card when admin
+  // uploaded a distinct promotional banner (different from the header logo).
+  const hasDistinctBanner = Boolean(bannerUrl) && bannerUrl !== headerLogoUrl;
 
   const fullAddress = event
     ? [event.venue_name, event.venue_address].filter(Boolean).join(', ')
@@ -40,19 +44,30 @@ export default function Home() {
   const dateLocale = i18n.language === 'es' ? es : enUS;
   const startDate = event?.start_date ? format(new Date(event.start_date), 'dd MMM yyyy', { locale: dateLocale }) : '';
   const endDate = event?.end_date ? format(new Date(event.end_date), 'dd MMM yyyy', { locale: dateLocale }) : '';
-
-  const bannerSrc = bannerUrl || '/logo-congreso.png';
-
   return (
     <div className="flex flex-col pt-0">
-      {/* Logo Card */}
-      <div className="mx-4 mt-6 flex flex-col items-center rounded-lg bg-card px-6 py-8 shadow-md">
-        <img
-          src={bannerSrc}
-          alt="Logo Congreso"
-          className="h-48 w-auto object-contain"
-        />
-      </div>
+      {/* Hero: banner card if admin uploaded a distinct promo banner,
+          otherwise a clean typographic header (avoids duplicating header logo). */}
+      {hasDistinctBanner ? (
+        <div className="mx-4 mt-6 flex flex-col items-center rounded-lg bg-card px-6 py-8 shadow-md">
+          <img
+            src={bannerUrl}
+            alt={event?.name ?? ''}
+            className="h-48 w-auto object-contain"
+          />
+        </div>
+      ) : (
+        <div className="mx-4 mt-6 rounded-lg bg-card px-6 py-6 shadow-sm">
+          <h1 className="text-2xl font-bold leading-tight text-foreground">
+            {event?.name ?? ''}
+          </h1>
+          {(event?.venue_name || event?.venue_address) && (
+            <p className="mt-2 text-sm text-muted-foreground">
+              {[event?.venue_name, event?.venue_address].filter(Boolean).join(' · ')}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Event Info */}
       <div className="mx-4 mt-6 mb-6">
