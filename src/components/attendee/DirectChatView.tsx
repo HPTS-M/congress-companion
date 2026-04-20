@@ -131,48 +131,21 @@ export default function DirectChatView({ conversation, onBack }: Props) {
     setSending(true);
 
     try {
-      // OFFLINE → enqueue immediately. Worker will flush when reconnected.
-      if (!isOnline) {
-        enqueue({
-          conversationId: conversation.id,
-          senderId: attendeeId,
-          content,
-        });
-        return;
-      }
-
-      // ONLINE → try direct send with optimistic update.
-      const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const optimisticMsg: ChatMessage = {
-        id: tempId,
-        conversation_id: conversation.id,
-        sender_id: attendeeId,
+      // ALWAYS enqueue first — guarantees the message appears instantly with a
+      // "pending" badge, regardless of online state. The worker (useMessageQueueWorker)
+      // will pick it up and either send it now (if online) or when reconnected.
+      // This avoids race conditions with `navigator.onLine` (unreliable inside
+      // iframes / Lovable preview, see LL-005) and removes the need for an
+      // optimistic update + rollback pattern.
+      enqueue({
+        conversationId: conversation.id,
+        senderId: attendeeId,
         content,
-        created_at: new Date().toISOString(),
-      };
-      queryClient.setQueryData<ChatMessage[]>(
-        ['direct-messages', conversation.id],
-        (old = []) => [...old, optimisticMsg]
-      );
-
-      try {
-        await messagingService.sendMessage(conversation.id, attendeeId, content);
-      } catch {
-        // Network/server error → rollback optimistic + enqueue for retry
-        queryClient.setQueryData<ChatMessage[]>(
-          ['direct-messages', conversation.id],
-          (old = []) => old.filter(m => m.id !== tempId)
-        );
-        enqueue({
-          conversationId: conversation.id,
-          senderId: attendeeId,
-          content,
-        });
-      }
+      });
     } finally {
       setSending(false);
     }
-  }, [input, sending, isPending, isOnline, conversation.id, attendeeId, queryClient, enqueue]);
+  }, [input, sending, isPending, conversation.id, attendeeId, enqueue]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
