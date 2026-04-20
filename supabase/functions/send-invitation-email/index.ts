@@ -173,6 +173,14 @@ async function sendOneInvitation(
       stage: 'hash',
       error: (err as Error).message,
     }));
+    await logInvitationAttempt(supabaseAdmin, {
+      attendeeId: attendee.id,
+      eventId: event.id,
+      status: 'failed',
+      reason: 'db_error',
+      errorMessage: `hash_failed: ${(err as Error).message}`,
+      attemptedBy,
+    });
     return { attendeeId: attendee.id, ok: false, reason: 'db_error', errorMessage: 'hash_failed' };
   }
 
@@ -195,6 +203,14 @@ async function sendOneInvitation(
       stage: 'update',
       error: updateError.message,
     }));
+    await logInvitationAttempt(supabaseAdmin, {
+      attendeeId: attendee.id,
+      eventId: event.id,
+      status: 'failed',
+      reason: 'db_error',
+      errorMessage: `DB update failed: ${updateError.message}`,
+      attemptedBy,
+    });
     return {
       attendeeId: attendee.id,
       ok: false,
@@ -294,6 +310,16 @@ async function sendOneInvitation(
     reason: lastReason,
     error: lastError,
   }));
+
+  await logInvitationAttempt(supabaseAdmin, {
+    attendeeId: attendee.id,
+    eventId: event.id,
+    status: 'failed',
+    reason: lastReason,
+    errorMessage: lastError,
+    retries: RETRY_DELAYS_MS.length,
+    attemptedBy,
+  });
 
   return {
     attendeeId: attendee.id,
