@@ -42,8 +42,7 @@ export function useRealtimeInvalidate({
     const channel = supabase
       .channel(`${channelName}-${reconnectKey}`)
       .on(
-        // @ts-expect-error - postgres_changes has loose typing in supabase-js
-        'postgres_changes',
+        'postgres_changes' as never,
         {
           event,
           schema: 'public',
