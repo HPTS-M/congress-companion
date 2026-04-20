@@ -512,6 +512,65 @@ export const adminAttendeesService = {
   },
 
   /**
+   * Lookup existing attendees by external_credential_code (case + space insensitive)
+   * within an event. Returns map: upperCode → single attendee (codes are unique
+   * per event by DB constraint, so at most one match per code).
+   */
+  lookupAttendeesByExternalCodes: async (
+    eventId: string,
+    codes: string[],
+  ): Promise<
+    Record<
+      string,
+      {
+        id: string;
+        full_name: string;
+        email: string;
+        credential_code: string;
+        external_credential_code: string | null;
+      }
+    >
+  > => {
+    const normalized = [
+      ...new Set(codes.map((c) => (c ?? '').trim().toUpperCase()).filter(Boolean)),
+    ];
+    if (normalized.length === 0) return {};
+
+    const { data, error } = await supabase
+      .from('attendees')
+      .select('id, full_name, email, credential_code, external_credential_code')
+      .eq('event_id', eventId)
+      .is('deleted_at', null)
+      .not('external_credential_code', 'is', null);
+
+    if (error) throw new Error(error.message);
+
+    const map: Record<
+      string,
+      {
+        id: string;
+        full_name: string;
+        email: string;
+        credential_code: string;
+        external_credential_code: string | null;
+      }
+    > = {};
+    (data ?? []).forEach((row) => {
+      const key = (row.external_credential_code ?? '').trim().toUpperCase();
+      if (!key) return;
+      if (!normalized.includes(key)) return;
+      map[key] = {
+        id: row.id,
+        full_name: row.full_name,
+        email: row.email,
+        credential_code: row.credential_code,
+        external_credential_code: row.external_credential_code ?? null,
+      };
+    });
+    return map;
+  },
+
+  /**
    * Bulk upsert: combines INSERT (new) and UPDATE (existing) operations
    * driven by per-row resolutions. Used by the import flow when "update existing"
    * is enabled.
@@ -643,10 +702,12 @@ export const adminAttendeesService = {
         .insert(insertsToRun.map((i) => i.payload as never))
         .select('id');
       if (insertErr) {
-        // Mark all as failed
-        insertsToRun.forEach((i) =>
-          errors.push({ rowIndex: i.rowIndex, reason: insertErr.message }),
-        );
+        const reason =
+          (insertErr as { code?: string }).code === '23505' &&
+          insertErr.message.includes('attendees_event_external_code_unique')
+            ? 'duplicate_external_code'
+            : insertErr.message;
+        insertsToRun.forEach((i) => errors.push({ rowIndex: i.rowIndex, reason }));
       } else {
         insertedIds = (insertedData ?? []).map((d) => d.id);
         inserted = insertedIds.length;
@@ -661,7 +722,12 @@ export const adminAttendeesService = {
         .update(u.payload)
         .eq('id', u.targetId);
       if (updErr) {
-        errors.push({ rowIndex: u.rowIndex, reason: updErr.message });
+        const reason =
+          (updErr as { code?: string }).code === '23505' &&
+          updErr.message.includes('attendees_event_external_code_unique')
+            ? 'duplicate_external_code'
+            : updErr.message;
+        errors.push({ rowIndex: u.rowIndex, reason });
       } else {
         updated += 1;
       }

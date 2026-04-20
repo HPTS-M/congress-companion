@@ -45,6 +45,9 @@
   },
   "attendees": {
     "title": "Attendees",
+    "errors": {
+      "duplicateExternalCode": "External code {{code}} is already assigned to another attendee in this event."
+    },
     "importCsv": "Import Excel",
     "exportCsv": "Export Excel",
     "exporting": "Exporting...",
@@ -158,6 +161,7 @@
       "summarySkipped": "⏭ {{count}} skipped",
       "summaryUpsertErrors": "❌ {{count}} upsert errors",
       "upsertSuccess": "{{inserted}} created · {{updated}} updated · {{skipped}} skipped",
+      "matchedByExternalCode": "{{count}} rows automatically matched by external code",
       "downloadErrors": "Download error report",
       "viewBlockedRows": "View {{count}} blocked rows",
       "viewWarningRows": "View {{count}} warnings",
