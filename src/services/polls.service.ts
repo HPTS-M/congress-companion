@@ -51,9 +51,15 @@ export const pollsService = {
       countByPoll[r.poll_id] = (countByPoll[r.poll_id] || 0) + 1;
     }
 
-    const myResponseByPoll: Record<string, { option_id: string | null; text_response: string | null }> = {};
+    const myResponseByPoll: Record<string, { option_ids: string[]; text_response: string | null }> = {};
     for (const r of myResponses || []) {
-      myResponseByPoll[r.poll_id] = { option_id: r.option_id, text_response: r.text_response };
+      if (!myResponseByPoll[r.poll_id]) {
+        myResponseByPoll[r.poll_id] = { option_ids: [], text_response: r.text_response };
+      }
+      if (r.option_id) myResponseByPoll[r.poll_id].option_ids.push(r.option_id);
+      if (r.text_response && !myResponseByPoll[r.poll_id].text_response) {
+        myResponseByPoll[r.poll_id].text_response = r.text_response;
+      }
     }
 
     return (polls || []).map(p => ({
