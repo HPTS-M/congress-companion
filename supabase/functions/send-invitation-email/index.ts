@@ -122,12 +122,41 @@ interface SendResult {
   retries?: number;
 }
 
+async function logInvitationAttempt(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  params: {
+    attendeeId: string;
+    eventId: string;
+    status: 'sent' | 'failed' | 'skipped';
+    reason?: string | null;
+    errorMessage?: string | null;
+    retries?: number;
+    attemptedBy?: string | null;
+  },
+): Promise<void> {
+  try {
+    await supabaseAdmin.from('invitation_send_log').insert({
+      attendee_id: params.attendeeId,
+      event_id: params.eventId,
+      status: params.status,
+      reason: params.reason ?? null,
+      error_message: params.errorMessage ?? null,
+      retries: params.retries ?? 0,
+      attempted_by: params.attemptedBy ?? null,
+    });
+  } catch (e) {
+    // Logging is best-effort: never fail an invitation because the audit log fails
+    console.error('[invitation_log] insert failed', (e as Error).message);
+  }
+}
+
 async function sendOneInvitation(
   attendee: { id: string; full_name: string; email: string },
-  event: { name: string; event_code: string },
+  event: { id: string; name: string; event_code: string },
   eventLoginUrl: string,
   resendApiKey: string,
   supabaseAdmin: ReturnType<typeof createClient>,
+  attemptedBy: string | null,
 ): Promise<SendResult> {
   // 1) Generate + hash code
   const plainCode = generateCode(8);
