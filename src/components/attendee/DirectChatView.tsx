@@ -280,7 +280,7 @@ export default function DirectChatView({ conversation, onBack }: Props) {
             </p>
           </div>
         </div>
-      ) : isLoading ? (
+      ) : merged.length === 0 && isLoading ? (
         <div className="flex-1 p-4 space-y-4">
           {[1, 2, 3].map(i => (
             <div key={i} className="flex gap-3">
