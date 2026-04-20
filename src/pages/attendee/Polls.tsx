@@ -224,6 +224,40 @@ function PollCard({ poll, onSubmit, isSubmitting }: {
                 <p className="text-sm">{poll.my_response.text_response}</p>
               </div>
             )}
+            {(isChoice || isRating) && poll.my_response?.option_ids && poll.my_response.option_ids.length > 0 && (() => {
+              const selectedOpts = poll.my_response.option_ids
+                .map(id => poll.options.find(o => o.id === id))
+                .filter((o): o is typeof poll.options[number] => !!o);
+              if (selectedOpts.length === 0) return null;
+              return (
+                <div className="mt-2 rounded-md bg-background p-2 border border-border">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">{t('polls.yourSelection')}</p>
+                  {isRating ? (
+                    (() => {
+                      const opt = selectedOpts[0];
+                      const labelKey = RATING_LABELS[parseInt(opt.option_text, 10)];
+                      return (
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-400 text-white text-sm font-bold">
+                            {opt.option_text}
+                          </span>
+                          {labelKey && <span className="text-sm">{t(labelKey)}</span>}
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedOpts.map(opt => (
+                        <Badge key={opt.id} className="bg-primary/10 text-primary border-primary/20 text-xs gap-1">
+                          <CheckCircle2 className="h-3 w-3" />
+                          {opt.option_text}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         ) : showAnswer ? (
           <div>
