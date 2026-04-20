@@ -14,6 +14,7 @@ export interface SessionFormData {
   requires_checkin: boolean;
   capacity: number | null;
   speaker_photo_url?: string | null;
+  status?: string | null;
 }
 
 export const adminAgendaService = {
@@ -60,6 +61,7 @@ export const adminAgendaService = {
         requires_checkin: form.requires_checkin,
         capacity: form.capacity,
         speaker_photo_url: form.speaker_photo_url || null,
+        status: form.status ?? null,
       })
       .select()
       .single();
@@ -82,6 +84,7 @@ export const adminAgendaService = {
     if (form.requires_checkin !== undefined) update.requires_checkin = form.requires_checkin;
     if (form.capacity !== undefined) update.capacity = form.capacity;
     if (form.speaker_photo_url !== undefined) update.speaker_photo_url = form.speaker_photo_url || null;
+    if (form.status !== undefined) update.status = form.status ?? null;
 
     const { data, error } = await supabase
       .from('event_activities')

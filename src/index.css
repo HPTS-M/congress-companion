@@ -169,3 +169,14 @@
     scrollbar-color: hsl(var(--primary) / 0.4) transparent;
   }
 }
+
+/* Hide native time input picker indicators (we provide our own Clock trigger). */
+input[type="time"]::-webkit-calendar-picker-indicator {
+  display: none;
+  -webkit-appearance: none;
+}
+input[type="time"]::-webkit-clear-button,
+input[type="time"]::-webkit-inner-spin-button {
+  display: none;
+}
+
