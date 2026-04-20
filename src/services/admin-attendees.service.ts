@@ -65,6 +65,17 @@ export interface AttendeeFilters {
   hasServices?: 'yes' | 'no' | null;
 }
 
+export interface InvitationLogEntry {
+  id: string;
+  attendee_id: string;
+  event_id: string;
+  status: 'sent' | 'failed' | 'skipped';
+  reason: string | null;
+  error_message: string | null;
+  retries: number;
+  attempted_at: string;
+}
+
 export const adminAttendeesService = {
   /**
    * Fetch a specific subset of attendees by ID for the given event.
@@ -329,6 +340,32 @@ export const adminAttendeesService = {
     const result = data as { success: boolean; access_code: string; email_sent: boolean; error?: string };
     if (!result?.success) throw new Error(result?.error ?? 'Failed to regenerate access code');
     return { access_code: result.access_code, email_sent: result.email_sent };
+  },
+
+  // --- Invitation audit log ---
+
+  /** IDs of attendees whose last invitation attempt failed (no successful send). */
+  getFailedInvitationIds: async (eventId: string): Promise<string[]> => {
+    const { data, error } = await supabase.rpc('get_failed_invitation_attendee_ids', {
+      _event_id: eventId,
+    });
+    if (error) throw new Error(error.message);
+    return (data ?? []) as string[];
+  },
+
+  /** Last N delivery attempts for one attendee, newest first. */
+  getInvitationLog: async (
+    attendeeId: string,
+    limit: number = 10,
+  ): Promise<InvitationLogEntry[]> => {
+    const { data, error } = await supabase
+      .from('invitation_send_log')
+      .select('id, attendee_id, event_id, status, reason, error_message, retries, attempted_at')
+      .eq('attendee_id', attendeeId)
+      .order('attempted_at', { ascending: false })
+      .limit(limit);
+    if (error) throw new Error(error.message);
+    return (data ?? []) as InvitationLogEntry[];
   },
 
   // --- Service management ---

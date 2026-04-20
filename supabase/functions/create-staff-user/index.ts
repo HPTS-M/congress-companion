@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { buildEventUrl } from '../_shared/build-event-url.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -109,8 +110,9 @@ Deno.serve(async (req) => {
       .eq('id', event_id)
       .single()
 
-    const appUrl = (Deno.env.get('APP_URL') ?? '').replace(/\/+$/, '')
-    const loginUrl = `${appUrl}/${event?.event_code ?? ''}/staff`
+    const loginUrl = event?.event_code
+      ? `${buildEventUrl(event.event_code)}/staff`
+      : `${(Deno.env.get('APP_URL') ?? '').replace(/\/+$/, '')}/staff`
     const eventName = event?.name ?? 'el evento'
 
     if (action === 'reinvite') {

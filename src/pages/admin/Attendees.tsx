@@ -13,7 +13,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
-import { useAdminAttendees, useSendInvitations, useDeleteAttendee, useUpdateAttendeeStatus, useAttendeeFilterOptions, usePendingInvitations } from '@/hooks/useAdminAttendees';
+import { useAdminAttendees, useSendInvitations, useDeleteAttendee, useUpdateAttendeeStatus, useAttendeeFilterOptions, usePendingInvitations, useFailedInvitations } from '@/hooks/useAdminAttendees';
 import { adminAttendeesService, type AttendeeWithServices, type AttendeeFilters } from '@/services/admin-attendees.service';
 import { useEvent } from '@/hooks/useEvent';
 import { writeExcelFile } from '@/lib/excel';
@@ -144,6 +144,19 @@ export default function AdminAttendees() {
   const deleteMutation = useDeleteAttendee();
   const updateStatusMutation = useUpdateAttendeeStatus();
   const { data: pendingInvitationIds = [] } = usePendingInvitations();
+  const { data: failedInvitationIds = [] } = useFailedInvitations();
+  const failedIdsSet = useMemo(() => new Set(failedInvitationIds), [failedInvitationIds]);
+
+  const handleRetryFailedInvitations = useCallback(async () => {
+    if (failedInvitationIds.length === 0 || !event?.id) return;
+    try {
+      const snapshot = await adminAttendeesService.getAttendeesByIds(failedInvitationIds, event.id);
+      setBulkSendSnapshot(snapshot);
+      setShowBulkSendModal(true);
+    } catch {
+      toast({ title: t('attendees.invitationFailed'), variant: 'destructive' });
+    }
+  }, [failedInvitationIds, event?.id, t]);
 
   const handleRetryPendingInvitations = useCallback(async () => {
     if (pendingInvitationIds.length === 0) return;
@@ -362,7 +375,28 @@ export default function AdminAttendees() {
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <Mail className="mr-2 h-4 w-4" />
+          )}
+          {failedInvitationIds.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={handleRetryFailedInvitations}
+              disabled={sendInvitationsMutation.isPending}
+              className="border-destructive/40 text-destructive hover:bg-destructive/10"
+              title={t('attendees.invitations.retryFailedTitle', {
+                defaultValue: 'Resend credentials to attendees whose last attempt failed',
+              })}
+            >
+              {sendInvitationsMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Mail className="mr-2 h-4 w-4" />
               )}
+              {t('attendees.invitations.retryFailed', {
+                count: failedInvitationIds.length,
+                defaultValue: 'Retry failed ({{count}})',
+              })}
+            </Button>
+          )}
               {t('attendees.retryPendingInvitations', {
                 count: pendingInvitationIds.length,
                 defaultValue: 'Retry pending ({{count}})',
@@ -609,6 +643,7 @@ export default function AdminAttendees() {
         selectedAttendees={bulkSendSnapshot}
         isSending={sendInvitationsMutation.isPending}
         onConfirm={confirmBulkSend}
+        failedIds={failedIdsSet}
       />
 
       {/* Deactivate / Reactivate confirmation */}

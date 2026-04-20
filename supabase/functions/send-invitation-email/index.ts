@@ -122,12 +122,41 @@ interface SendResult {
   retries?: number;
 }
 
+async function logInvitationAttempt(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  params: {
+    attendeeId: string;
+    eventId: string;
+    status: 'sent' | 'failed' | 'skipped';
+    reason?: string | null;
+    errorMessage?: string | null;
+    retries?: number;
+    attemptedBy?: string | null;
+  },
+): Promise<void> {
+  try {
+    await supabaseAdmin.from('invitation_send_log').insert({
+      attendee_id: params.attendeeId,
+      event_id: params.eventId,
+      status: params.status,
+      reason: params.reason ?? null,
+      error_message: params.errorMessage ?? null,
+      retries: params.retries ?? 0,
+      attempted_by: params.attemptedBy ?? null,
+    });
+  } catch (e) {
+    // Logging is best-effort: never fail an invitation because the audit log fails
+    console.error('[invitation_log] insert failed', (e as Error).message);
+  }
+}
+
 async function sendOneInvitation(
   attendee: { id: string; full_name: string; email: string },
-  event: { name: string; event_code: string },
+  event: { id: string; name: string; event_code: string },
   eventLoginUrl: string,
   resendApiKey: string,
   supabaseAdmin: ReturnType<typeof createClient>,
+  attemptedBy: string | null,
 ): Promise<SendResult> {
   // 1) Generate + hash code
   const plainCode = generateCode(8);
@@ -144,6 +173,14 @@ async function sendOneInvitation(
       stage: 'hash',
       error: (err as Error).message,
     }));
+    await logInvitationAttempt(supabaseAdmin, {
+      attendeeId: attendee.id,
+      eventId: event.id,
+      status: 'failed',
+      reason: 'db_error',
+      errorMessage: `hash_failed: ${(err as Error).message}`,
+      attemptedBy,
+    });
     return { attendeeId: attendee.id, ok: false, reason: 'db_error', errorMessage: 'hash_failed' };
   }
 
@@ -166,6 +203,14 @@ async function sendOneInvitation(
       stage: 'update',
       error: updateError.message,
     }));
+    await logInvitationAttempt(supabaseAdmin, {
+      attendeeId: attendee.id,
+      eventId: event.id,
+      status: 'failed',
+      reason: 'db_error',
+      errorMessage: `DB update failed: ${updateError.message}`,
+      attemptedBy,
+    });
     return {
       attendeeId: attendee.id,
       ok: false,
@@ -211,6 +256,13 @@ async function sendOneInvitation(
           status: 'sent',
           retries: attempt,
         }));
+        await logInvitationAttempt(supabaseAdmin, {
+          attendeeId: attendee.id,
+          eventId: event.id,
+          status: 'sent',
+          retries: attempt,
+          attemptedBy,
+        });
         return { attendeeId: attendee.id, ok: true, retries: attempt };
       }
 
@@ -258,6 +310,16 @@ async function sendOneInvitation(
     reason: lastReason,
     error: lastError,
   }));
+
+  await logInvitationAttempt(supabaseAdmin, {
+    attendeeId: attendee.id,
+    eventId: event.id,
+    status: 'failed',
+    reason: lastReason,
+    errorMessage: lastError,
+    retries: RETRY_DELAYS_MS.length,
+    attemptedBy,
+  });
 
   return {
     attendeeId: attendee.id,
@@ -364,6 +426,17 @@ Deno.serve(async (req) => {
       return true;
     });
 
+    // Log skipped recipients to the audit table (best effort)
+    for (const skipped of skippedDetails) {
+      await logInvitationAttempt(supabaseAdmin, {
+        attendeeId: skipped.id,
+        eventId: event.id,
+        status: 'skipped',
+        reason: skipped.reason,
+        attemptedBy: userId,
+      });
+    }
+
     // 6. Resend key
     const resendApiKey = Deno.env.get('RESEND_API_KEY');
     if (!resendApiKey) {
@@ -381,7 +454,7 @@ Deno.serve(async (req) => {
       const chunk = eligible.slice(i, i + CHUNK_SIZE);
       const results = await Promise.allSettled(
         chunk.map((a) =>
-          sendOneInvitation(a, event, eventLoginUrl, resendApiKey, supabaseAdmin),
+          sendOneInvitation(a, event, eventLoginUrl, resendApiKey, supabaseAdmin, userId),
         ),
       );
 

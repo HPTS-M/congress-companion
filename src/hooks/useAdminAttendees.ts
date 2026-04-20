@@ -290,6 +290,8 @@ export function useSendInvitations() {
         queryClient.invalidateQueries({ queryKey: ['admin-attendee-detail'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-attendees'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-pending-invitations'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-failed-invitations'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-invitation-log'] }),
       ]);
     },
   });
@@ -308,5 +310,31 @@ export function usePendingInvitations() {
     queryFn: () => adminAttendeesService.getPendingInvitationIds(eventId),
     enabled: !!eventId,
     staleTime: 30_000,
+  });
+}
+
+/**
+ * IDs of attendees whose last invitation attempt failed (no successful send).
+ * Used to power the "Retry failed invitations" action.
+ */
+export function useFailedInvitations() {
+  const { event } = useEvent();
+  const eventId = event?.id ?? '';
+
+  return useQuery({
+    queryKey: ['admin-failed-invitations', eventId],
+    queryFn: () => adminAttendeesService.getFailedInvitationIds(eventId),
+    enabled: !!eventId,
+    staleTime: 30_000,
+  });
+}
+
+/** Last N invitation send attempts for one attendee. */
+export function useInvitationLog(attendeeId: string | null) {
+  return useQuery({
+    queryKey: ['admin-invitation-log', attendeeId],
+    queryFn: () => adminAttendeesService.getInvitationLog(attendeeId!, 10),
+    enabled: !!attendeeId,
+    staleTime: 15_000,
   });
 }
