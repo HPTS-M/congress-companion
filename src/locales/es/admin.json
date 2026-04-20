@@ -339,6 +339,11 @@
     "bulkSendFailed": "{{count}} fallos al enviar",
     "bulkSendPartial": "Envío parcial: {{sent}} enviadas, {{failed}} fallaron",
     "bulkSendFirstError": "Primer error: {{error}}",
+    "retryPendingInvitations": "Reintentar pendientes ({{count}})",
+    "retryPendingTitle": "Enviar credenciales a asistentes sin invitación",
+    "retryPendingConfirm": "¿Enviar credenciales a {{count}} asistente(s) sin invitación?",
+    "noInvitationBadge": "Sin invitación",
+    "noInvitationTooltip": "Aún no se ha enviado el correo de credenciales",
     "bulkSendModal": {
       "title": "Enviar credenciales por correo",
       "summary": "Has seleccionado {{count}} asistente(s). Revisa el desglose antes de enviar.",
