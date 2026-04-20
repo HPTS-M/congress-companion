@@ -35,34 +35,22 @@ export function usePendingMessages(conversationId?: string) {
   const enqueue = useCallback(
     (input: { conversationId: string; senderId: string; content: string }) => {
       const msg = pendingMessages.enqueue(input);
-      // Synchronously update local state so the calling component re-renders
-      // immediately, without depending on the custom-event listener (which can
-      // be unreliable inside iframes / preview environments).
-      if (!conversationId || msg.conversationId === conversationId) {
-        setItems(prev => [...prev, msg]);
-      }
       // Try to flush immediately if online
       if (typeof navigator === 'undefined' || navigator.onLine) {
         window.dispatchEvent(new Event('pending-messages:flush'));
       }
       return msg;
     },
-    [conversationId]
+    []
   );
 
   const retry = useCallback((id: string) => {
     pendingMessages.retry(id);
-    setItems(
-      conversationId
-        ? pendingMessages.getByConversation(conversationId)
-        : pendingMessages.getAll()
-    );
     window.dispatchEvent(new Event('pending-messages:flush'));
-  }, [conversationId]);
+  }, []);
 
   const remove = useCallback((id: string) => {
     pendingMessages.remove(id);
-    setItems(prev => prev.filter(m => m.id !== id));
   }, []);
 
   return { pending: items, enqueue, retry, remove };
