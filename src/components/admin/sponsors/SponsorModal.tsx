@@ -22,6 +22,11 @@ import { adminSponsorsService, type SponsorRow, type SponsorFormData } from '@/s
 import { useAdminSponsors } from '@/hooks/useAdminSponsors';
 import { SponsorMaterialPreviewModal } from './SponsorMaterialPreviewModal';
 import {
+  PhoneInputWithCountry,
+  parsePhoneE164,
+  buildPhoneE164,
+} from './PhoneInputWithCountry';
+import {
   validateFile,
   formatFileSize,
   SPONSOR_LOGO_MIME,
@@ -76,7 +81,9 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
   const [standLocation, setStandLocation] = useState(sponsor?.stand_location ?? '');
   const [websiteUrl, setWebsiteUrl] = useState(sponsor?.website_url ?? '');
   const [contactEmail, setContactEmail] = useState(sponsor?.contact_email ?? '');
-  const [whatsapp, setWhatsapp] = useState(sponsor?.whatsapp ?? '');
+  const initialPhone = useMemo(() => parsePhoneE164(sponsor?.whatsapp ?? null), [sponsor?.whatsapp]);
+  const [whatsappDialCode, setWhatsappDialCode] = useState(initialPhone.dialCode);
+  const [whatsappNumber, setWhatsappNumber] = useState(initialPhone.number);
   const [whatsappMessage, setWhatsappMessage] = useState(sponsor?.whatsapp_message ?? '');
   const [videoUrl, setVideoUrl] = useState(sponsor?.video_url ?? '');
   const [linkedin, setLinkedin] = useState(sponsor?.social_linkedin ?? '');
