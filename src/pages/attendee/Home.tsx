@@ -12,8 +12,12 @@ export default function Home() {
   const { t, i18n } = useTranslation();
   const { event } = useEvent();
   const settings = useEventSettings();
-  const { bannerUrl } = settings;
+  const { bannerUrl, headerLogoUrl } = settings;
   const [copied, setCopied] = useState(false);
+
+  // Avoid duplicating the header logo: only show banner card when admin
+  // uploaded a distinct promotional banner (different from the header logo).
+  const hasDistinctBanner = Boolean(bannerUrl) && bannerUrl !== headerLogoUrl;
 
   const fullAddress = event
     ? [event.venue_name, event.venue_address].filter(Boolean).join(', ')
