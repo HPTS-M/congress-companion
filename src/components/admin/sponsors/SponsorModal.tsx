@@ -271,7 +271,7 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
   return (
     <>
       <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>{t(isEdit ? 'sponsors.editTitle' : 'sponsors.newTitle')}</DialogTitle>
           </DialogHeader>
@@ -379,7 +379,7 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
 
             {/* CONTACT & MATERIALS */}
             <TabsContent value="contact" className="space-y-4 mt-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-1.5">
                   <Label>{t('sponsors.fieldWebsite')}</Label>
                   <Input value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} placeholder="https://..." className={errClass('website_url')} />
@@ -392,22 +392,15 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-1.5">
                   <Label>{t('sponsors.fieldWhatsapp')}</Label>
-                  <Input
-                    value={whatsapp}
-                    onChange={(e) => {
-                      let cleaned = e.target.value.replace(/[^\d+]/g, '');
-                      if (cleaned.indexOf('+') > 0) cleaned = cleaned.replace(/\+/g, '');
-                      const plusCount = (cleaned.match(/\+/g) ?? []).length;
-                      if (plusCount > 1) cleaned = '+' + cleaned.replace(/\+/g, '');
-                      setWhatsapp(cleaned.slice(0, 16));
-                    }}
-                    placeholder="+573001234567"
-                    inputMode="tel"
-                    maxLength={16}
-                    className={errClass('whatsapp')}
+                  <PhoneInputWithCountry
+                    dialCode={whatsappDialCode}
+                    number={whatsappNumber}
+                    onDialCodeChange={setWhatsappDialCode}
+                    onNumberChange={setWhatsappNumber}
+                    invalid={!!errors.whatsapp}
                   />
                   <p className="text-xs text-muted-foreground">{t('sponsors.validation.whatsappHelp')}</p>
                   {errors.whatsapp && <p className="text-xs text-destructive">{errors.whatsapp}</p>}
@@ -424,7 +417,7 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
                 {errors.video_url && <p className="text-xs text-destructive">{errors.video_url}</p>}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-1.5">
                   <Label>LinkedIn</Label>
                   <Input value={linkedin} onChange={(e) => setLinkedin(e.target.value)} placeholder="https://linkedin.com/..." className={errClass('social_linkedin')} />
