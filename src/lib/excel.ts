@@ -53,9 +53,22 @@ export async function readExcelFile<T extends Record<string, unknown> = Record<s
       if (value && typeof value === 'object' && 'richText' in value) {
         value = (value as { richText: { text: string }[] }).richText.map((r) => r.text).join('');
       }
+      // Handle hyperlink cells (Excel auto-converts emails/URLs to mailto:/http: links)
+      if (value && typeof value === 'object' && 'hyperlink' in value) {
+        const hl = value as { text?: string; hyperlink: string };
+        value = (hl.text ?? hl.hyperlink).replace(/^mailto:/i, '');
+      }
+      // Handle formula cells — use the computed result
+      if (value && typeof value === 'object' && 'result' in value) {
+        value = (value as { result: unknown }).result;
+      }
       // Handle date objects
       if (value instanceof Date) {
         value = value.toISOString().slice(0, 10);
+      }
+      // Fallback for any remaining object shapes — extract .text or empty string
+      if (value && typeof value === 'object' && !(value instanceof Date)) {
+        value = String((value as { text?: unknown }).text ?? '');
       }
 
       obj[header] = value ?? '';
