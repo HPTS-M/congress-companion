@@ -19,7 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { useAttendeeDetail, useUpdateServiceStatus, useDeleteService, useSendInvitations, useUpdateAttendeeStatus } from '@/hooks/useAdminAttendees';
+import { useAttendeeDetail, useUpdateServiceStatus, useDeleteService, useSendInvitations, useUpdateAttendeeStatus, useInvitationLog } from '@/hooks/useAdminAttendees';
 import { adminAttendeesService } from '@/services/admin-attendees.service';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
@@ -408,6 +408,11 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
                   </div>
                 )}
               </div>
+
+              <Separator />
+
+              {/* Invitation send history */}
+              <InvitationHistorySection attendeeId={attendeeId} />
 
               <Separator />
 
