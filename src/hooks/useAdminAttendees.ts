@@ -278,8 +278,12 @@ export function useSendInvitations() {
   const { event } = useEvent();
 
   return useMutation({
-    mutationFn: (attendeeIds: string[]) =>
-      adminAttendeesService.sendInvitations(attendeeIds, event!.id),
+    mutationFn: (attendeeIds: string[]) => {
+      if (!event?.id) {
+        throw new Error('Event not loaded — cannot send invitations');
+      }
+      return adminAttendeesService.sendInvitations(attendeeIds, event.id);
+    },
     onSuccess: async () => {
       await clearAttendeesSWCache();
       await Promise.all([
