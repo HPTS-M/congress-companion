@@ -222,19 +222,37 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
   useEffect(() => {
     if (!eventId || validRows.length === 0) {
       setMatchesByEmail({});
+      setMatchesByExternalCode({});
       return;
     }
     const emails = validRows.map((r) => r.validated.email).filter(Boolean);
-    if (emails.length === 0) return;
+    const externalCodes = externalCredentialsEnabled
+      ? validRows.map((r) => r.validated.external_credential_code ?? '').filter(Boolean)
+      : [];
+    if (emails.length === 0 && externalCodes.length === 0) return;
+
     let cancelled = false;
     setMatchesLoading(true);
-    adminAttendeesService
-      .lookupAttendeesByEmails(eventId, emails)
-      .then((map) => {
-        if (!cancelled) setMatchesByEmail(map);
+
+    Promise.all([
+      emails.length > 0
+        ? adminAttendeesService.lookupAttendeesByEmails(eventId, emails)
+        : Promise.resolve({} as Record<string, never>),
+      externalCodes.length > 0
+        ? adminAttendeesService.lookupAttendeesByExternalCodes(eventId, externalCodes)
+        : Promise.resolve({} as Record<string, never>),
+    ])
+      .then(([emailMap, codeMap]) => {
+        if (!cancelled) {
+          setMatchesByEmail(emailMap as typeof matchesByEmail);
+          setMatchesByExternalCode(codeMap as typeof matchesByExternalCode);
+        }
       })
       .catch(() => {
-        if (!cancelled) setMatchesByEmail({});
+        if (!cancelled) {
+          setMatchesByEmail({});
+          setMatchesByExternalCode({});
+        }
       })
       .finally(() => {
         if (!cancelled) setMatchesLoading(false);
@@ -243,19 +261,41 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventId, rawRows]);
+  }, [eventId, rawRows, externalCredentialsEnabled]);
 
-  // Classify valid rows for upsert mode
+  // Classify valid rows for upsert mode.
+  // PRIORITY: external_credential_code match (deterministic, unique by DB constraint)
+  // → fallback to email match (may be ambiguous).
   const classifiedValidRows = useMemo(() => {
     return validRows.map((r) => {
+      const codeUpper = (r.validated.external_credential_code ?? '').trim().toUpperCase();
+      const codeMatch = codeUpper ? matchesByExternalCode[codeUpper] : undefined;
+
+      if (codeMatch) {
+        // Deterministic match by external code → auto-update, no ambiguity possible
+        return {
+          processed: r,
+          matches: [{
+            id: codeMatch.id,
+            full_name: codeMatch.full_name,
+            email: codeMatch.email,
+            credential_code: codeMatch.credential_code,
+            external_credential_code: codeMatch.external_credential_code,
+            created_at: null,
+          }],
+          kind: 'updatable' as const,
+          matchedBy: 'external_code' as const,
+        };
+      }
+
       const email = (r.validated.email ?? '').toLowerCase();
       const matches = email ? (matchesByEmail[email] ?? []) : [];
       let kind: 'new' | 'updatable' | 'ambiguous' = 'new';
       if (matches.length === 1) kind = 'updatable';
       else if (matches.length > 1) kind = 'ambiguous';
-      return { processed: r, matches, kind };
+      return { processed: r, matches, kind, matchedBy: 'email' as const };
     });
-  }, [validRows, matchesByEmail]);
+  }, [validRows, matchesByEmail, matchesByExternalCode]);
 
   const newCount = classifiedValidRows.filter((c) => c.kind === 'new').length;
   const updatableCount = classifiedValidRows.filter((c) => c.kind === 'updatable').length;
