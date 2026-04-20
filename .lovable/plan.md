@@ -1,189 +1,103 @@
 
 
-## Ajustes módulos Documentos y Patrocinadores
+## Diagnóstico real: por qué el dashboard de admin no muestra resultados
 
-### Diagnóstico raíz (importante para entender los fixes)
+Después de inspeccionar el flujo end-to-end (UI admin → servicio admin → tabla `poll_responses` → RLS → flujo de submisión del asistente), confirmé que **el dashboard SÍ está mostrando todo lo que existe**. El problema es que **la tabla `poll_responses` tiene 0 filas en toda la base de datos**, es decir, ninguna respuesta está siendo persistida. Esto se debe a dos bugs reales:
 
-**🔴 Bug crítico en RLS de `storage.objects` para el bucket `event-sponsors`** (causa principal de varios síntomas):
+### 🔴 Bug #1 — UNIQUE constraint rompe `multiple_choice`
 
-La policy SELECT actual `Authenticated read own event sponsor assets` tiene tres cláusulas y **dos están rotas**:
-```sql
-(storage.foldername(name))[1] IN (SELECT get_my_event_ids())  -- solo sirve para attendees
-OR EXISTS (SELECT 1 FROM events e WHERE (e.id::text = (storage.foldername(e.name))[1]) ...)
-                                                            -- ❌ usa e.name en vez de objects.name
-OR EXISTS (SELECT 1 FROM events e WHERE (e.id::text = (storage.foldername(e.name))[1]) ...)
-                                                            -- ❌ mismo error
+La tabla `poll_responses` tiene este constraint:
 ```
-Resultado: cuando un **admin** (sin fila en `attendees`) intenta leer/listar un PDF de sponsor:
-- `getSignedUrl()` falla → preview de materiales devuelve "No se pudo cargar".
-- `uploadFile()` → el `.list()` post-upload no encuentra el objeto (RLS bloquea SELECT) → lanza `upload_verification_failed` → **toast de error al crear/editar sponsor con PDF**, aunque el archivo SÍ se subió. Por eso aparece error pero el sponsor a veces queda guardado a medias.
+UNIQUE (poll_id, attendee_id)
+```
 
-**🔴 Policy análoga para `event-documents`**: solo permite SELECT a authenticated cuyo `event_id` esté en `attendees` del usuario. Los **admins no tienen fila en attendees** → no pueden leer sus propios documentos → el preview en `/admin/documents` falla con "No se pudo cargar la previsualización".
+Pero `polls.service.ts` (líneas 96-104) inserta **una fila por cada opción seleccionada** cuando el tipo es `multiple_choice`:
+```ts
+const rows = optionIds.map(optionId => ({ poll_id, attendee_id, option_id, text_response: null }));
+await supabase.from('poll_responses').insert(rows); // ❌ rechaza el batch entero
+```
 
-**🟡 Validación WhatsApp**: el regex `^\+?[1-9]\d{7,14}$` está bien, pero el `<Input>` no restringe la entrada en tiempo real (acepta letras y luego rechaza al validar). UX deficiente.
+Resultado: cualquier `multiple_choice` con ≥1 opción siempre falla con violación de unicidad → **0 votos persistidos**.
 
-**🟡 Refresco de rejilla sponsors**: `useAdminSponsors` usa `invalidateQueries` (refetch async). En conexiones lentas, el usuario no ve el sponsor recién creado al cerrar el modal. Falta botón de refresh manual y actualización optimista.
+Para `single_choice`, `rating_scale` y `open_text` (que insertan 1 fila), el constraint no rompe el insert, pero igual no hay datos porque solo 2 asistentes tienen sesión activa de Supabase Auth en todo el evento (`user_id` no nulo). Por eso tampoco hay respuestas de los demás tipos.
 
-**🟡 Tabs del drawer detalle**: `<TabsList grid-cols-3>` con labels "Información de contacto" / "Estadísticas" / "Leads (N)" → labels demasiado largos para anchos < 540px (el viewport actual del usuario es 548px y ya se ve cortado).
+### 🟡 Bug #2 — UX engañosa para errores de RLS
 
-**🟡 Material preview en drawer detalle**: ya existe (`SponsorMaterialPreviewModal`) pero comparte el mismo bug de RLS, así que muestra "no se pudo cargar".
+`pollsService.submitResponse` valida duplicados *antes* del insert con un SELECT, pero ese SELECT está sujeto a la política `Attendees read own responses` (filtra por `attendee_id IN get_my_attendee_ids()`). Si el asistente no tiene `user_id`, el SELECT devuelve `[]` (no error), el código asume "no es duplicado", e intenta el INSERT, que también es bloqueado por RLS y devuelve un error genérico que se muestra como "Error al enviar respuesta". Pero hoy ningún asistente reporta esto porque casi todos no han iniciado sesión.
+
+### ✅ Verificación de la "lógica de filtrado y visualización" del admin
+
+- `adminPollsService.getPollResults(pollId)` lee TODA `poll_responses` sin filtros adicionales (solo `eq('poll_id', pollId)`).
+- La RLS `Admins read org poll responses` da acceso a todas las respuestas de polls del evento del admin.
+- `getTextResponses` también lee todas las filas con `text_response IS NOT NULL`.
+- El conteo en la rejilla principal (`getPolls`) usa la misma tabla sin paginar.
+
+**Conclusión:** la capa de visualización del admin está correcta. No hay datos que mostrar porque ninguno se está guardando.
 
 ---
 
-### Cambios a realizar
+## Plan de cambios
 
-#### 1. Migración: corregir RLS de storage para admins
-
-Reemplazar las dos policies SELECT defectuosas:
+### 1. Migración SQL: cambiar el constraint para soportar multiple_choice
 
 ```sql
--- event-sponsors: agregar acceso completo para admins/superusers
-DROP POLICY IF EXISTS "Authenticated read own event sponsor assets" ON storage.objects;
+-- Eliminar el UNIQUE actual que rompe multiple_choice
+ALTER TABLE public.poll_responses 
+  DROP CONSTRAINT poll_responses_poll_id_attendee_id_key;
 
-CREATE POLICY "Read event sponsor assets"
-ON storage.objects FOR SELECT TO authenticated
-USING (
-  bucket_id = 'event-sponsors'
-  AND (
-    has_role(auth.uid(), 'superuser'::app_role)
-    OR has_role(auth.uid(), 'admin'::app_role)
-    OR ((storage.foldername(name))[1])::uuid IN (SELECT get_my_event_ids())
-    OR EXISTS (
-      SELECT 1 FROM events e
-      WHERE e.id::text = (storage.foldername(storage.objects.name))[1]
-        AND is_event_staff(auth.uid(), e.id)
-    )
-  )
-);
-
--- event-documents: agregar acceso para admins
-DROP POLICY IF EXISTS "Authenticated read own event files" ON storage.objects;
-
-CREATE POLICY "Read event documents"
-ON storage.objects FOR SELECT TO authenticated
-USING (
-  bucket_id = 'event-documents'
-  AND (
-    has_role(auth.uid(), 'superuser'::app_role)
-    OR has_role(auth.uid(), 'admin'::app_role)
-    OR ((storage.foldername(name))[1])::uuid IN (SELECT get_my_event_ids())
-  )
-);
+-- Reemplazo: una opción no puede estar duplicada por el mismo asistente,
+-- pero un asistente sí puede insertar varias filas (varias opciones distintas)
+ALTER TABLE public.poll_responses
+  ADD CONSTRAINT poll_responses_unique_option_per_attendee
+  UNIQUE NULLS NOT DISTINCT (poll_id, attendee_id, option_id);
 ```
 
-Esto resuelve **3 bugs a la vez**: preview documentos, preview materiales sponsor, y el falso `upload_verification_failed` al subir PDF.
+`NULLS NOT DISTINCT` garantiza que para `open_text` (donde `option_id IS NULL`) un mismo asistente solo pueda enviar una respuesta. Para choice polls, evita duplicar la misma opción dos veces. Para multiple_choice permite N filas con `option_id` distinto.
 
-#### 2. `src/components/admin/sponsors/SponsorModal.tsx` — Validación WhatsApp en tiempo real
+### 2. `src/services/polls.service.ts` — Validación robusta de duplicados
 
-- Agregar handler `handleWhatsappChange` que filtre al teclear: solo permitir un único `+` al inicio, dígitos, y máximo 16 chars (`+` + 15).
-- Agregar `inputMode="tel"` y `maxLength={16}` al `<Input>` de WhatsApp.
-- Mantener regex actual para validación final.
-
-```tsx
-const handleWhatsappChange = (raw: string) => {
-  let cleaned = raw.replace(/[^\d+]/g, '');
-  // Solo un + permitido y al inicio
-  if (cleaned.indexOf('+') > 0) cleaned = cleaned.replace(/\+/g, '');
-  if ((cleaned.match(/\+/g) ?? []).length > 1) cleaned = '+' + cleaned.replace(/\+/g, '');
-  setWhatsapp(cleaned.slice(0, 16));
-};
-```
-
-Actualizar placeholder a `+573001234567` y agregar texto de ayuda: "Formato internacional: + seguido de 8-15 dígitos".
-
-#### 3. `useAdminSponsors.ts` — Actualización optimista + invalidate inmediato
-
-- En `createMutation.onMutate`: insertar optimistamente un sponsor placeholder en la cache con `id: 'optimistic-…'`.
-- En `onSuccess`: reemplazar el placeholder con la fila real Y disparar `qc.invalidateQueries`.
-- En `onError`: revertir.
-
-Esto hace que la rejilla muestre el nuevo sponsor **inmediatamente** al cerrar el modal, sin esperar al refetch.
-
-#### 4. `src/pages/admin/Sponsors.tsx` — Botón "Actualizar"
-
-Agregar botón de refresh en la barra de acciones (igual que en `Documents.tsx`):
-
-```tsx
-const isFetching = useIsFetching({ queryKey: ['admin-sponsors', event?.id] });
-
-<Button variant="outline" size="icon" onClick={() => qc.invalidateQueries({ queryKey: ['admin-sponsors', event?.id] })} disabled={isFetching > 0}>
-  <RefreshCw className={cn('h-4 w-4', isFetching > 0 && 'animate-spin')} />
-</Button>
-```
-
-#### 5. `SponsorDetailDrawer.tsx` — Tabs responsivas mobile-first
-
-Reemplazar labels textuales por **icono + label corto**, y permitir wrap/scroll en mobile:
-
-```tsx
-<TabsList className="grid w-full grid-cols-3 h-auto">
-  <TabsTrigger value="info" className="flex flex-col gap-1 py-2 text-xs sm:flex-row sm:text-sm">
-    <Info className="h-4 w-4" />
-    <span className="truncate">{t('sponsors.tabContact')}</span>
-  </TabsTrigger>
-  <TabsTrigger value="stats" className="...">
-    <BarChart3 className="h-4 w-4" />
-    <span className="truncate">{t('sponsors.tabStats')}</span>
-  </TabsTrigger>
-  <TabsTrigger value="leads" className="...">
-    <Heart className="h-4 w-4" />
-    <span className="truncate">Leads {leads.length > 0 && `(${leads.length})`}</span>
-  </TabsTrigger>
-</TabsList>
-```
-
-Nuevas claves i18n: `sponsors.tabContact` ("Contacto" / "Contact"), `sponsors.tabStats` ("Estadísticas" / "Stats").
-
-#### 6. `SponsorMaterialPreviewModal.tsx` — Robustez del preview
-
-- Mantener iframe para PDF + agregar fallback `<object>` con `onError` (igual patrón que `DocumentPreviewModal`).
-- Mostrar estado `renderError` con botón "Descargar" cuando el iframe falla (algunos navegadores móviles no embeben PDF).
-- Aplicar el mismo patrón de mobile-first usado en `DocumentPreviewModal` (`w-[calc(100%-1rem)]`, `p-4 sm:p-6`).
-
-#### 7. `admin-sponsors.service.ts` — Hacer la verificación post-upload tolerante
-
-Después del fix de RLS la verificación ya funcionará, pero adicionalmente:
-
-- Si `list()` devuelve error o array vacío **NO hacer cleanup** automático (el archivo SÍ se subió). En su lugar, devolver `{path, size: file.size}` con `size` tomado del `File` original como fallback. Loguear advertencia pero no romper el flujo.
-- Esto evita que un fallo transitorio de RLS rompa la creación del sponsor.
+- Mantener el SELECT previo de duplicados (más amigable que el error de constraint).
+- Mejorar el manejo de errores del INSERT: si el código de error PostgreSQL es `23505` (unique_violation), mapearlo a `DUPLICATE_VOTE` para que el toast sea correcto.
+- Para `open_text`, mantener una sola fila (ya está bien hoy).
 
 ```ts
-// Verificación best-effort, no destructiva
-try {
-  const { data: list } = await supabase.storage.from(BUCKET).list(eventId, { search: filename });
-  const uploaded = list?.find(o => o.name === filename);
-  const verifiedSize = (uploaded?.metadata as any)?.size;
-  if (uploaded && verifiedSize > 0) return { path, size: verifiedSize };
-} catch {/* ignore, fall through */}
-return { path, size: file.size };
+const { error } = await supabase.from('poll_responses').insert(rows);
+if (error) {
+  if (error.code === '23505') throw new Error('DUPLICATE_VOTE');
+  throw new Error(error.message);
+}
 ```
 
-#### 8. i18n — nuevas claves en `admin.json` (es/en)
+### 3. `src/hooks/usePolls.ts` — Toast con detalle del error de RLS
 
-Bajo `sponsors`:
-- `tabContact`: "Contacto" / "Contact"
-- `tabStats`: "Estadísticas" / "Stats"
-- `refresh`: "Actualizar" / "Refresh"
-- `validation.whatsappHelp`: "Formato internacional: + seguido de 8-15 dígitos" / "International format: + followed by 8-15 digits"
+Hoy el toast de error muestra solo `error.message`. Cuando RLS bloquea el INSERT, Supabase devuelve un mensaje críptico. Añadir detección y mensaje claro: si el mensaje incluye `row-level security` o `policy`, mostrar al asistente "Tu sesión no permite votar — vuelve a iniciar sesión" (en i18n).
+
+### 4. (Opcional, recomendado) Verificar visibilidad para el admin con un dato semilla de prueba
+
+No se incluye en la migración, pero después de aplicar los cambios el equipo puede iniciar sesión con dos códigos distintos del evento `MCONG-20260420` y enviar votos en cada tipo (multiple/single/rating/open_text) para validar de punta a punta que aparecen en el dashboard.
 
 ---
+
+## Resumen
+
+| # | Cambio | Archivo |
+|---|---|---|
+| 1 | Reemplazar UNIQUE constraint en `poll_responses` | Nueva migración SQL |
+| 2 | Mapear error `23505` → `DUPLICATE_VOTE` | `src/services/polls.service.ts` |
+| 3 | Mensaje de error i18n claro para RLS | `src/hooks/usePolls.ts` + `src/locales/{es,en}/common.json` |
+
+### Por qué este enfoque
+
+- **Backend-first:** la causa raíz es de datos (constraint), no de UI. Arreglar la UI sin arreglar la BD no recolecta votos.
+- **No tocar RLS:** las políticas actuales de `poll_responses` son correctas y seguras (admins de la org, asistentes de su propia respuesta).
+- **No tocar el dashboard del admin:** ya muestra todo lo que la BD contiene; el filtrado y la agregación están bien.
+- **`NULLS NOT DISTINCT`:** patrón estándar de PostgreSQL 15+ para tratar `NULL` como igual en UNIQUE — soportado por Supabase.
 
 ### Resultado esperado
 
-| Item | Antes | Después |
-|---|---|---|
-| Preview documento admin | "No se pudo cargar" | Muestra PDF/imagen correctamente |
-| Preview material sponsor | "No se pudo cargar" | Muestra PDF con fallback descarga |
-| WhatsApp input | Acepta letras, símbolos, >15 chars | Solo `+` y dígitos, máx 16 chars |
-| Crear sponsor con PDF | Toast de error aunque se guarda | Crea sin error y rejilla refresca al instante |
-| Editar sponsor con PDF | Mismo error | Funciona limpiamente |
-| Rejilla sponsors | Tarda en mostrar el nuevo | Aparece inmediato (optimista) + botón refresh |
-| Tabs drawer detalle | Labels cortados | Icono + label, responsive 360-1024px |
-
-### Consideraciones
-
-- El fix de RLS es **el cambio más importante** y por sí solo resuelve 3 bugs reportados.
-- La verificación post-upload pasa de "destructiva" a "best-effort" para evitar falsos negativos cuando RLS limite SELECT. La validación previa al seleccionar el archivo (MIME/tamaño) sigue siendo la primera línea de defensa.
-- Backend-First: migración RLS primero, luego servicios, luego UI.
-- Los componentes de tabs usarán shadcn `<Tabs>` extendido, sin tocar `/components/ui/`.
+- ✅ `multiple_choice` permite seleccionar N opciones y todas se guardan.
+- ✅ `single_choice` / `rating_scale` / `open_text` siguen funcionando con 1 voto por asistente.
+- ✅ El intento de votar dos veces se detecta y muestra "Ya respondiste esta encuesta".
+- ✅ El dashboard de admin (`Polls.tsx > ResultsModal`) refleja inmediatamente los nuevos votos vía realtime (`usePollRealtime` ya está activo).
+- ✅ Reportes (`/admin/reports` → tab Encuestas) y exportaciones Excel (`adminPollsExcelService`) ahora tendrán datos reales.
 
