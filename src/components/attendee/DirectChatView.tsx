@@ -280,26 +280,10 @@ export default function DirectChatView({ conversation, onBack }: Props) {
             </p>
           </div>
         </div>
-      ) : merged.length === 0 && isLoading ? (
-        <div className="flex-1 p-4 space-y-4">
-          {[1, 2, 3].map(i => (
-            <div key={i} className="flex gap-3">
-              <Skeleton className="h-8 w-8 rounded-full shrink-0" />
-              <div className="space-y-1">
-                <Skeleton className="h-3 w-24" />
-                <Skeleton className="h-10 w-48 rounded-lg" />
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : merged.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center px-4">
-          <div className="text-center">
-            <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-            <p className="text-muted-foreground">{t('noMessages')}</p>
-          </div>
-        </div>
-      ) : (
+      ) : merged.length > 0 ? (
+        // PRIORITY: if we have anything to show (real OR pending), render the list.
+        // This guarantees offline-enqueued messages are visible even when the
+        // server query is still loading or has failed due to no connectivity.
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1">
           {groupedMessages.map(group => (
             <div key={group.date}>
@@ -371,6 +355,25 @@ export default function DirectChatView({ conversation, onBack }: Props) {
             </div>
           ))}
           <div ref={messagesEndRef} />
+        </div>
+      ) : isLoading ? (
+        <div className="flex-1 p-4 space-y-4">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="flex gap-3">
+              <Skeleton className="h-8 w-8 rounded-full shrink-0" />
+              <div className="space-y-1">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-10 w-48 rounded-lg" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="flex-1 flex items-center justify-center px-4">
+          <div className="text-center">
+            <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+            <p className="text-muted-foreground">{t('noMessages')}</p>
+          </div>
         </div>
       )}
 
