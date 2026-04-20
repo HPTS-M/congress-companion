@@ -1,0 +1,1 @@
+DELETE FROM public.access_attempts WHERE attempted_at > now() - interval '1 hour';
