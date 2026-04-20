@@ -1,117 +1,69 @@
 
 
-## Validación técnica de documentos en área comercial (patrocinadores)
+## Bug fix: mostrar la respuesta seleccionada después de enviar (encuestas de selección)
 
-### Objetivo
+### Diagnóstico
 
-Reforzar la carga de **logo** y **materiales (PDF)** en `SponsorModal.tsx` para que el sistema:
-1. Rechace archivos con formato/tamaño inválido **en el momento de selección** (no al guardar).
-2. Confirme que el archivo subido existe en Storage y tiene tamaño > 0 después del upload.
-3. Dé feedback claro al admin: éxito, error, tipo permitido, tamaño máximo.
+En `src/pages/attendee/Polls.tsx` (líneas 213-227), el bloque de confirmación post-envío solo renderiza la respuesta del usuario cuando el tipo es `open_text`:
 
-### Estado actual vs. problemas detectados
-
-| Archivo | Validación actual | Problema |
-|---|---|---|
-| Logo (imagen) | `accept="image/*"` + límite 2MB **al guardar** | Acepta SVG (riesgo XSS), no valida MIME real, error tardío |
-| Materiales (PDF) | **Sin `accept`**, sin validación MIME, 10MB **al guardar** | Admite cualquier formato; si se sube .docx o .zip, se guarda igual |
-| Post-upload | No hay verificación | Si Storage devuelve path pero objeto corrupto o 0 bytes, pasa desapercibido |
-
-### Cambios a realizar
-
-#### 1. `src/lib/file-validation.ts` (nuevo)
-
-Utilidad centralizada reutilizable:
-
-```ts
-export const SPONSOR_LOGO_MIME = ['image/png','image/jpeg','image/webp'];
-export const SPONSOR_LOGO_EXT  = ['png','jpg','jpeg','webp'];
-export const SPONSOR_LOGO_MAX  = 2 * 1024 * 1024;
-
-export const SPONSOR_MATERIALS_MIME = ['application/pdf'];
-export const SPONSOR_MATERIALS_EXT  = ['pdf'];
-export const SPONSOR_MATERIALS_MAX  = 10 * 1024 * 1024;
-
-export interface FileValidationResult {
-  ok: boolean;
-  code?: 'empty' | 'invalid_type' | 'invalid_ext' | 'too_large';
-}
-
-export function validateFile(file: File, allowedMime: string[], allowedExt: string[], maxSize: number): FileValidationResult
+```tsx
+{isOpen && poll.my_response?.text_response && ( … )}
 ```
 
-La función verifica: tamaño > 0, `file.type` en lista MIME, extensión del nombre en lista permitida, tamaño ≤ max. Se alinea con la regla de memoria `storage/event-sponsors-storage` (imágenes PNG/JPG/WEBP; materiales solo PDF).
+Para `single_choice`, `multiple_choice` y `rating_scale` no se muestra nada de lo que el usuario eligió — solo el mensaje genérico "Respuesta enviada". Esto da la sensación de que la selección "no se visualizó".
 
-#### 2. Modificar `src/components/admin/sponsors/SponsorModal.tsx`
-
-**a. Validación inmediata al seleccionar archivo:**
-
-- Nuevo handler `handleLogoSelect(file)` y `handleMaterialsSelect(file)` que:
-  - Llaman a `validateFile(...)`.
-  - Si falla → `toast.error(t('sponsors.validation.fileX'))` con mensaje específico y NO setean el estado.
-  - Si pasa → `setLogoFile(file)` / `setMaterialsFile(file)`.
-- Restringir el input del logo a `accept="image/png,image/jpeg,image/webp"` (excluye SVG).
-- Agregar `accept="application/pdf"` al input de materiales (actualmente vacío).
-
-**b. Verificación post-upload:**
-
-- Ampliar `adminSponsorsService.uploadFile` para devolver `{ path, size }` y **después** del upload hacer una llamada a `supabase.storage.from(BUCKET).list(eventId, { search: filename })` o un HEAD vía `createSignedUrl` + `fetch(method:'HEAD')` para confirmar que el objeto existe con tamaño > 0.
-- Si la verificación falla → `throw new Error('upload_verification_failed')` y mostrar toast de error + revertir estado (sin actualizar la fila de sponsors).
-
-**c. Mover validación de tamaño de `performSave` al handler de selección** (el fallback en `performSave` se mantiene como defensa en profundidad).
-
-**d. Feedback visual:**
-
-- Mostrar tamaño del archivo junto al nombre (`1.2 MB`).
-- Estado `uploadingLogo` / `uploadingMaterials` → spinner en el botón durante el upload + verificación.
-
-#### 3. Modificar `src/services/admin-sponsors.service.ts`
+Además, en `src/services/polls.service.ts` (`getActivePolls`), cuando hay varias filas para `multiple_choice` el reduce sobrescribe y solo guarda la **última** opción del usuario:
 
 ```ts
-async uploadFile(eventId, file, prefix): Promise<{ path: string; size: number }> {
-  // subida actual ...
-  // verificación post-upload:
-  const { data: list } = await supabase.storage.from(BUCKET).list(eventId, {
-    search: filename,
-  });
-  const uploaded = list?.find(o => o.name === filename);
-  if (!uploaded || (uploaded.metadata?.size ?? 0) === 0) {
-    // cleanup + throw
-    await supabase.storage.from(BUCKET).remove([path]);
-    throw new Error('verification_failed');
-  }
-  return { path, size: uploaded.metadata.size };
+for (const r of myResponses || []) {
+  myResponseByPoll[r.poll_id] = { option_id: r.option_id, text_response: r.text_response };
 }
 ```
 
-- Actualizar `performSave` para consumir `{path, size}` en lugar del string plano.
+Esto debe corregirse para soportar múltiples option_ids.
 
-#### 4. i18n — agregar claves en `src/locales/es/admin.json` y `en/admin.json`
+### Cambios
 
-Bajo `sponsors.validation`:
+#### 1. `src/services/polls.service.ts`
 
-```json
-"fileTypeLogo": "El logo debe ser PNG, JPG o WEBP.",
-"fileTypeMaterials": "Los materiales deben ser un archivo PDF.",
-"fileSizeLogo": "El logo no puede superar 2 MB.",
-"fileSizeMaterials": "Los materiales no pueden superar 10 MB.",
-"fileEmpty": "El archivo está vacío o dañado.",
-"uploadVerificationFailed": "La subida no se pudo verificar. Intenta de nuevo.",
-"uploadSuccess": "Archivo subido correctamente."
-```
+- Cambiar la forma de `AttendeePoll.my_response` de:
+  ```ts
+  my_response?: { option_id: string | null; text_response: string | null } | null;
+  ```
+  a:
+  ```ts
+  my_response?: { option_ids: string[]; text_response: string | null } | null;
+  ```
+- Agrupar las filas de `myResponses` en un array de `option_ids` por poll en lugar de sobrescribir.
+
+#### 2. `src/pages/attendee/Polls.tsx`
+
+- Actualizar el bloque de confirmación (líneas 213-227) para que también muestre la respuesta del usuario cuando el tipo sea `single_choice`, `multiple_choice` o `rating_scale`:
+  - Resolver los `option_ids` contra `poll.options` para obtener los `option_text`.
+  - Para `rating_scale`, mostrar el número (1-5) y opcionalmente la etiqueta de `RATING_LABELS` traducida.
+  - Para `single_choice`: una sola opción resaltada con un check.
+  - Para `multiple_choice`: lista (chips) de las opciones seleccionadas.
+  - Reutilizar el mismo contenedor visual usado hoy para `open_text` (`rounded-md bg-background p-2 border border-border` con label "Tu respuesta") para mantener consistencia.
+- Mantener el texto "Resultados privados" arriba.
+
+#### 3. i18n — `src/locales/es/common.json` y `en/common.json`
+
+Añadir bajo `polls`:
+- `yourSelection`: "Tu selección" / "Your selection"
+- (reutilizar `yourResponse` ya existente para coherencia visual; se puede usar el mismo)
 
 ### Resultado esperado
 
-1. Al seleccionar un logo no-imagen o SVG → toast rojo inmediato, el archivo no queda en el estado.
-2. Al seleccionar un material que no sea PDF → toast rojo inmediato.
-3. Archivos mayores al límite se rechazan antes de siquiera abrir la petición a Storage.
-4. Tras el upload, el servicio confirma existencia + tamaño > 0; si falla, se hace cleanup y el sponsor NO se guarda con un `logo_url` / `materials_url` roto.
-5. Durante la subida, botones deshabilitados + spinner; al terminar, toast verde de éxito.
+Después de enviar una encuesta de selección única, el card muestra:
+- ✅ "Respuesta enviada"
+- "Resultados privados…"
+- **"Tu respuesta: [Texto de la opción elegida]"** ← nuevo, visible igual que en open_text
+
+Para `multiple_choice` se muestran todas las opciones elegidas como badges. Para `rating_scale`, el número con su etiqueta. La data se carga correctamente desde el servicio (sin perder selecciones múltiples).
 
 ### Consideraciones
 
-- No requiere cambios de BD ni RLS: solo UI + servicio cliente.
-- El bucket `event-sponsors` ya es privado con isolation por folder `{event_id}/` (memoria `storage/event-sponsors-storage`), así que la verificación `list()` está permitida para admins del evento.
-- Defensa en profundidad: se valida **al seleccionar**, **antes de subir** y **después de subir**.
-- Patrón reutilizable vía `src/lib/file-validation.ts` para aplicar luego a documentos académicos, importaciones CSV, etc.
+- Cambio puramente UI + capa de servicio; sin migraciones de BD ni cambios en RLS.
+- Compatible con el estado optimista `justSubmitted`: tras refetch (que `submitResponse.onSuccess` ya invalida), `poll.my_response.option_ids` llegará con la(s) opción(es) recién votadas.
+- No se exponen agregados ni votos de otros usuarios — se mantiene la regla de privacidad de resultados.
 
