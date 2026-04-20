@@ -47,6 +47,18 @@ const CATEGORIES = ['pharmaceutical', 'technology', 'medical_equipment', 'servic
 const WHATSAPP_REGEX = /^\+?[1-9]\d{7,14}$/;
 const URL_REGEX = /^https?:\/\/.+/i;
 
+function logoErrorKey(r: FileValidationResult): string {
+  if (r.code === 'too_large') return 'fileSizeLogo';
+  if (r.code === 'empty') return 'fileEmpty';
+  return 'fileTypeLogo';
+}
+
+function materialsErrorKey(r: FileValidationResult): string {
+  if (r.code === 'too_large') return 'fileSizeMaterials';
+  if (r.code === 'empty') return 'fileEmpty';
+  return 'fileTypeMaterials';
+}
+
 type Errors = Partial<Record<
   'name' | 'description' | 'website_url' | 'contact_email' | 'whatsapp' | 'video_url' | 'social_linkedin' | 'social_instagram',
   string
@@ -335,8 +347,8 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
                       </Button>
                       {logoFile && (
                         <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          {logoFile.name}
-                          <X className="h-3 w-3 cursor-pointer" onClick={() => setLogoFile(null)} />
+                          {logoFile.name} ({formatFileSize(logoFile.size)})
+                          <X className="h-3 w-3 cursor-pointer" onClick={() => { setLogoFile(null); if (logoRef.current) logoRef.current.value = ''; }} />
                         </span>
                       )}
                       {logoPreviewUrl && !logoFile && (
@@ -345,7 +357,13 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
                         </Button>
                       )}
                     </div>
-                    <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={(e) => { setLogoFile(e.target.files?.[0] ?? null); setRemoveLogo(false); }} />
+                    <input
+                      ref={logoRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={(e) => handleLogoSelect(e.target.files?.[0] ?? null)}
+                    />
                     <p className="text-xs text-muted-foreground">{t('sponsors.logoMaxSize')}</p>
                   </div>
                 </div>
@@ -407,8 +425,8 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
                   </Button>
                   {materialsFile && (
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      {materialsFile.name}
-                      <X className="h-3 w-3 cursor-pointer" onClick={() => setMaterialsFile(null)} />
+                      {materialsFile.name} ({formatFileSize(materialsFile.size)})
+                      <X className="h-3 w-3 cursor-pointer" onClick={() => { setMaterialsFile(null); if (materialsRef.current) materialsRef.current.value = ''; }} />
                     </span>
                   )}
                   {currentMaterialsPath && !materialsFile && !removeMaterials && (
@@ -424,7 +442,13 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
                       </Button>
                     </>
                   )}
-                  <input ref={materialsRef} type="file" accept=".pdf" className="hidden" onChange={(e) => { setMaterialsFile(e.target.files?.[0] ?? null); setRemoveMaterials(false); }} />
+                  <input
+                    ref={materialsRef}
+                    type="file"
+                    accept="application/pdf"
+                    className="hidden"
+                    onChange={(e) => handleMaterialsSelect(e.target.files?.[0] ?? null)}
+                  />
                 </div>
                 <p className="text-xs text-muted-foreground">{t('sponsors.materialsMaxSize')}</p>
               </div>
