@@ -70,6 +70,14 @@ interface ImportResult {
   updated?: number;
   skipped?: number;
   upsertErrors?: number;
+  /** Credentials emailed successfully. */
+  invitationsSent?: number;
+  /** Credential emails that failed (after retries). */
+  invitationsFailed?: number;
+  /** Recipients excluded server-side (cancelled / invalid email). */
+  invitationsSkipped?: number;
+  /** First-failure reason for at-a-glance debugging in the toast. */
+  invitationsFirstError?: string;
 }
 
 async function downloadTemplate() {
