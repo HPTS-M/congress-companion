@@ -6,7 +6,10 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/hooks/useAuth';
-import { useEventSlug, useEventSettings } from '@/hooks/useEvent';
+import { useEvent, useEventSlug, useEventSettings } from '@/hooks/useEvent';
+import { useUnreadAnnouncements } from '@/hooks/useUnreadAnnouncements';
+import { useUnreadMessages } from '@/hooks/useUnreadMessages';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import {
   Sidebar,
   SidebarContent,
@@ -48,8 +51,12 @@ export function AttendeeSidebar() {
   const { logout } = useAuth();
   const eventSlug = useEventSlug();
   const settings = useEventSettings();
+  const { event } = useEvent();
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
+  const announcements = useUnreadAnnouncements(event?.id ?? '');
+  const messages = useUnreadMessages(event?.id ?? '');
+  const isOnline = useOnlineStatus();
 
   const filteredMain = mainItems.filter((item) => !item.settingsKey || settings[item.settingsKey]);
   const filteredSecondary = secondaryItems.filter((item) => !item.settingsKey || settings[item.settingsKey]);
@@ -57,6 +64,32 @@ export function AttendeeSidebar() {
   const handleLogout = async () => {
     await logout();
     navigate(`/${eventSlug}`);
+  };
+
+  const renderBadge = (count: number) => {
+    if (count <= 0) return null;
+    if (collapsed) {
+      return (
+        <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive" />
+      );
+    }
+    return (
+      <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">
+        {count > 99 ? '99+' : count}
+      </span>
+    );
+  };
+
+  const renderOfflineDot = () => {
+    if (isOnline) return null;
+    if (collapsed) {
+      return (
+        <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-400 ring-1 ring-background" />
+      );
+    }
+    return (
+      <span className="ml-auto h-2 w-2 rounded-full bg-amber-400" aria-label={t('offlineBanner.headerDot')} />
+    );
   };
 
   return (
@@ -89,20 +122,31 @@ export function AttendeeSidebar() {
           <SidebarGroupLabel>{!collapsed ? 'Más' : ''}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {filteredSecondary.map(({ key, icon: Icon, path }) => (
-                <SidebarMenuItem key={key}>
-                  <SidebarMenuButton asChild>
-                    <NavLink
-                      to={`/${eventSlug}${path}`}
-                      className="flex items-center gap-3 px-3 py-2 text-sm font-medium text-foreground hover:bg-muted/50 rounded-md"
-                      activeClassName="bg-primary/10 text-primary font-semibold"
-                    >
-                      <Icon className="h-5 w-5 shrink-0" />
-                      {!collapsed && <span>{t(`nav.${key}`)}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {filteredSecondary.map(({ key, icon: Icon, path }) => {
+                const isAnnouncements = key === 'announcements';
+                const isMessaging = key === 'messaging';
+                const handleClick = () => {
+                  if (isAnnouncements) announcements.markAsSeen();
+                  if (isMessaging) messages.markAsSeen();
+                };
+                return (
+                  <SidebarMenuItem key={key}>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={`/${eventSlug}${path}`}
+                        onClick={handleClick}
+                        className="relative flex items-center gap-3 px-3 py-2 text-sm font-medium text-foreground hover:bg-muted/50 rounded-md"
+                        activeClassName="bg-primary/10 text-primary font-semibold"
+                      >
+                        <Icon className="h-5 w-5 shrink-0" />
+                        {!collapsed && <span>{t(`nav.${key}`)}</span>}
+                        {isAnnouncements && renderBadge(announcements.count)}
+                        {isMessaging && (messages.count > 0 ? renderBadge(messages.count) : renderOfflineDot())}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
