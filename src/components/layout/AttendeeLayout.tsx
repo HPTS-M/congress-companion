@@ -25,7 +25,7 @@ export function AttendeeLayout() {
           <HamburgerMenu open={menuOpen} onOpenChange={setMenuOpen} />
 
           {/* Main content — between header (56px) and bottom nav (64px on mobile) */}
-          <main className="flex-1 overflow-y-auto pt-[7.5rem] pb-0 md:pt-[8.5rem] md:pb-0">
+          <main className="flex-1 overflow-y-auto pt-[7.5rem] pb-0 md:pt-16 md:pb-0">
             <Outlet />
           </main>
 
