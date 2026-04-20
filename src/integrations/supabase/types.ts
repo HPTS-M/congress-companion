@@ -1988,13 +1988,39 @@ export type Database = {
         Returns: Json
       }
       cleanup_old_attempts: { Args: never; Returns: undefined }
+      count_unread_announcements: {
+        Args: { _event_id: string; _last_seen: string }
+        Returns: number
+      }
+      count_unread_messages: {
+        Args: { _attendee_id: string; _event_id: string; _last_seen: string }
+        Returns: Json
+      }
       create_attendee_credential: {
         Args: { _attendee_id: string }
         Returns: string
       }
+      get_active_polls_with_counts: {
+        Args: { _attendee_id: string; _event_id: string }
+        Returns: Json
+      }
       get_attendee_itinerary: { Args: { _attendee_id: string }; Returns: Json }
       get_event_statistics: { Args: { _event_id: string }; Returns: Json }
       get_my_attendee_ids: { Args: never; Returns: string[] }
+      get_my_direct_conversations: {
+        Args: { _attendee_id: string; _event_id: string }
+        Returns: {
+          created_at: string
+          id: string
+          initiated_by: string
+          last_message_at: string
+          last_message_preview: string
+          other_id: string
+          other_name: string
+          participant_id: string
+          status: string
+        }[]
+      }
       get_my_event_ids: { Args: never; Returns: string[] }
       get_or_create_conversation: {
         Args: {
