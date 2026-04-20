@@ -81,7 +81,7 @@ export function ServiceModal({ open, onClose, onSave, service, isSaving }: Props
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {service ? t('logistics.editTitle') : t('logistics.newTitle')}
