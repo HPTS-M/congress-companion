@@ -7,6 +7,7 @@ import { useUnreadAnnouncements } from '@/hooks/useUnreadAnnouncements';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 interface AppHeaderProps {
   onMenuOpen: () => void;
@@ -66,49 +67,73 @@ export function AppHeader({ onMenuOpen }: AppHeaderProps) {
 
       {/* Right — actions */}
       <div className="flex items-center gap-0.5">
-        <Button variant="ghost" size="icon" onClick={toggleLanguage} className="text-white hover:bg-white/10">
-          <Globe className="h-4 w-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className="relative text-white hover:bg-white/10 md:hidden" onClick={handleBellClick} aria-label="Announcements">
-          <Bell className="h-4 w-4" />
-          {announcements.count > 0 && (
-            <span className="absolute right-0.5 top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
-              {announcements.count > 99 ? '99+' : announcements.count}
-            </span>
-          )}
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="relative text-white hover:bg-white/10 md:hidden"
-          onClick={handleMessagingClick}
-          aria-label={tMessaging('headerTooltip')}
-          title={!isOnline ? t('offlineBanner.headerDot') : tMessaging('headerTooltip')}
-        >
-          <MessageCircle className="h-4 w-4" />
-          {messages.count > 0 && (
-            <span className="absolute right-0.5 top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
-              {messages.count > 99 ? '99+' : messages.count}
-            </span>
-          )}
-          {messages.count === 0 && showMessagingDot && isOnline && (
-            <span className="absolute right-1 top-1 flex h-2 w-2 items-center justify-center rounded-full bg-accent animate-pulse" />
-          )}
-          {!isOnline && (
-            <span
-              className="absolute right-0.5 top-0.5 flex h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-white/40"
-              aria-label={t('offlineBanner.headerDot')}
-            />
-          )}
-        </Button>
-        <Button variant="ghost" size="icon" className="relative text-white hover:bg-white/10 md:w-auto md:px-2" onClick={() => navigate(`/${eventSlug}/profile`)}>
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs font-bold text-white">
-            {attendee?.full_name?.charAt(0)?.toUpperCase() || '?'}
-          </span>
-          <span className="hidden md:block ml-1 max-w-[100px] truncate text-xs text-white">
-            {attendee?.full_name}
-          </span>
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" onClick={toggleLanguage} aria-label={t('header.tooltips.language')} className="text-white hover:bg-white/10">
+              <Globe className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" sideOffset={6}>{t('header.tooltips.language')}</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" className="relative text-white hover:bg-white/10 md:hidden" onClick={handleBellClick} aria-label={t('header.tooltips.announcements')}>
+              <Bell className="h-4 w-4" />
+              {announcements.count > 0 && (
+                <span className="absolute right-0.5 top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
+                  {announcements.count > 99 ? '99+' : announcements.count}
+                </span>
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" sideOffset={6}>{t('header.tooltips.announcements')}</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="relative text-white hover:bg-white/10 md:hidden"
+              onClick={handleMessagingClick}
+              aria-label={tMessaging('headerTooltip')}
+            >
+              <MessageCircle className="h-4 w-4" />
+              {messages.count > 0 && (
+                <span className="absolute right-0.5 top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
+                  {messages.count > 99 ? '99+' : messages.count}
+                </span>
+              )}
+              {messages.count === 0 && showMessagingDot && isOnline && (
+                <span className="absolute right-1 top-1 flex h-2 w-2 items-center justify-center rounded-full bg-accent animate-pulse" />
+              )}
+              {!isOnline && (
+                <span
+                  className="absolute right-0.5 top-0.5 flex h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-white/40"
+                  aria-label={t('offlineBanner.headerDot')}
+                />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" sideOffset={6}>
+            {!isOnline ? t('offlineBanner.headerDot') : tMessaging('headerTooltip')}
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" className="relative text-white hover:bg-white/10 md:w-auto md:px-2" onClick={() => navigate(`/${eventSlug}/profile`)} aria-label={t('header.tooltips.profile')}>
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs font-bold text-white">
+                {attendee?.full_name?.charAt(0)?.toUpperCase() || '?'}
+              </span>
+              <span className="hidden md:block ml-1 max-w-[100px] truncate text-xs text-white">
+                {attendee?.full_name}
+              </span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" sideOffset={6}>{t('header.tooltips.profile')}</TooltipContent>
+        </Tooltip>
       </div>
     </header>
   );
