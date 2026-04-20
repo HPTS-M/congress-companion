@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Globe, Mail, MessageCircle, Linkedin, Instagram, MapPin, Play, FileText, Eye, MousePointerClick, Download, Heart, Search, CheckCircle2 } from 'lucide-react';
+import { Globe, Mail, MessageCircle, Linkedin, Instagram, MapPin, Play, FileText, Eye, MousePointerClick, Download, Heart, Search, CheckCircle2, Info, BarChart3 } from 'lucide-react';
 import { adminSponsorsService, type SponsorRow } from '@/services/admin-sponsors.service';
 import { sponsorLeadsService, type SponsorLeadWithAttendee } from '@/services/sponsor-leads.service';
 import { writeExcelFile } from '@/lib/excel';
@@ -149,11 +149,29 @@ export function SponsorDetailDrawer({ open, onClose, sponsor }: Props) {
           )}
 
           <Tabs defaultValue="info" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="info">{t('sponsors.detailContact')}</TabsTrigger>
-              <TabsTrigger value="stats">{t('sponsors.detailStats')}</TabsTrigger>
-              <TabsTrigger value="leads">
-                Leads {leads.length > 0 && <Badge variant="secondary" className="ml-1 text-xs">{leads.length}</Badge>}
+            <TabsList className="grid w-full grid-cols-3 h-auto gap-1 p-1">
+              <TabsTrigger
+                value="info"
+                className="flex flex-col gap-1 py-2 px-1 text-[11px] sm:flex-row sm:gap-2 sm:text-sm"
+              >
+                <Info className="h-4 w-4 shrink-0" />
+                <span className="truncate">{t('sponsors.tabContact')}</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="stats"
+                className="flex flex-col gap-1 py-2 px-1 text-[11px] sm:flex-row sm:gap-2 sm:text-sm"
+              >
+                <BarChart3 className="h-4 w-4 shrink-0" />
+                <span className="truncate">{t('sponsors.tabStats')}</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="leads"
+                className="flex flex-col gap-1 py-2 px-1 text-[11px] sm:flex-row sm:gap-2 sm:text-sm"
+              >
+                <Heart className="h-4 w-4 shrink-0" />
+                <span className="truncate">
+                  {t('sponsors.tabLeads')}{leads.length > 0 ? ` (${leads.length})` : ''}
+                </span>
               </TabsTrigger>
             </TabsList>
 

@@ -13,7 +13,8 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Search, Pencil, Trash2, Eye, Mail, MessageCircle, Building2, Award, Trophy, Medal, Download, Upload } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Eye, Mail, MessageCircle, Building2, Award, Trophy, Medal, Download, Upload, RefreshCw } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { SponsorModal } from '@/components/admin/sponsors/SponsorModal';
@@ -38,7 +39,7 @@ const LEVEL_LABELS: Record<string, string> = {
 export default function AdminSponsors() {
   const { t } = useTranslation('admin');
   const { event } = useEvent();
-  const { sponsors, isLoading, deleteSponsor } = useAdminSponsors(event?.id);
+  const { sponsors, isLoading, isFetching, refetch, deleteSponsor } = useAdminSponsors(event?.id);
 
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -106,6 +107,15 @@ export default function AdminSponsors() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl font-bold text-foreground">{t('sponsors.title')}</h1>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            title={t('sponsors.refresh')}
+          >
+            <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
+          </Button>
           <Button variant="outline" onClick={() => setImportOpen(true)}>
             <Upload className="mr-1 h-4 w-4" /> {t('sponsors.importButton')}
           </Button>

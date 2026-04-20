@@ -388,7 +388,21 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-1.5">
                   <Label>{t('sponsors.fieldWhatsapp')}</Label>
-                  <Input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="573001234567" className={errClass('whatsapp')} />
+                  <Input
+                    value={whatsapp}
+                    onChange={(e) => {
+                      let cleaned = e.target.value.replace(/[^\d+]/g, '');
+                      if (cleaned.indexOf('+') > 0) cleaned = cleaned.replace(/\+/g, '');
+                      const plusCount = (cleaned.match(/\+/g) ?? []).length;
+                      if (plusCount > 1) cleaned = '+' + cleaned.replace(/\+/g, '');
+                      setWhatsapp(cleaned.slice(0, 16));
+                    }}
+                    placeholder="+573001234567"
+                    inputMode="tel"
+                    maxLength={16}
+                    className={errClass('whatsapp')}
+                  />
+                  <p className="text-xs text-muted-foreground">{t('sponsors.validation.whatsappHelp')}</p>
                   {errors.whatsapp && <p className="text-xs text-destructive">{errors.whatsapp}</p>}
                 </div>
                 <div className="grid gap-1.5">

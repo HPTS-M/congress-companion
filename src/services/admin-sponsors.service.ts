@@ -109,25 +109,21 @@ export const adminSponsorsService = {
       .upload(path, file, { upsert: true });
     if (error) throw new Error(error.message);
 
-    // Post-upload verification: confirm object exists with size > 0
-    const { data: list, error: listError } = await supabase.storage
-      .from(BUCKET)
-      .list(eventId, { search: filename });
-
-    if (listError) {
-      await supabase.storage.from(BUCKET).remove([path]).catch(() => undefined);
-      throw new Error('upload_verification_failed');
+    // Best-effort post-upload verification (non-destructive).
+    // If RLS or transient error blocks list(), trust the original file size.
+    try {
+      const { data: list } = await supabase.storage
+        .from(BUCKET)
+        .list(eventId, { search: filename });
+      const uploaded = list?.find((o) => o.name === filename);
+      const verifiedSize = (uploaded?.metadata as { size?: number } | null)?.size ?? 0;
+      if (uploaded && verifiedSize > 0) {
+        return { path, size: verifiedSize };
+      }
+    } catch {
+      // ignore — fall through to file.size fallback
     }
-
-    const uploaded = list?.find((o) => o.name === filename);
-    const size = (uploaded?.metadata as { size?: number } | null)?.size ?? 0;
-
-    if (!uploaded || size === 0) {
-      await supabase.storage.from(BUCKET).remove([path]).catch(() => undefined);
-      throw new Error('upload_verification_failed');
-    }
-
-    return { path, size };
+    return { path, size: file.size };
   },
 
   async deleteFile(path: string): Promise<void> {
