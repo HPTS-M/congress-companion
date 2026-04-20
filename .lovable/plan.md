@@ -1,163 +1,151 @@
 
 
-## Plan: Corregir rutas duplicadas y consistencia en envío de credenciales
+## Plan: Ajustes a módulos Patrocinadores y Logística
 
 ### Diagnóstico
 
-**Problema 1 — Rutas duplicadas tipo `/ACQFH-2026/ACQFH-2026`**
+**Patrocinadores (`/ACQFH-2026/admin/sponsors`)**
+- WhatsApp es un único input que mezcla código de país + número, queda visualmente desordenado.
+- Modal en pestaña "WhatsApp / Materials" usa `grid-cols-2` fijo en móvil, los inputs se aprietan.
+- El botón refresh tiene spinner pero `isFetching` es `false` mientras se completan mutaciones (create/update) → no hay feedback visual durante esas operaciones.
+- En el detail drawer, el botón "Vista previa" abre el modal correctamente, pero **no hay vista previa visible inline** (thumbnail/icono PDF) — el usuario debe hacer click extra. El modal de preview ya existe (`SponsorMaterialPreviewModal`) pero queremos un mini preview visible siempre.
+- Bug PDF: `accept="application/pdf"` filtra por MIME pero algunos PDFs llegan con `file.type === ''` desde Windows → `validateFile` rechaza por `invalid_type` antes de subir. Hay que confiar en la extensión `.pdf` cuando MIME viene vacío.
 
-El helper `buildEventUrl` en `supabase/functions/_shared/build-event-url.ts` ya intenta defenderse de un `APP_URL` mal configurado, pero tiene **dos limitaciones**:
+**Logística (`/ACQFH-2026/admin/logistics`)**
+- Existe `UNIQUE INDEX (event_id, lower(name))` pero el usuario quiere regla **(nombre + tipo + horario)**. El índice actual es **más estricto** que lo solicitado → hay que **reemplazarlo** por uno compuesto que considere los 3 campos.
+- En la tabla solo se muestra el rango horario, no la fecha en que se canceló/completó → no se puede auditar visualmente.
+- Placeholder del buscador dice "Buscar..." (genérico).
 
-1. Solo elimina **una** ocurrencia trailing del `event_code` (`/ACQFH-2026$`). Si el secret quedó como `https://congress-connect-app.lovable.app/ACQFH-2026/`, primero se quita la barra y luego SÍ se quita el código → OK. Pero si quedó `…lovable.app/ACQFH-2026/ACQFH-2026` (caso reportado), solo limpia el último y devuelve `…lovable.app/ACQFH-2026/ACQFH-2026` de nuevo (duplicado).
-2. **Otras dos edge functions construyen URLs sin usar este helper**:
-   - `create-staff-user`: `${appUrl}/${event_code}/staff` — si `APP_URL` ya tiene un slug, queda duplicado.
-   - `create-provider-user`: `${appUrl}/provider` — mismo riesgo.
+### Aclaraciones del usuario
+- Duplicidad: **mismo nombre + mismo tipo + mismo rango horario** simultáneamente.
+- Código de país WhatsApp: **selector con bandera** (lista de ~25 países comunes de LatAm/EU/US).
 
-Las únicas funciones que SÍ usan el helper son `send-invitation-email` y `regenerate-access-code`.
-
-**Problema 2 — Algunos asistentes no reciben el correo**
-
-Revisando `send-invitation-email`:
-- ✅ Hay reintentos con backoff (500/1500/4000 ms) para 429 y 5xx.
-- ✅ Hay clasificación de errores (rate_limited, invalid_recipient, db_error, resend_error).
-- ✅ Se procesan en chunks de 20 con `Promise.allSettled`.
-- ⚠️ **Pero los fallos solo se registran en `console.log`** — no hay tabla de auditoría. Si Resend devuelve un fallo permanente (invalid_recipient, dominio bloqueado), el frontend solo ve un contador `failed: N` y un array `errors[]`, pero **el usuario admin no tiene forma de revisar después qué pasó**.
-- ⚠️ El campo `invitation_sent_at` se actualiza **antes** de enviar el correo (línea 156). Esto es correcto para que la credencial sea válida, pero **pinta como "enviado" incluso a quien nunca recibió el email**. El admin ve el badge "Invitado" en la UI y asume que llegó.
-- ⚠️ No hay forma de **reintentar solo los fallidos** desde la UI de admin — hay que volver a seleccionarlos manualmente, y el sistema los considera "ya invitados".
-
-**Causa raíz combinada**: Falta una **bitácora persistente** de envíos (éxito/fallo + razón) y un mecanismo de **reintento dirigido** a los que fallaron.
-
-### Decisión
-
-Tres cambios quirúrgicos:
-
-**A. URL robusto** — endurecer `buildEventUrl` para limpiar **cualquier número** de duplicaciones del `event_code` y usarlo en TODAS las edge functions que generan URLs.
-
-**B. Bitácora de envíos** — crear tabla `invitation_send_log` que registre cada intento (timestamp, attendee_id, status, reason, retries). El admin puede consultarla desde el modal de envío.
-
-**C. Reintento dirigido** — agregar acción "Reenviar fallidos" en el modal `BulkSendCredentialsModal` que filtra por `invitation_send_log.status = 'failed'` (o sin registro alguno) y dispara solo esos.
+---
 
 ### Cambios concretos
 
-#### A. URLs (no requiere migración)
+#### A. Módulo Patrocinadores
 
-**`supabase/functions/_shared/build-event-url.ts`** — endurecer:
-- Reemplazar el regex `replace` por un loop `while` que quite TODAS las ocurrencias trailing de `/${eventCode}` (case-insensitive), no solo una.
-- Mismo tratamiento para trailing slashes intermedias.
-- Resultado: aunque `APP_URL` quede como `…lovable.app/ACQFH-2026/ACQFH-2026/`, devuelve `…lovable.app/ACQFH-2026`.
+**A1. Selector de país para WhatsApp** (nuevo componente `PhoneInputWithCountry.tsx`)
+- Combobox con ~25 países: 🇨🇴 +57, 🇲🇽 +52, 🇺🇸 +1, 🇪🇸 +34, 🇦🇷 +54, 🇨🇱 +56, 🇵🇪 +51, 🇪🇨 +593, 🇻🇪 +58, 🇧🇷 +55, etc.
+- Default: 🇨🇴 +57.
+- El "+" siempre presente, no editable.
+- Input separado al lado para los dígitos del número (mismas reglas: solo dígitos, máx 14 chars).
+- Almacena la concatenación `+57` + `3001234567` → `+573001234567` en `whatsapp` (mismo formato que hoy).
+- Al cargar un patrocinador existente: parsear el prefijo y ajustar el selector.
 
-**`supabase/functions/create-staff-user/index.ts`**
-- Importar `buildEventUrl` y reemplazar la línea 113 `\`${appUrl}/${event?.event_code ?? ''}/staff\`` por `\`${buildEventUrl(event.event_code)}/staff\``.
+**A2. Responsividad del modal**
+- Cambiar `grid-cols-2` por `grid-cols-1 sm:grid-cols-2` en las filas de inputs (Web/Email, WhatsApp/Mensaje, LinkedIn/Instagram).
+- Aumentar `max-w-2xl` a `max-w-3xl md:max-w-2xl` para más respiro horizontal en escritorio.
+- En móvil que el modal use `max-h-[90vh]` y respete `safe-area`.
+- Logo y materiales: convertir las filas de botones en `flex-col sm:flex-row` para que en móvil no se rompan.
 
-**`supabase/functions/create-provider-user/index.ts`**
-- Reemplazar la línea 107 por una función similar. Como aquí no hay `event_code` en scope (es `/provider`), basta con un helper `buildBaseUrl()` que solo limpia trailing slashes y posibles slugs accidentales del `APP_URL` — devolver siempre la base limpia.
+**A3. Animación de loading en refresh + create/update**
+- En `Sponsors.tsx`, cambiar `disabled={isFetching}` y `animate-spin` para usar también `isCreating || isUpdating || isDeleting` del hook.
+- Eso hace que el botón refresh gire automáticamente cuando cualquier mutación está en curso.
 
-#### B. Bitácora de envíos (requiere migración)
+**A4. Previsualización de material en el detail drawer**
+- En la sección "Información de contacto" del drawer, cuando exista `materials_url`, además del botón "Abrir vista previa", mostrar un **thumbnail clicable**:
+  - Para PDF: ícono grande de PDF (rojo) + nombre del archivo + tamaño aprox.
+  - Click sobre el thumbnail abre el modal de preview existente.
+- Reutiliza `SponsorMaterialPreviewModal` (sin cambios).
 
-**Nueva tabla `invitation_send_log`**:
+**A5. Fix bug PDF al cargar/actualizar**
+- En `lib/file-validation.ts`, cuando `file.type` sea string vacío (caso común en Windows/Edge), aceptar el archivo si la extensión está en `allowedExt`.
+- Cambiar la línea `if (file.type && !allowedMime.includes(file.type))` para que el chequeo MIME sea **opcional** cuando MIME viene vacío y la extensión es válida.
+- Adicionalmente, en `adminSponsorsService.uploadFile`: añadir `contentType: file.type || 'application/pdf'` (cuando prefix === 'materials') al `upload()` para garantizar que Supabase Storage no falle por MIME ausente.
+
+---
+
+#### B. Módulo Logística
+
+**B1. Migration: nuevo unique index compuesto**
 ```sql
-CREATE TABLE public.invitation_send_log (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  attendee_id uuid REFERENCES attendees(id) ON DELETE CASCADE NOT NULL,
-  event_id uuid REFERENCES events(id) ON DELETE CASCADE NOT NULL,
-  status text NOT NULL CHECK (status IN ('sent', 'failed', 'skipped')),
-  reason text,                  -- 'rate_limited' | 'invalid_recipient' | 'db_error' | 'resend_error' | 'cancelled' | 'invalid_email'
-  error_message text,
-  retries integer DEFAULT 0,
-  attempted_by uuid REFERENCES auth.users(id),
-  attempted_at timestamptz NOT NULL DEFAULT now()
-);
+-- Quitar el index actual demasiado estricto
+DROP INDEX IF EXISTS public.service_catalog_event_name_unique;
 
-CREATE INDEX idx_invitation_log_attendee_attempted ON invitation_send_log(attendee_id, attempted_at DESC);
-CREATE INDEX idx_invitation_log_event_status ON invitation_send_log(event_id, status, attempted_at DESC);
-
-ALTER TABLE invitation_send_log ENABLE ROW LEVEL SECURITY;
-
--- Solo admin/superuser de la org del evento puede leer
-CREATE POLICY "Admins read own org invitation logs"
-  ON invitation_send_log FOR SELECT TO authenticated
-  USING (event_id IN (
-    SELECT e.id FROM events e
-    WHERE has_role(auth.uid(), 'superuser'::app_role)
-       OR has_org_role(auth.uid(), 'admin'::app_role, e.organization_id)
-  ));
-
--- Solo edge functions (service_role) escriben
-CREATE POLICY "Service writes invitation logs"
-  ON invitation_send_log FOR INSERT TO service_role
-  WITH CHECK (true);
+-- Nuevo: bloquea solo si coinciden los 3 campos a la vez
+CREATE UNIQUE INDEX service_catalog_event_name_type_time_unique
+  ON public.service_catalog (
+    event_id, lower(name), service_type,
+    COALESCE(valid_from, '00:00:00'::time),
+    COALESCE(valid_until, '00:00:00'::time)
+  );
 ```
+Notas: `COALESCE` evita que dos servicios sin horario se consideren distintos. El servicio actualmente captura `error.code === '23505'` y emite el toast `logistics.duplicateName` — solo hay que actualizar el copy del mensaje de error a algo como **"Ya existe un servicio con el mismo nombre, tipo y horario en este evento"**.
 
-**Modificar `send-invitation-email/index.ts`** — al final de cada `sendOneInvitation` y para cada skipped recipient, hacer `INSERT` en `invitation_send_log` con el resultado. Mismo cambio en `regenerate-access-code`.
+**B2. Mostrar fecha de cancelación/finalización en la tabla**
+- Agregar dos columnas opcionales (timestamps) a `service_catalog`:
+  - `cancelled_at timestamptz`
+  - `completed_at timestamptz`
+- Trigger que setee `cancelled_at = now()` cuando `status` cambia a `'cancelled'`, y lo limpie al reactivar.
+- Para `completed_at`: la vista `service_catalog_with_status` ya calcula `effective_status='completed'` cuando todos los tickets se usaron — podemos derivar `completed_at` como el `MAX(used_at)` de los `service_tickets` relacionados.
+- En `getAll()` del service, incluir `cancelled_at` directo y traer `completed_at` calculado.
+- En la tabla (`Logistics.tsx`), debajo del badge de estado mostrar la fecha en `text-xs text-muted-foreground`:
+  - "Cancelado el 20 abr 14:30"
+  - "Finalizado el 20 abr 18:00"
+  - Programado: nada extra.
 
-**Nueva RPC para conteo rápido**:
+**B3. Placeholder del buscador**
+- Cambiar `t('logistics.searchPlaceholder')` en `es/admin.json` y `en/admin.json`:
+  - ES: "Buscar por nombre del servicio..."
+  - EN: "Search by service name..."
+
+---
+
+### Detalles técnicos
+
+**Migration SQL** (un solo archivo):
 ```sql
-CREATE FUNCTION get_failed_invitation_attendee_ids(_event_id uuid)
-RETURNS SETOF uuid LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-  -- Asistentes cuyo último intento falló o que nunca tuvieron intento exitoso
-  SELECT DISTINCT a.id
-  FROM attendees a
-  WHERE a.event_id = _event_id
-    AND a.deleted_at IS NULL
-    AND a.registration_status != 'cancelled'
-    AND a.email IS NOT NULL
-    AND NOT EXISTS (
-      SELECT 1 FROM invitation_send_log l
-      WHERE l.attendee_id = a.id AND l.status = 'sent'
-    )
-    AND EXISTS (
-      SELECT 1 FROM invitation_send_log l
-      WHERE l.attendee_id = a.id AND l.status = 'failed'
-    );
+-- 1. Replace unique index
+DROP INDEX IF EXISTS public.service_catalog_event_name_unique;
+CREATE UNIQUE INDEX service_catalog_event_name_type_time_unique
+  ON public.service_catalog (event_id, lower(name), service_type,
+    COALESCE(valid_from, '00:00:00'::time),
+    COALESCE(valid_until, '00:00:00'::time));
+
+-- 2. cancelled_at column + trigger
+ALTER TABLE public.service_catalog
+  ADD COLUMN IF NOT EXISTS cancelled_at timestamptz;
+
+CREATE OR REPLACE FUNCTION public.set_service_cancelled_at()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NEW.status = 'cancelled' AND OLD.status IS DISTINCT FROM 'cancelled' THEN
+    NEW.cancelled_at := now();
+  ELSIF NEW.status <> 'cancelled' AND OLD.status = 'cancelled' THEN
+    NEW.cancelled_at := NULL;
+  END IF;
+  RETURN NEW;
+END;
 $$;
+DROP TRIGGER IF EXISTS trg_set_service_cancelled_at ON public.service_catalog;
+CREATE TRIGGER trg_set_service_cancelled_at
+  BEFORE UPDATE ON public.service_catalog
+  FOR EACH ROW EXECUTE FUNCTION public.set_service_cancelled_at();
 ```
+`completed_at` se calcula on-the-fly en `getAll()` con `MAX(used_at)` de los tickets — sin migration necesaria.
 
-#### C. Reintento dirigido (UI admin)
+**Archivos modificados**
+- `src/components/admin/sponsors/PhoneInputWithCountry.tsx` (nuevo)
+- `src/components/admin/sponsors/SponsorModal.tsx` (responsive + selector país + parser de prefijo)
+- `src/components/admin/sponsors/SponsorDetailDrawer.tsx` (thumbnail PDF inline)
+- `src/pages/admin/Sponsors.tsx` (animate-spin condicionado a `isCreating || isUpdating || isDeleting`)
+- `src/lib/file-validation.ts` (aceptar MIME vacío si extensión válida)
+- `src/services/admin-sponsors.service.ts` (`contentType` explícito en `uploadFile`)
+- `src/pages/admin/Logistics.tsx` (mostrar fecha cancelación/finalización en celda de estado)
+- `src/services/admin-logistics.service.ts` (incluir `cancelled_at` y calcular `completed_at`)
+- `src/components/admin/logistics/ServiceModal.tsx` (sin cambios; el error 23505 ya se captura, solo cambia el copy)
+- `src/locales/{es,en}/admin.json` (placeholder buscador, copy duplicateName, lista de países, labels nuevos)
+- Migration `supabase/migrations/<ts>_logistics_unique_and_dates.sql`
 
-**`src/services/admin-attendees.service.ts`**:
-- Nueva función `getFailedInvitationIds(eventId)` que llama la RPC anterior.
-- Nueva función `getInvitationLog(attendeeId)` que devuelve los últimos 10 intentos para un asistente (para mostrar en el detail drawer).
-
-**`src/components/admin/attendees/BulkSendCredentialsModal.tsx`**:
-- Agregar nueva categoría en el breakdown: "Fallidos en envío anterior" con conteo y opción a incluirlos.
-- Si solo hay fallidos seleccionados, el botón principal cambia a "Reintentar envío".
-
-**`src/components/admin/attendees/AttendeeDetailDrawer.tsx`**:
-- Agregar mini-sección "Historial de envíos" con los últimos 3 intentos (timestamp + status + reason).
-
-**`src/pages/admin/Attendees.tsx`**:
-- En la barra de acciones masivas, nuevo botón "Reenviar fallidos" que:
-  1. Llama `getFailedInvitationIds` para obtener los ids
-  2. Si hay > 0, abre `BulkSendCredentialsModal` con esos preseleccionados.
-
-#### D. i18n
-
-Añadir las nuevas claves en `src/locales/es/admin.json` y `src/locales/en/admin.json`:
-- `invitations.failed`: "Fallidos en envío anterior" / "Failed in previous send"
-- `invitations.retryFailed`: "Reenviar fallidos" / "Retry failed"
-- `invitations.history`: "Historial de envíos" / "Send history"
-- `invitations.statusSent`, `invitations.statusFailed`, etc.
-
-### Sin cambios en
-
-- Flujo de autenticación (`verify-access-code`) — no toca URLs ni envía emails.
-- Schema de `attendees` — `invitation_sent_at` se mantiene como timestamp del **último intento** (no del último éxito); los detalles finos viven en el log.
-- Resend / configuración del dominio — la integración funciona; el problema real es la falta de visibilidad post-envío.
-
-### Resultado esperado
-
-| Problema | Antes | Después |
-|---|---|---|
-| URL `…/ACQFH-2026/ACQFH-2026` | Se filtra solo 1 nivel; staff/provider no se filtran nunca | TODAS las URLs limpian cualquier nivel de duplicación |
-| Asistente sin email | Aparece "Invitado" en la UI sin forma de saber qué pasó | Aparece historial con razón ("invalid_recipient", "rate_limited") |
-| Reintento masivo | Hay que reseleccionar manualmente y desactivar el filtro "ya invitado" | Botón "Reenviar fallidos" hace el filtro automático |
-| Auditoría | Solo en logs de edge function (24h de retención) | Tabla persistente con índices, RLS, consultable desde UI |
-
-### Verificación post-deploy
-
-1. **URL fix**: temporalmente setear `APP_URL = https://congress-connect-app.lovable.app/ACQFH-2026/ACQFH-2026/` en secrets → enviar invitación de prueba a 1 asistente → confirmar que el link en el email es `…lovable.app/ACQFH-2026` (sin duplicar). Restaurar el secret correcto.
-2. **Bitácora**: enviar invitación a 3 asistentes (1 con email válido, 1 con email inexistente tipo `noexiste@dominio-falso.xyz`, 1 cancelado) → consultar `SELECT * FROM invitation_send_log WHERE event_id = '…' ORDER BY attempted_at DESC LIMIT 10` → confirmar que aparecen 3 filas con `status` correcto.
-3. **Reintento dirigido**: en la pantalla de admin → click "Reenviar fallidos" → confirmar que el modal preselecciona solo a los del paso 2 que fallaron.
-4. **Historial en detail drawer**: abrir detail drawer de un asistente con 2+ intentos → confirmar que ve los últimos intentos con timestamp y razón.
-5. **Staff y provider**: invitar 1 staff y 1 provider con el `APP_URL` correcto → confirmar que sus links son `…lovable.app/ACQFH-2026/staff` y `…lovable.app/provider` respectivamente (sin duplicaciones).
+**Validación post-deploy**
+1. **Patrocinadores WhatsApp**: crear sponsor con 🇨🇴 +57, número 3001234567 → verificar que en BD queda `whatsapp = '+573001234567'`. Editar y comprobar que el selector vuelve a 🇨🇴 +57.
+2. **Modal responsive**: abrir modal en viewport 375px → confirmar que inputs se apilan, no se cortan.
+3. **Loading spinner**: crear/editar/eliminar un sponsor → confirmar que el botón refresh gira durante toda la mutación.
+4. **Thumbnail PDF**: abrir detail drawer de sponsor con materiales → ver el thumbnail rojo grande, click → abre preview.
+5. **PDF upload bug**: en Windows seleccionar un PDF y guardar → confirmar que ya no falla con "tipo inválido".
+6. **Logística duplicidad**: crear servicio "Almuerzo / food / 12:00–13:00" → intentar duplicar exacto → toast de error. Crear "Almuerzo / food / 14:00–15:00" → permitido.
+7. **Fecha estado**: cancelar un servicio → ver "Cancelado el DD/MM HH:mm" debajo del badge.
+8. **Buscador**: confirmar el placeholder en es/en.
 
