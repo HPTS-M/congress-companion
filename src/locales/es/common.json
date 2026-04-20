@@ -133,6 +133,8 @@
     "ratingExcellent": "Excelente",
     "malformed": "Encuesta mal configurada. Contacta al organizador.",
     "multiSelectHint": "Puedes seleccionar varias opciones",
-    "duplicateVote": "Ya respondiste esta encuesta"
+    "duplicateVote": "Ya respondiste esta encuesta",
+    "responseSent": "Respuesta enviada",
+    "resultsPrivate": "Los resultados solo los ve el organizador"
   }
 }

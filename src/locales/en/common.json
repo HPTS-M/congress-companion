@@ -133,6 +133,8 @@
     "ratingExcellent": "Excellent",
     "malformed": "Poll misconfigured. Contact the organizer.",
     "multiSelectHint": "You can select multiple options",
-    "duplicateVote": "You already answered this poll"
+    "duplicateVote": "You already answered this poll",
+    "responseSent": "Response sent",
+    "resultsPrivate": "Results are only visible to the organizer"
   }
 }
