@@ -356,6 +356,25 @@ export default function DirectChatView({ conversation, onBack }: Props) {
           ))}
           <div ref={messagesEndRef} />
         </div>
+      ) : isLoading ? (
+        <div className="flex-1 p-4 space-y-4">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="flex gap-3">
+              <Skeleton className="h-8 w-8 rounded-full shrink-0" />
+              <div className="space-y-1">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-10 w-48 rounded-lg" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="flex-1 flex items-center justify-center px-4">
+          <div className="text-center">
+            <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+            <p className="text-muted-foreground">{t('noMessages')}</p>
+          </div>
+        </div>
       )}
 
       {/* Input bar */}
