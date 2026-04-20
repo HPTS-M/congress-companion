@@ -135,10 +135,23 @@ Deno.serve(async (req) => {
 
     if (updateError) {
       console.error('Update error:', updateError.message);
+      // Best-effort log
+      try {
+        await supabaseAdmin.from('invitation_send_log').insert({
+          attendee_id,
+          event_id: attendee.event_id,
+          status: 'failed',
+          reason: 'db_error',
+          error_message: updateError.message,
+          attempted_by: userId,
+        });
+      } catch { /* ignore */ }
       return jsonResponse(500, { error: 'Failed to update attendee' });
     }
 
     let emailSent = false;
+    let emailReason: string | null = null;
+    let emailError: string | null = null;
     if (send_email) {
       const resendApiKey = Deno.env.get('RESEND_API_KEY');
       if (resendApiKey) {
@@ -166,8 +179,37 @@ Deno.serve(async (req) => {
             }),
           });
           emailSent = resendResponse.ok;
+          if (!emailSent) {
+            emailReason = resendResponse.status === 429 ? 'rate_limited' : 'resend_error';
+            try {
+              const body = await resendResponse.json();
+              emailError = `Resend ${resendResponse.status}: ${JSON.stringify(body)}`;
+            } catch {
+              emailError = `Resend ${resendResponse.status}`;
+            }
+          }
+        } else {
+          emailReason = 'db_error';
+          emailError = 'Event not found';
         }
+      } else {
+        emailReason = 'resend_error';
+        emailError = 'RESEND_API_KEY not configured';
       }
+    }
+
+    // Audit log (best effort) — only when an email was actually attempted
+    if (send_email) {
+      try {
+        await supabaseAdmin.from('invitation_send_log').insert({
+          attendee_id,
+          event_id: attendee.event_id,
+          status: emailSent ? 'sent' : 'failed',
+          reason: emailSent ? null : emailReason,
+          error_message: emailSent ? null : emailError,
+          attempted_by: userId,
+        });
+      } catch { /* ignore */ }
     }
 
     return jsonResponse(200, { success: true, access_code: plainCode, email_sent: emailSent });
