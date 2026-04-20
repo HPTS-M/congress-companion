@@ -512,6 +512,65 @@ export const adminAttendeesService = {
   },
 
   /**
+   * Lookup existing attendees by external_credential_code (case + space insensitive)
+   * within an event. Returns map: upperCode → single attendee (codes are unique
+   * per event by DB constraint, so at most one match per code).
+   */
+  lookupAttendeesByExternalCodes: async (
+    eventId: string,
+    codes: string[],
+  ): Promise<
+    Record<
+      string,
+      {
+        id: string;
+        full_name: string;
+        email: string;
+        credential_code: string;
+        external_credential_code: string | null;
+      }
+    >
+  > => {
+    const normalized = [
+      ...new Set(codes.map((c) => (c ?? '').trim().toUpperCase()).filter(Boolean)),
+    ];
+    if (normalized.length === 0) return {};
+
+    const { data, error } = await supabase
+      .from('attendees')
+      .select('id, full_name, email, credential_code, external_credential_code')
+      .eq('event_id', eventId)
+      .is('deleted_at', null)
+      .not('external_credential_code', 'is', null);
+
+    if (error) throw new Error(error.message);
+
+    const map: Record<
+      string,
+      {
+        id: string;
+        full_name: string;
+        email: string;
+        credential_code: string;
+        external_credential_code: string | null;
+      }
+    > = {};
+    (data ?? []).forEach((row) => {
+      const key = (row.external_credential_code ?? '').trim().toUpperCase();
+      if (!key) return;
+      if (!normalized.includes(key)) return;
+      map[key] = {
+        id: row.id,
+        full_name: row.full_name,
+        email: row.email,
+        credential_code: row.credential_code,
+        external_credential_code: row.external_credential_code ?? null,
+      };
+    });
+    return map;
+  },
+
+  /**
    * Bulk upsert: combines INSERT (new) and UPDATE (existing) operations
    * driven by per-row resolutions. Used by the import flow when "update existing"
    * is enabled.
