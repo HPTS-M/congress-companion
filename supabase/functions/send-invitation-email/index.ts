@@ -151,6 +151,22 @@ Deno.serve(async (req) => {
       return jsonResponse(404, { error: 'No attendees found' });
     }
 
+    // 5b. Defense-in-depth: filter ineligible recipients server-side.
+    // Even if the client filters these, a direct API call could bypass it.
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const skippedDetails: { id: string; reason: string }[] = [];
+    const eligible = attendees.filter((a) => {
+      if (a.registration_status === 'cancelled') {
+        skippedDetails.push({ id: a.id, reason: 'cancelled' });
+        return false;
+      }
+      if (!a.email || !EMAIL_RE.test(a.email.trim())) {
+        skippedDetails.push({ id: a.id, reason: 'invalid_email' });
+        return false;
+      }
+      return true;
+    });
+
     // 6. Get Resend API key
     const resendApiKey = Deno.env.get('RESEND_API_KEY');
     if (!resendApiKey) {
@@ -159,12 +175,12 @@ Deno.serve(async (req) => {
 
     const appUrl = (Deno.env.get('APP_URL') || 'https://congress-companion.vercel.app').replace(/\/+$/, '');
 
-    // 7. Process each attendee
+    // 7. Process each eligible attendee
     let sent = 0;
     let failed = 0;
     const errors: { id: string; error: string }[] = [];
 
-    for (const attendee of attendees) {
+    for (const attendee of eligible) {
       try {
         // Generate 8-char code
         const plainCode = generateCode(8);
