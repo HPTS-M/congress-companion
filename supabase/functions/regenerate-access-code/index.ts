@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import * as bcrypt from 'https://deno.land/x/bcrypt@v0.4.1/mod.ts';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
+import { buildEventUrl } from '../_shared/build-event-url.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -33,7 +34,7 @@ function buildEmailHtml(
   eventName: string,
   eventCode: string,
   accessCode: string,
-  appUrl: string,
+  loginUrl: string,
 ): string {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
@@ -49,7 +50,7 @@ function buildEmailHtml(
         <div style="color:#1A56A0;font-size:28px;font-weight:700;letter-spacing:3px;font-family:monospace;">${accessCode}</div>
       </div>
       <div style="text-align:center;margin:0 0 24px;">
-        <a href="${appUrl}/${eventCode}" style="display:inline-block;background:linear-gradient(135deg,#1A56A0,#00B89F);color:#fff;text-decoration:none;padding:12px 32px;border-radius:8px;font-weight:600;">Open Event App</a>
+        <a href="${loginUrl}" style="display:inline-block;background:linear-gradient(135deg,#1A56A0,#00B89F);color:#fff;text-decoration:none;padding:12px 32px;border-radius:8px;font-weight:600;">Open Event App</a>
       </div>
       <p style="color:#94a3b8;font-size:12px;margin:0;text-align:center;">Your previous code is no longer valid.</p>
     </div>
@@ -148,8 +149,8 @@ Deno.serve(async (req) => {
           .single();
 
         if (event) {
-          const appUrl = (Deno.env.get('APP_URL') || 'https://congress-companion.vercel.app').replace(/\/+$/, '');
-          const html = buildEmailHtml(attendee.full_name, event.name, event.event_code, plainCode, appUrl);
+          const loginUrl = buildEventUrl(event.event_code);
+          const html = buildEmailHtml(attendee.full_name, event.name, event.event_code, plainCode, loginUrl);
 
           const resendResponse = await fetch('https://api.resend.com/emails', {
             method: 'POST',
