@@ -598,6 +598,40 @@ export function ImportCsvModal({ open, onOpenChange }: Props) {
                       {t('attendees.importModal.summaryBlocked', { count: importResult.blocked })}
                     </div>
                   )}
+                  {(importResult.invitationsSent ?? 0) > 0 && (
+                    <div className="flex items-center gap-2 text-sm text-accent">
+                      <CheckCircle2 className="h-4 w-4" />
+                      {t('attendees.importModal.summaryInvitationsSent', {
+                        count: importResult.invitationsSent,
+                        defaultValue: '{{count}} credential email(s) sent',
+                      })}
+                    </div>
+                  )}
+                  {(importResult.invitationsFailed ?? 0) > 0 && (
+                    <div className="flex flex-col gap-1 text-sm text-destructive">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4" />
+                        {t('attendees.importModal.summaryInvitationsFailed', {
+                          count: importResult.invitationsFailed,
+                          defaultValue: '{{count}} credential email(s) failed',
+                        })}
+                      </div>
+                      {importResult.invitationsFirstError && (
+                        <div className="pl-6 text-xs text-muted-foreground break-words">
+                          {importResult.invitationsFirstError}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {(importResult.invitationsSkipped ?? 0) > 0 && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <AlertTriangle className="h-4 w-4" />
+                      {t('attendees.importModal.summaryInvitationsSkipped', {
+                        count: importResult.invitationsSkipped,
+                        defaultValue: '{{count}} skipped (cancelled / invalid email)',
+                      })}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
               {importResult.warningRows.length > 0 && (
