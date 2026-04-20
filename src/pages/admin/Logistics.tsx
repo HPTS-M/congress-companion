@@ -268,13 +268,27 @@ export default function AdminLogistics() {
                   </TableCell>
                   <TableCell>
                     {isCancelled ? (
-                      <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                        {t('logistics.serviceStatusCancelled')}
-                      </Badge>
+                      <div className="flex flex-col gap-0.5">
+                        <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 w-fit">
+                          {t('logistics.serviceStatusCancelled')}
+                        </Badge>
+                        {s.cancelled_at && (
+                          <span className="text-xs text-muted-foreground">
+                            {t('logistics.cancelledOn', { date: formatStatusDate(s.cancelled_at) })}
+                          </span>
+                        )}
+                      </div>
                     ) : isCompleted ? (
-                      <Badge className="bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-                        {t('logistics.serviceStatusCompleted')}
-                      </Badge>
+                      <div className="flex flex-col gap-0.5">
+                        <Badge className="bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 w-fit">
+                          {t('logistics.serviceStatusCompleted')}
+                        </Badge>
+                        {s.completed_at && (
+                          <span className="text-xs text-muted-foreground">
+                            {t('logistics.completedOn', { date: formatStatusDate(s.completed_at) })}
+                          </span>
+                        )}
+                      </div>
                     ) : (
                       <Badge className="bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">
                         {t('logistics.serviceStatusScheduled')}
@@ -385,4 +399,18 @@ export default function AdminLogistics() {
 
 function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function formatStatusDate(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString(undefined, {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return iso;
+  }
 }

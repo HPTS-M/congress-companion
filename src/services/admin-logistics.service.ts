@@ -13,6 +13,8 @@ export interface ServiceCatalogRow {
   created_at: string | null;
   status: string | null; // 'scheduled' | 'cancelled'
   effective_status: string | null; // 'scheduled' | 'completed' | 'cancelled'
+  cancelled_at: string | null;
+  completed_at: string | null; // computed (MAX(used_at) of related tickets)
   // computed
   total_tickets: number;
   used_tickets: number;
@@ -66,26 +68,39 @@ export const adminLogisticsService = {
 
     const { data: stats, error: statsErr } = await supabase
       .from('attendee_services')
-      .select(`service_catalog_id, status, service_tickets (is_used)`)
+      .select(`service_catalog_id, status, service_tickets (is_used, used_at)`)
       .in('service_catalog_id', ids);
     if (statsErr) throw new Error(statsErr.message);
 
-    const countsMap = new Map<string, { total: number; used: number; cancelled: number }>();
+    const countsMap = new Map<string, { total: number; used: number; cancelled: number; lastUsedAt: string | null }>();
     for (const s of stats ?? []) {
       const catalogId = s.service_catalog_id;
-      if (!countsMap.has(catalogId)) countsMap.set(catalogId, { total: 0, used: 0, cancelled: 0 });
+      if (!countsMap.has(catalogId)) countsMap.set(catalogId, { total: 0, used: 0, cancelled: 0, lastUsedAt: null });
       const c = countsMap.get(catalogId)!;
       c.total += 1;
       if (s.status === 'cancelled') {
         c.cancelled += 1;
       } else if (Array.isArray(s.service_tickets) && s.service_tickets.some((t: any) => t.is_used)) {
         c.used += 1;
+        for (const t of s.service_tickets as Array<{ is_used: boolean; used_at: string | null }>) {
+          if (t.is_used && t.used_at && (!c.lastUsedAt || t.used_at > c.lastUsedAt)) {
+            c.lastUsedAt = t.used_at;
+          }
+        }
       }
     }
 
     return (catalog ?? []).map((c: any) => {
-      const counts = countsMap.get(c.id) ?? { total: 0, used: 0, cancelled: 0 };
-      return { ...c, total_tickets: counts.total, used_tickets: counts.used, cancelled_tickets: counts.cancelled } as ServiceCatalogRow;
+      const counts = countsMap.get(c.id) ?? { total: 0, used: 0, cancelled: 0, lastUsedAt: null };
+      const isCompleted = c.effective_status === 'completed';
+      return {
+        ...c,
+        total_tickets: counts.total,
+        used_tickets: counts.used,
+        cancelled_tickets: counts.cancelled,
+        cancelled_at: c.cancelled_at ?? null,
+        completed_at: isCompleted ? counts.lastUsedAt : null,
+      } as ServiceCatalogRow;
     });
   },
 

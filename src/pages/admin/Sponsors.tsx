@@ -39,7 +39,8 @@ const LEVEL_LABELS: Record<string, string> = {
 export default function AdminSponsors() {
   const { t } = useTranslation('admin');
   const { event } = useEvent();
-  const { sponsors, isLoading, isFetching, refetch, deleteSponsor } = useAdminSponsors(event?.id);
+  const { sponsors, isLoading, isFetching, refetch, deleteSponsor, isCreating, isUpdating, isDeleting } = useAdminSponsors(event?.id);
+  const isBusy = isFetching || isCreating || isUpdating || isDeleting;
 
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -111,10 +112,10 @@ export default function AdminSponsors() {
             variant="outline"
             size="icon"
             onClick={() => refetch()}
-            disabled={isFetching}
+            disabled={isBusy}
             title={t('sponsors.refresh')}
           >
-            <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
+            <RefreshCw className={cn('h-4 w-4', isBusy && 'animate-spin')} />
           </Button>
           <Button variant="outline" onClick={() => setImportOpen(true)}>
             <Upload className="mr-1 h-4 w-4" /> {t('sponsors.importButton')}

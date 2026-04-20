@@ -1590,6 +1590,7 @@ export type Database = {
       }
       service_catalog: {
         Row: {
+          cancelled_at: string | null
           created_at: string | null
           description: string | null
           event_id: string
@@ -1603,6 +1604,7 @@ export type Database = {
           valid_until: string | null
         }
         Insert: {
+          cancelled_at?: string | null
           created_at?: string | null
           description?: string | null
           event_id: string
@@ -1616,6 +1618,7 @@ export type Database = {
           valid_until?: string | null
         }
         Update: {
+          cancelled_at?: string | null
           created_at?: string | null
           description?: string | null
           event_id?: string

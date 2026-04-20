@@ -30,11 +30,18 @@ export function validateFile(
   if (file.size > maxSize) {
     return { ok: false, code: 'too_large' };
   }
-  if (file.type && !allowedMime.includes(file.type)) {
-    return { ok: false, code: 'invalid_type' };
-  }
   const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
-  if (!allowedExt.includes(ext)) {
+  const extOk = allowedExt.includes(ext);
+  // Some browsers/OS (e.g. Windows + Edge) may return file.type === '' for
+  // valid files. Trust the extension when MIME is missing.
+  if (file.type) {
+    if (!allowedMime.includes(file.type)) {
+      return { ok: false, code: 'invalid_type' };
+    }
+  } else if (!extOk) {
+    return { ok: false, code: 'invalid_ext' };
+  }
+  if (!extOk) {
     return { ok: false, code: 'invalid_ext' };
   }
   return { ok: true };

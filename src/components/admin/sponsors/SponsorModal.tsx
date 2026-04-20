@@ -22,6 +22,11 @@ import { adminSponsorsService, type SponsorRow, type SponsorFormData } from '@/s
 import { useAdminSponsors } from '@/hooks/useAdminSponsors';
 import { SponsorMaterialPreviewModal } from './SponsorMaterialPreviewModal';
 import {
+  PhoneInputWithCountry,
+  parsePhoneE164,
+  buildPhoneE164,
+} from './PhoneInputWithCountry';
+import {
   validateFile,
   formatFileSize,
   SPONSOR_LOGO_MIME,
@@ -76,7 +81,9 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
   const [standLocation, setStandLocation] = useState(sponsor?.stand_location ?? '');
   const [websiteUrl, setWebsiteUrl] = useState(sponsor?.website_url ?? '');
   const [contactEmail, setContactEmail] = useState(sponsor?.contact_email ?? '');
-  const [whatsapp, setWhatsapp] = useState(sponsor?.whatsapp ?? '');
+  const initialPhone = useMemo(() => parsePhoneE164(sponsor?.whatsapp ?? null), [sponsor?.whatsapp]);
+  const [whatsappDialCode, setWhatsappDialCode] = useState(initialPhone.dialCode);
+  const [whatsappNumber, setWhatsappNumber] = useState(initialPhone.number);
   const [whatsappMessage, setWhatsappMessage] = useState(sponsor?.whatsapp_message ?? '');
   const [videoUrl, setVideoUrl] = useState(sponsor?.video_url ?? '');
   const [linkedin, setLinkedin] = useState(sponsor?.social_linkedin ?? '');
@@ -129,7 +136,7 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
   }), [t]);
 
   const validate = useCallback((): boolean => {
-    const cleanedWhatsapp = whatsapp.replace(/[\s\-()]/g, '');
+    const composedWhatsapp = buildPhoneE164(whatsappDialCode, whatsappNumber);
     const result = schema.safeParse({
       name,
       description: description || undefined,
@@ -138,7 +145,7 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
       social_linkedin: linkedin || undefined,
       social_instagram: instagram || undefined,
       contact_email: contactEmail || undefined,
-      whatsapp: cleanedWhatsapp || undefined,
+      whatsapp: composedWhatsapp || undefined,
     });
 
     const next: Errors = {};
@@ -148,7 +155,7 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
         if (!next[key]) next[key] = issue.message;
       }
     }
-    if (cleanedWhatsapp && !WHATSAPP_REGEX.test(cleanedWhatsapp)) {
+    if (composedWhatsapp && !WHATSAPP_REGEX.test(composedWhatsapp)) {
       next.whatsapp = t('sponsors.validation.whatsappFormat');
     }
 
@@ -158,7 +165,7 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
       return false;
     }
     return true;
-  }, [schema, name, description, websiteUrl, videoUrl, linkedin, instagram, contactEmail, whatsapp, t]);
+  }, [schema, name, description, websiteUrl, videoUrl, linkedin, instagram, contactEmail, whatsappDialCode, whatsappNumber, t]);
 
   const buildForm = useCallback(
     (logoUrl: string | null, materialsUrl: string | null): SponsorFormData & { logo_url?: string | null; materials_url?: string | null } => ({
@@ -169,7 +176,7 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
       stand_location: standLocation.trim() || undefined,
       website_url: websiteUrl.trim() || undefined,
       contact_email: contactEmail.trim() || undefined,
-      whatsapp: whatsapp.replace(/[\s\-()]/g, '') || undefined,
+      whatsapp: buildPhoneE164(whatsappDialCode, whatsappNumber) || undefined,
       whatsapp_message: whatsappMessage.trim() || undefined,
       video_url: videoUrl.trim() || undefined,
       social_linkedin: linkedin.trim() || undefined,
@@ -177,7 +184,7 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
       logo_url: logoUrl,
       materials_url: materialsUrl,
     }),
-    [name, level, category, description, standLocation, websiteUrl, contactEmail, whatsapp, whatsappMessage, videoUrl, linkedin, instagram]
+    [name, level, category, description, standLocation, websiteUrl, contactEmail, whatsappDialCode, whatsappNumber, whatsappMessage, videoUrl, linkedin, instagram]
   );
 
   const handleLogoSelect = useCallback((file: File | null) => {
@@ -264,7 +271,7 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
   return (
     <>
       <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>{t(isEdit ? 'sponsors.editTitle' : 'sponsors.newTitle')}</DialogTitle>
           </DialogHeader>
@@ -289,7 +296,7 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
                 {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-1.5">
                   <Label>{t('sponsors.fieldLevel')}</Label>
                   <Select value={level} onValueChange={setLevel}>
@@ -372,7 +379,7 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
 
             {/* CONTACT & MATERIALS */}
             <TabsContent value="contact" className="space-y-4 mt-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-1.5">
                   <Label>{t('sponsors.fieldWebsite')}</Label>
                   <Input value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} placeholder="https://..." className={errClass('website_url')} />
@@ -385,22 +392,15 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-1.5">
                   <Label>{t('sponsors.fieldWhatsapp')}</Label>
-                  <Input
-                    value={whatsapp}
-                    onChange={(e) => {
-                      let cleaned = e.target.value.replace(/[^\d+]/g, '');
-                      if (cleaned.indexOf('+') > 0) cleaned = cleaned.replace(/\+/g, '');
-                      const plusCount = (cleaned.match(/\+/g) ?? []).length;
-                      if (plusCount > 1) cleaned = '+' + cleaned.replace(/\+/g, '');
-                      setWhatsapp(cleaned.slice(0, 16));
-                    }}
-                    placeholder="+573001234567"
-                    inputMode="tel"
-                    maxLength={16}
-                    className={errClass('whatsapp')}
+                  <PhoneInputWithCountry
+                    dialCode={whatsappDialCode}
+                    number={whatsappNumber}
+                    onDialCodeChange={setWhatsappDialCode}
+                    onNumberChange={setWhatsappNumber}
+                    invalid={!!errors.whatsapp}
                   />
                   <p className="text-xs text-muted-foreground">{t('sponsors.validation.whatsappHelp')}</p>
                   {errors.whatsapp && <p className="text-xs text-destructive">{errors.whatsapp}</p>}
@@ -417,7 +417,7 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
                 {errors.video_url && <p className="text-xs text-destructive">{errors.video_url}</p>}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-1.5">
                   <Label>LinkedIn</Label>
                   <Input value={linkedin} onChange={(e) => setLinkedin(e.target.value)} placeholder="https://linkedin.com/..." className={errClass('social_linkedin')} />
