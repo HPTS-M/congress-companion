@@ -33,6 +33,21 @@
     "interested": "Me interesa",
     "submitted": "Interés registrado",
     "success": "Tu interés fue registrado. El patrocinador podrá contactarte.",
-    "error": "Error al registrar interés"
+    "error": "Error al registrar interés",
+    "consent": {
+      "title": "Compartir tus datos con {{sponsor}}",
+      "intro": "Al confirmar, los siguientes datos de tu perfil serán compartidos con este patrocinador para que pueda contactarte:",
+      "fields": {
+        "name": "Nombre completo",
+        "email": "Correo electrónico",
+        "specialty": "Especialidad",
+        "institution": "Institución",
+        "phone": "Teléfono (si está registrado)"
+      },
+      "purpose": "El patrocinador podrá enviarte información comercial relacionada al evento.",
+      "privacy": "Solo los patrocinadores que apruebes recibirán tu información. Para revocar, contacta al organizador del evento.",
+      "confirm": "Sí, compartir mis datos",
+      "cancel": "Cancelar"
+    }
   }
 }

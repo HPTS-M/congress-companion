@@ -89,7 +89,7 @@ export default function SponsorDetail() {
 
       {/* Lead button */}
       {event?.id && (
-        <SponsorLeadButton sponsorId={sponsor.id} eventId={event.id} className="w-full" />
+        <SponsorLeadButton sponsorId={sponsor.id} eventId={event.id} sponsorName={sponsor.name} className="w-full" />
       )}
 
       {/* Actions */}

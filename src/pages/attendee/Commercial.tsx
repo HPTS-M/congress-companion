@@ -179,7 +179,7 @@ function SponsorCard({ sponsor, onView, eventId }: { sponsor: Sponsor; onView: (
         <p className="text-xs text-muted-foreground">Stand {sponsor.stand_location}</p>
       )}
       {eventId && (
-        <SponsorLeadButton sponsorId={sponsor.id} eventId={eventId} className="w-full text-xs" />
+        <SponsorLeadButton sponsorId={sponsor.id} eventId={eventId} sponsorName={sponsor.name} className="w-full text-xs" />
       )}
       <Button variant="outline" size="sm" className="w-full text-xs mt-auto" onClick={onView}>
         {t('viewMore')} →

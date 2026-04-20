@@ -33,6 +33,21 @@
     "interested": "I'm interested",
     "submitted": "Interest registered",
     "success": "Your interest has been registered. The sponsor may contact you.",
-    "error": "Error registering interest"
+    "error": "Error registering interest",
+    "consent": {
+      "title": "Share your data with {{sponsor}}",
+      "intro": "By confirming, the following profile data will be shared with this sponsor so they can contact you:",
+      "fields": {
+        "name": "Full name",
+        "email": "Email address",
+        "specialty": "Specialty",
+        "institution": "Institution",
+        "phone": "Phone (if registered)"
+      },
+      "purpose": "The sponsor may send you commercial information related to the event.",
+      "privacy": "Only sponsors you approve will receive your information. To revoke, contact the event organizer.",
+      "confirm": "Yes, share my data",
+      "cancel": "Cancel"
+    }
   }
 }
