@@ -163,125 +163,11 @@ export default function AdminDocuments() {
     }
   }, [selected, documents, bulkDeleteMutation, t]);
 
-  const handleDownload = useCallback(async (doc: DocumentWithSession) => {
-    try {
-      const url = await adminDocumentsService.getSignedUrl(doc.file_path);
-      const ext = doc.file_path.split('.').pop() ?? '';
-      const filename = sanitizeFilename(doc.title) + (ext ? `.${ext}` : '');
-      const a = window.document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      window.document.body.appendChild(a);
-      a.click();
-      window.document.body.removeChild(a);
-      await adminDocumentsService.incrementDownload(doc.id);
-    } catch {
-      toast.error(t('documents.downloadError'));
-    }
-  }, [t]);
-
   const handleRefresh = useCallback(() => {
     qc.invalidateQueries({ queryKey: ['admin-documents', eventId] });
     qc.invalidateQueries({ queryKey: ['admin-doc-activities', eventId] });
     toast.success(t('documents.refreshed'));
   }, [qc, eventId, t]);
-
-  const handleExportXls = useCallback(async () => {
-    if (!documents || documents.length === 0) return;
-    try {
-      await writeExcelFile({
-        filename: `documentos-${event?.event_code ?? 'export'}-${new Date().toISOString().slice(0, 10)}.xlsx`,
-        sheetName: t('documents.title'),
-        columns: [
-          { header: t('documents.colDocument'), key: 'titulo', width: 40 },
-          { header: t('documents.colType'), key: 'tipo', width: 10 },
-          { header: t('documents.colSession'), key: 'sesion', width: 30 },
-          { header: t('documents.colSize'), key: 'tamano', width: 12 },
-          { header: t('documents.colDate'), key: 'fecha', width: 14 },
-          { header: t('documents.colDownloads'), key: 'descargas', width: 12 },
-        ],
-        rows: documents.map((d) => ({
-          titulo: d.title,
-          tipo: (d.file_type ?? '').toUpperCase(),
-          sesion: d.session_title ?? t('documents.generalBadge'),
-          tamano: formatSize(d.file_size),
-          fecha: d.created_at ? new Date(d.created_at).toLocaleDateString('es-ES') : '',
-          descargas: d.download_count ?? 0,
-        })),
-      });
-      toast.success(t('documents.exportSuccess'));
-    } catch {
-      toast.error(t('documents.exportError'));
-    }
-  }, [documents, event, t]);
-
-  const handleBulkExportZip = useCallback(async () => {
-    if (!documents || documents.length === 0) return;
-    const targetDocs = selected.size > 0
-      ? documents.filter((d) => selected.has(d.id))
-      : documents;
-
-    setBulkExportProgress({ current: 0, total: targetDocs.length });
-    try {
-      const zip = new JSZip();
-
-      // Build XLSX into the zip via ExcelJS buffer
-      const ExcelJS = (await import('exceljs')).default;
-      const wb = new ExcelJS.Workbook();
-      const ws = wb.addWorksheet(t('documents.title'));
-      ws.columns = [
-        { header: t('documents.colDocument'), key: 'titulo', width: 40 },
-        { header: t('documents.colType'), key: 'tipo', width: 10 },
-        { header: t('documents.colSession'), key: 'sesion', width: 30 },
-        { header: t('documents.colSize'), key: 'tamano', width: 12 },
-        { header: t('documents.colDate'), key: 'fecha', width: 14 },
-        { header: 'Archivo', key: 'archivo', width: 40 },
-      ];
-      for (const d of targetDocs) {
-        const ext = d.file_path.split('.').pop() ?? '';
-        ws.addRow({
-          titulo: d.title,
-          tipo: (d.file_type ?? '').toUpperCase(),
-          sesion: d.session_title ?? t('documents.generalBadge'),
-          tamano: formatSize(d.file_size),
-          fecha: d.created_at ? new Date(d.created_at).toLocaleDateString('es-ES') : '',
-          archivo: `archivos/${sanitizeFilename(d.title)}.${ext}`,
-        });
-      }
-      const xlsxBuffer = await wb.xlsx.writeBuffer();
-      zip.file('indice.xlsx', xlsxBuffer);
-
-      // Add files
-      let i = 0;
-      for (const d of targetDocs) {
-        try {
-          const blob = await adminDocumentsService.downloadFileBlob(d.file_path);
-          const ext = d.file_path.split('.').pop() ?? '';
-          const safeName = sanitizeFilename(d.title) + (ext ? `.${ext}` : '');
-          zip.file(`archivos/${safeName}`, blob);
-        } catch {
-          // skip missing files but continue
-        }
-        i++;
-        setBulkExportProgress({ current: i, total: targetDocs.length });
-      }
-
-      const content = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(content);
-      const a = window.document.createElement('a');
-      a.href = url;
-      a.download = `documentos-${event?.event_code ?? 'export'}-${new Date().toISOString().slice(0, 10)}.zip`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success(t('documents.bulkExportSuccess'));
-    } catch {
-      toast.error(t('documents.bulkExportError'));
-    } finally {
-      setBulkExportProgress(null);
-    }
-  }, [documents, selected, event, t]);
 
   const handleQualityFilter = useCallback((ids: string[], label: string) => {
     setQualityFilterIds(ids);
@@ -326,39 +212,12 @@ export default function AdminDocuments() {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="sm" onClick={() => setCompletenessOpen(true)}>
-                  <ClipboardCheck className="mr-1 h-4 w-4" />
-                  {t('documents.completenessCheck')}
+                <Button variant="outline" size="sm" onClick={() => setBulkUploadOpen(true)}>
+                  <UploadCloud className="mr-1 h-4 w-4" />
+                  {t('documents.bulkUpload.button')}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>{t('documents.tooltip.completeness')}</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" size="sm" onClick={handleExportXls}>
-                  <FileSpreadsheet className="mr-1 h-4 w-4" />
-                  {t('documents.exportXls')}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t('documents.tooltip.exportXls')}</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleBulkExportZip}
-                  disabled={!!bulkExportProgress || !documents || documents.length === 0}
-                >
-                  <Archive className="mr-1 h-4 w-4" />
-                  {bulkExportProgress
-                    ? t('documents.bulkExporting', { current: bulkExportProgress.current, total: bulkExportProgress.total })
-                    : t('documents.bulkExport')}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t('documents.tooltip.bulkExport')}</TooltipContent>
+              <TooltipContent>{t('documents.bulkUpload.tooltip')}</TooltipContent>
             </Tooltip>
 
             <Tooltip>
@@ -510,14 +369,6 @@ export default function AdminDocuments() {
                             </Tooltip>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDownload(doc)}>
-                                  <Download className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>{t('documents.tooltip.download')}</TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditDoc(doc)}>
                                   <Pencil className="h-4 w-4" />
                                 </Button>
@@ -576,10 +427,12 @@ export default function AdminDocuments() {
           event={event}
         />
 
-        <CompletenessCheckModal
-          open={completenessOpen}
-          onClose={() => setCompletenessOpen(false)}
-          documents={documents ?? []}
+        <BulkUploadDocumentsModal
+          open={bulkUploadOpen}
+          onClose={() => setBulkUploadOpen(false)}
+          eventId={eventId ?? ''}
+          activities={activities ?? []}
+          onUploaded={invalidate}
         />
 
         <DocumentPreviewModal
