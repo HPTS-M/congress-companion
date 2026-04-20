@@ -369,14 +369,6 @@ export default function AdminDocuments() {
                             </Tooltip>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDownload(doc)}>
-                                  <Download className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>{t('documents.tooltip.download')}</TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditDoc(doc)}>
                                   <Pencil className="h-4 w-4" />
                                 </Button>
