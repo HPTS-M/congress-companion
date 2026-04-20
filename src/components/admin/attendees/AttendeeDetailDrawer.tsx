@@ -55,12 +55,12 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
   const [showAddService, setShowAddService] = useState(false);
   const [confirmToggleActive, setConfirmToggleActive] = useState(false);
   const [confirmRegenAccess, setConfirmRegenAccess] = useState(false);
+  const [confirmRegenCredential, setConfirmRegenCredential] = useState(false);
   const [regeneratingAccess, setRegeneratingAccess] = useState(false);
   const [newAccessCode, setNewAccessCode] = useState<string | null>(null);
 
   const handleRegenerate = async () => {
     if (!attendeeId) return;
-    if (!window.confirm(t('attendees.detail.regenerateConfirm'))) return;
     try {
       await adminAttendeesService.regenerateCode(attendeeId);
       queryClient.invalidateQueries({ queryKey: ['admin-attendee-detail', attendeeId] });
@@ -68,6 +68,8 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
       toast({ title: t('attendees.detail.regenerateSuccess') });
     } catch {
       toast({ title: 'Error', variant: 'destructive' });
+    } finally {
+      setConfirmRegenCredential(false);
     }
   };
 
@@ -277,7 +279,7 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
                   </div>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="outline" size="sm" className="w-full" onClick={handleRegenerate}>
+                      <Button variant="outline" size="sm" className="w-full" onClick={() => setConfirmRegenCredential(true)}>
                         <RefreshCw className="mr-2 h-3 w-3" />
                         {t('attendees.detail.regenerateCode')}
                       </Button>
@@ -464,6 +466,30 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
               className={isCancelled ? 'bg-accent text-accent-foreground' : 'bg-destructive text-destructive-foreground'}
             >
               {t(isCancelled ? 'attendees.reactivate' : 'attendees.deactivate')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmRegenCredential} onOpenChange={setConfirmRegenCredential}>
+        <AlertDialogContent className="w-[calc(100%-1.5rem)] max-w-md p-4 sm:p-6">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-base sm:text-lg">
+              {t('attendees.detail.regenerateCredentialDialog.title')}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm">
+              {t('attendees.detail.regenerateCredentialDialog.message')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2">
+            <AlertDialogCancel className="w-full sm:w-auto mt-0">
+              {t('attendees.detail.regenerateCredentialDialog.cancel')}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRegenerate}
+              className="w-full sm:w-auto bg-primary text-primary-foreground"
+            >
+              {t('attendees.detail.regenerateCredentialDialog.confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -84,6 +84,7 @@ export interface EventActivity {
   speaker_photo_url?: string | null;
   archived_at?: string | null;
   sort_order?: number | null;
+  status?: string | null;
 }
 
 export interface SessionInterest {

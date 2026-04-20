@@ -60,7 +60,7 @@ export function SpeakerPhotoUpload({ eventId, value, onChange }: SpeakerPhotoUpl
   };
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
       <Avatar
         className="h-20 w-20 border border-border cursor-pointer"
         onClick={() => inputRef.current?.click()}
@@ -71,13 +71,14 @@ export function SpeakerPhotoUpload({ eventId, value, onChange }: SpeakerPhotoUpl
         </AvatarFallback>
       </Avatar>
 
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1.5 w-full sm:w-auto">
         <Button
           type="button"
           variant="outline"
           size="sm"
           onClick={() => inputRef.current?.click()}
           disabled={uploading || !eventId}
+          className="w-full sm:w-auto"
         >
           <Upload className="mr-1.5 h-3.5 w-3.5" />
           {value ? t('agenda.sessionModal.photoChange') : t('agenda.sessionModal.photoUpload')}
@@ -88,7 +89,7 @@ export function SpeakerPhotoUpload({ eventId, value, onChange }: SpeakerPhotoUpl
             variant="ghost"
             size="sm"
             onClick={handleRemove}
-            className="text-destructive hover:text-destructive h-7"
+            className="text-destructive hover:text-destructive h-7 w-full sm:w-auto"
           >
             <X className="mr-1 h-3.5 w-3.5" />
             {t('agenda.sessionModal.photoRemove')}

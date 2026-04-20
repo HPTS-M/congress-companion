@@ -746,6 +746,7 @@ export type Database = {
           speaker_name: string | null
           speaker_photo_url: string | null
           start_time: string
+          status: string | null
           title: string
           updated_at: string | null
         }
@@ -767,6 +768,7 @@ export type Database = {
           speaker_name?: string | null
           speaker_photo_url?: string | null
           start_time: string
+          status?: string | null
           title: string
           updated_at?: string | null
         }
@@ -788,6 +790,7 @@ export type Database = {
           speaker_name?: string | null
           speaker_photo_url?: string | null
           start_time?: string
+          status?: string | null
           title?: string
           updated_at?: string | null
         }

@@ -27,13 +27,13 @@ const TIMES: string[] = (() => {
 
 export function TimePicker({ value, onChange, placeholder }: TimePickerProps) {
   return (
-    <div className="relative flex items-center gap-1">
+    <div className="relative flex items-center">
       <Input
         type="time"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="pr-10"
+        className="pr-9"
         step={60}
       />
       <Popover>
