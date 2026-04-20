@@ -266,7 +266,13 @@
       "phone": "Phone",
       "registrationDate": "Registration Date",
       "package": "Package",
-      "invitationSentAt": "Invitation sent"
+      "invitationSentAt": "Invitation sent",
+      "regenerateCredentialDialog": {
+        "title": "Regenerate code",
+        "message": "Are you sure you want to regenerate the code? The previous code will stop working.",
+        "confirm": "Regenerate",
+        "cancel": "Cancel"
+      }
     },
     "addServiceModal": {
       "title": "Add Service",
@@ -365,7 +371,13 @@
       "duplicate": "Duplicate",
       "archive": "Archive",
       "delete": "Delete",
-      "reorder": "Drag to reorder"
+      "reorder": "Drag to reorder",
+      "menu": "More actions"
+    },
+    "status": {
+      "scheduled": "Scheduled",
+      "finished": "Finished",
+      "cancelled": "Cancelled"
     },
     "exportAgenda": "Export Agenda",
     "importAgenda": "Import Agenda",
@@ -427,7 +439,8 @@
       "photoInvalidType": "Invalid format. Use JPG or PNG",
       "photoTooLarge": "Image exceeds 2 MB",
       "photoUploaded": "Photo uploaded",
-      "photoUploadError": "Error uploading photo"
+      "photoUploadError": "Error uploading photo",
+      "markAsCancelled": "Mark session as cancelled"
     },
     "detail": {
       "title": "Session Details",
@@ -532,6 +545,22 @@
       "message": "A document titled \"{{title}}\" already exists. Upload anyway?",
       "cancel": "Cancel",
       "uploadAnyway": "Upload anyway"
+    },
+    "bulkUpload": {
+      "button": "Bulk upload",
+      "tooltip": "Upload multiple documents at once (PDF/PPT)",
+      "title": "Bulk document upload",
+      "dropHint": "Drag files here or click to select",
+      "acceptedFormats": "Formats: PDF, PPT, PPTX · Max 50 MB per file",
+      "fileCount": "{{count}} file(s) queued",
+      "uploadAll": "Upload {{count}} file(s)",
+      "uploading": "Uploading...",
+      "fileSuccess": "Uploaded",
+      "removeFile": "Remove from queue",
+      "invalidType": "Format not allowed",
+      "tooLarge": "Exceeds 50 MB",
+      "success": "{{count}} document(s) uploaded",
+      "errors": "{{count}} failed"
     },
     "preview": {
       "error": "Could not load preview",

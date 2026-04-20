@@ -266,7 +266,13 @@
       "phone": "Teléfono",
       "registrationDate": "Fecha de Registro",
       "package": "Paquete",
-      "invitationSentAt": "Invitación enviada"
+      "invitationSentAt": "Invitación enviada",
+      "regenerateCredentialDialog": {
+        "title": "Regenerar código",
+        "message": "¿Estás seguro de regenerar el código? El código anterior dejará de funcionar.",
+        "confirm": "Regenerar",
+        "cancel": "Cancelar"
+      }
     },
     "addServiceModal": {
       "title": "Agregar Servicio",
@@ -365,7 +371,13 @@
       "duplicate": "Duplicar",
       "archive": "Archivar",
       "delete": "Eliminar",
-      "reorder": "Arrastra para reordenar"
+      "reorder": "Arrastra para reordenar",
+      "menu": "Más acciones"
+    },
+    "status": {
+      "scheduled": "Programado",
+      "finished": "Finalizado",
+      "cancelled": "Cancelado"
     },
     "exportAgenda": "Exportar Agenda",
     "importAgenda": "Importar Agenda",
@@ -427,7 +439,8 @@
       "photoInvalidType": "Formato no válido. Usa JPG o PNG",
       "photoTooLarge": "La imagen supera los 2 MB",
       "photoUploaded": "Foto subida",
-      "photoUploadError": "Error al subir la foto"
+      "photoUploadError": "Error al subir la foto",
+      "markAsCancelled": "Marcar sesión como cancelada"
     },
     "detail": {
       "title": "Detalle de Sesión",
@@ -532,6 +545,22 @@
       "message": "Ya existe un documento con el título \"{{title}}\". ¿Deseas subirlo de todas formas?",
       "cancel": "Cancelar",
       "uploadAnyway": "Subir de todas formas"
+    },
+    "bulkUpload": {
+      "button": "Carga masiva",
+      "tooltip": "Subir varios documentos a la vez (PDF/PPT)",
+      "title": "Carga masiva de documentos",
+      "dropHint": "Arrastra archivos aquí o haz clic para seleccionar",
+      "acceptedFormats": "Formatos: PDF, PPT, PPTX · Máx. 50 MB por archivo",
+      "fileCount": "{{count}} archivo(s) en cola",
+      "uploadAll": "Subir {{count}} archivo(s)",
+      "uploading": "Subiendo...",
+      "fileSuccess": "Subido",
+      "removeFile": "Quitar de la cola",
+      "invalidType": "Formato no permitido",
+      "tooLarge": "Excede 50 MB",
+      "success": "{{count}} documento(s) subido(s)",
+      "errors": "{{count}} fallido(s)"
     },
     "preview": {
       "error": "No se pudo cargar la previsualización",
