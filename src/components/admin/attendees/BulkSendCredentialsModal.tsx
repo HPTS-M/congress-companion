@@ -122,6 +122,14 @@ export function BulkSendCredentialsModal({
             count={breakdown.readyFirstTime.length}
             tone="accent"
           />
+          {breakdown.failed.length > 0 && (
+            <BreakdownRow
+              icon={<AlertCircle className="h-4 w-4 text-destructive" />}
+              label={t('attendees.invitations.failed')}
+              count={breakdown.failed.length}
+              tone="warning"
+            />
+          )}
           {breakdown.alreadyInvited.length > 0 && (
             <BreakdownRow
               icon={<RotateCcw className="h-4 w-4 text-amber-500" />}
