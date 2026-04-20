@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import * as bcrypt from 'https://deno.land/x/bcrypt@v0.4.1/mod.ts';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
+import { buildEventUrl } from '../_shared/build-event-url.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -33,7 +34,7 @@ function buildEmailHtml(
   eventName: string,
   eventCode: string,
   accessCode: string,
-  appUrl: string,
+  loginUrl: string,
 ): string {
   return `
 <!DOCTYPE html>
@@ -59,7 +60,7 @@ function buildEmailHtml(
       </div>
       
       <div style="text-align:center;margin:0 0 24px;">
-        <a href="${appUrl}/${eventCode}" style="display:inline-block;background:linear-gradient(135deg,#1A56A0,#00B89F);color:#fff;text-decoration:none;padding:12px 32px;border-radius:8px;font-weight:600;font-size:14px;">Open Event App</a>
+        <a href="${loginUrl}" style="display:inline-block;background:linear-gradient(135deg,#1A56A0,#00B89F);color:#fff;text-decoration:none;padding:12px 32px;border-radius:8px;font-weight:600;font-size:14px;">Open Event App</a>
       </div>
       
       <p style="color:#94a3b8;font-size:12px;margin:0;text-align:center;">This code is personal and non-transferable. Do not share it with others.</p>
@@ -173,7 +174,7 @@ Deno.serve(async (req) => {
       return jsonResponse(500, { error: 'RESEND_API_KEY not configured' });
     }
 
-    const appUrl = (Deno.env.get('APP_URL') || 'https://congress-companion.vercel.app').replace(/\/+$/, '');
+    const eventLoginUrl = buildEventUrl(event.event_code);
 
     // 7. Process each eligible attendee
     let sent = 0;
@@ -208,7 +209,7 @@ Deno.serve(async (req) => {
           event.name,
           event.event_code,
           plainCode,
-          appUrl,
+          eventLoginUrl,
         );
 
         const resendResponse = await fetch('https://api.resend.com/emails', {
