@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { useRealtimeInvalidate } from '@/hooks/useRealtimeInvalidate';
 import { announcementsService } from '@/services/announcements.service';
 
 interface UnreadAnnouncementsResult {
@@ -24,7 +25,6 @@ export function useUnreadAnnouncements(eventId: string): UnreadAnnouncementsResu
     if (!storageKey) return new Date(0);
     const stored = localStorage.getItem(storageKey);
     if (stored) return new Date(stored);
-    // Fallback (read-only) to legacy unified key on first run
     if (legacyKey) {
       const legacy = localStorage.getItem(legacyKey);
       if (legacy) return new Date(legacy);
@@ -38,17 +38,22 @@ export function useUnreadAnnouncements(eventId: string): UnreadAnnouncementsResu
     queryClient.invalidateQueries({ queryKey: ['unread-announcements', eventId, attendeeId] });
   }, [storageKey, queryClient, eventId, attendeeId]);
 
+  // Realtime: bump count immediately when a new announcement is inserted —
+  // no need to poll because INSERTs invalidate this query directly.
+  useRealtimeInvalidate({
+    channelName: `unread-announcements-${eventId}-${attendeeId}`,
+    table: 'announcements',
+    filter: eventId ? `event_id=eq.${eventId}` : undefined,
+    event: 'INSERT',
+    queryKeys: [['unread-announcements', eventId, attendeeId]],
+    enabled: !!attendeeId && !!eventId && isOnline,
+  });
+
   const { data } = useQuery<number>({
     queryKey: ['unread-announcements', eventId, attendeeId],
-    queryFn: async () => {
-      const lastSeen = getLastSeen();
-      const announcements = await announcementsService.getByEvent(eventId);
-      return announcements.filter(
-        (a) => a.sent_at && new Date(a.sent_at) > lastSeen
-      ).length;
-    },
+    queryFn: () => announcementsService.getUnreadCount(eventId, getLastSeen()),
     enabled: !!attendeeId && !!eventId && isOnline,
-    refetchInterval: isOnline ? 30_000 : false,
+    staleTime: 30_000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: 'always',
   });

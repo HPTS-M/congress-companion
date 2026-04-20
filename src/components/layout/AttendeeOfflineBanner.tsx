@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { Loader2, WifiOff, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useEvent } from '@/hooks/useEvent';
 
 type Status = 'online' | 'offline' | 'reconnecting' | 'synced';
 
@@ -12,12 +13,14 @@ type Status = 'online' | 'offline' | 'reconnecting' | 'synced';
  * - Reconnecting: amber w/ spinner while we force-refresh queries + realtime.
  * - Synced: green for 1.5s, then hides.
  *
- * On reconnect we aggressively invalidate messaging/announcements/polls/contacts
- * so attendees never miss a message after a flaky connection.
+ * On reconnect we ONLY invalidate queries scoped to the current event to
+ * avoid a network spike (previously we invalidated every cached event).
  */
 export function AttendeeOfflineBanner() {
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const { event } = useEvent();
+  const eventId = event?.id;
   const [status, setStatus] = useState<Status>(
     typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'online'
   );
@@ -29,16 +32,28 @@ export function AttendeeOfflineBanner() {
     const handleOnline = async () => {
       setStatus('reconnecting');
 
-      // Force-refresh all live data the attendee depends on.
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ['unread-messages'] }),
-        qc.invalidateQueries({ queryKey: ['unread-announcements'] }),
-        qc.invalidateQueries({ queryKey: ['announcements'] }),
-        qc.invalidateQueries({ queryKey: ['direct-conversations'] }),
-        qc.invalidateQueries({ queryKey: ['direct-messages'] }),
-        qc.invalidateQueries({ queryKey: ['attendee-polls'] }),
-        qc.invalidateQueries({ queryKey: ['myContacts'] }),
-      ]);
+      // Surgical invalidation: only refresh queries whose key includes
+      // the current eventId. This prevents revalidating every event the
+      // browser has cached in memory after a long offline window.
+      const matchesCurrentEvent = (key: readonly unknown[]): boolean =>
+        eventId ? key.some((part) => part === eventId) : true;
+
+      await qc.invalidateQueries({
+        predicate: (query) => {
+          const [name] = query.queryKey as [string, ...unknown[]];
+          const liveKeys = new Set([
+            'unread-messages',
+            'unread-announcements',
+            'announcements',
+            'direct-conversations',
+            'direct-messages',
+            'attendee-polls',
+            'myContacts',
+          ]);
+          if (!liveKeys.has(name)) return false;
+          return matchesCurrentEvent(query.queryKey);
+        },
+      });
 
       // Notify the rest of the app that we just reconnected, so realtime
       // subscriptions (DirectChatView, usePolls, etc.) can re-bind.
@@ -66,7 +81,7 @@ export function AttendeeOfflineBanner() {
       if (hideTimer) clearTimeout(hideTimer);
       if (syncTimer) clearTimeout(syncTimer);
     };
-  }, [qc]);
+  }, [qc, eventId]);
 
   if (status === 'online') return null;
 

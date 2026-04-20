@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { measure } from '@/lib/perf';
 
 export interface AttendeePoll {
   id: string;
@@ -20,59 +21,28 @@ export interface PollResultOption {
   percentage: number;
 }
 
+type RpcCaller = (
+  fn: string,
+  args: Record<string, unknown>
+) => Promise<{ data: unknown; error: { message: string } | null }>;
+
 export const pollsService = {
   async getActivePolls(eventId: string, attendeeId: string): Promise<AttendeePoll[]> {
-    const { data: polls, error } = await supabase
-      .from('polls')
-      .select('*, event_activities!polls_session_id_fkey(title)')
-      .eq('event_id', eventId)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false });
+    return measure('list.polls', async () => {
+      const { data, error } = await (supabase as unknown as { rpc: RpcCaller }).rpc(
+        'get_active_polls_with_counts',
+        { _event_id: eventId, _attendee_id: attendeeId }
+      );
 
-    if (error) throw new Error(error.message);
-
-    const pollIds = (polls || []).map(p => p.id);
-    if (pollIds.length === 0) return [];
-
-    const [{ data: allOptions }, { data: allResponses }, { data: myResponses }] = await Promise.all([
-      supabase.from('poll_options').select('*').in('poll_id', pollIds).order('order_index'),
-      supabase.from('poll_responses').select('poll_id, option_id').in('poll_id', pollIds),
-      supabase.from('poll_responses').select('poll_id, option_id, text_response').in('poll_id', pollIds).eq('attendee_id', attendeeId),
-    ]);
-
-    const optionsByPoll: Record<string, typeof allOptions> = {};
-    for (const o of allOptions || []) {
-      if (!optionsByPoll[o.poll_id]) optionsByPoll[o.poll_id] = [];
-      optionsByPoll[o.poll_id]!.push(o);
-    }
-
-    const countByPoll: Record<string, number> = {};
-    for (const r of allResponses || []) {
-      countByPoll[r.poll_id] = (countByPoll[r.poll_id] || 0) + 1;
-    }
-
-    const myResponseByPoll: Record<string, { option_ids: string[]; text_response: string | null }> = {};
-    for (const r of myResponses || []) {
-      if (!myResponseByPoll[r.poll_id]) {
-        myResponseByPoll[r.poll_id] = { option_ids: [], text_response: r.text_response };
-      }
-      if (r.option_id) myResponseByPoll[r.poll_id].option_ids.push(r.option_id);
-      if (r.text_response && !myResponseByPoll[r.poll_id].text_response) {
-        myResponseByPoll[r.poll_id].text_response = r.text_response;
-      }
-    }
-
-    return (polls || []).map(p => ({
-      id: p.id,
-      question: p.question,
-      poll_type: p.poll_type,
-      status: p.status,
-      session_id: p.session_id,
-      session: p.event_activities ? { title: (p.event_activities as any).title } : null,
-      options: optionsByPoll[p.id] || [],
-      response_count: countByPoll[p.id] || 0,
-      my_response: myResponseByPoll[p.id] || null,
-    }));
+      if (error) throw new Error(error.message);
+      const rows = (data as AttendeePoll[] | null) ?? [];
+      return rows.map((p) => ({
+        ...p,
+        options: p.options ?? [],
+        response_count: p.response_count ?? 0,
+        my_response: p.my_response ?? null,
+      }));
+    });
   },
 
   async submitResponse(
@@ -81,7 +51,7 @@ export const pollsService = {
     optionIds: string[] | null,
     textResponse: string | null
   ): Promise<void> {
-    // Validar voto duplicado a nivel app (ya que no hay UNIQUE en BD por multiple_choice)
+    // Validar voto duplicado a nivel app
     const { data: existing } = await supabase
       .from('poll_responses')
       .select('id')
@@ -94,7 +64,6 @@ export const pollsService = {
     }
 
     if (optionIds && optionIds.length > 0) {
-      // Una fila por opción seleccionada (soporta multiple_choice)
       const rows = optionIds.map(optionId => ({
         poll_id: pollId,
         attendee_id: attendeeId,
@@ -103,14 +72,12 @@ export const pollsService = {
       }));
       const { error } = await supabase.from('poll_responses').insert(rows);
       if (error) {
-        // 23505 = unique_violation → el asistente ya votó esa opción
         if ((error as { code?: string }).code === '23505') {
           throw new Error('DUPLICATE_VOTE');
         }
         throw new Error(error.message);
       }
     } else {
-      // open_text
       const { error } = await supabase.from('poll_responses').insert({
         poll_id: pollId,
         attendee_id: attendeeId,

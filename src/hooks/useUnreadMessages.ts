@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { useRealtimeInvalidate } from '@/hooks/useRealtimeInvalidate';
 import { messagingService } from '@/services/messaging.service';
 
 interface UnreadMessagesResult {
@@ -45,28 +46,28 @@ export function useUnreadMessages(eventId: string): UnreadMessagesResult {
     queryClient.invalidateQueries({ queryKey: ['unread-messages', eventId, attendeeId] });
   }, [storageKey, queryClient, eventId, attendeeId]);
 
+  // Realtime: invalidate the count whenever a conversation changes
+  // (new invite, new message preview). No polling needed.
+  useRealtimeInvalidate({
+    channelName: `unread-messages-${eventId}-${attendeeId}`,
+    table: 'chat_conversations',
+    filter: eventId ? `event_id=eq.${eventId}` : undefined,
+    queryKeys: [['unread-messages', eventId, attendeeId]],
+    enabled: !!attendeeId && !!eventId && isOnline,
+  });
+
   const { data } = useQuery<UnreadMessagesData>({
     queryKey: ['unread-messages', eventId, attendeeId],
     queryFn: async () => {
-      const lastSeen = getLastSeen();
-      const conversations = await messagingService.getDirectConversations(eventId, attendeeId!);
-      const pendingInvites = conversations.filter(
-        (c) => c.status === 'pending' && c.other_id !== attendeeId
-      ).length;
-      const unreadMessages = conversations.filter(
-        (c) =>
-          c.status === 'active' &&
-          c.last_message_at &&
-          new Date(c.last_message_at) > lastSeen
-      ).length;
+      const counts = await messagingService.getUnreadCounts(eventId, attendeeId!, getLastSeen());
       return {
-        pendingInvites,
-        unreadMessages,
-        total: pendingInvites + unreadMessages,
+        pendingInvites: counts.pendingInvites,
+        unreadMessages: counts.unreadMessages,
+        total: counts.pendingInvites + counts.unreadMessages,
       };
     },
     enabled: !!attendeeId && !!eventId && isOnline,
-    refetchInterval: isOnline ? 30_000 : false,
+    staleTime: 30_000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: 'always',
   });

@@ -64,9 +64,11 @@ const AttendeeLayout = lazy(() => import('@/pages/attendee/AttendeeLayoutWrapper
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000,
+      staleTime: 60 * 1000, // 1 min — fresh enough without hammering the server
+      gcTime: 10 * 60 * 1000, // collect unused cache after 10 min (memory cap)
       retry: 1,
       refetchOnReconnect: 'always',
+      refetchOnWindowFocus: false, // avoid double fetch when returning from background
     },
   },
 });

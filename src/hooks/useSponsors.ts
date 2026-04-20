@@ -18,7 +18,7 @@ export function useSponsors(eventId: string) {
     queryKey: ['sponsors', eventId],
     queryFn: () => sponsorsService.getByEvent(eventId),
     enabled: !!eventId,
-    staleTime: 30_000,
+    staleTime: 5 * 60 * 1000, // sponsors barely change during the event
   });
 }
 
