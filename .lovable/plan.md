@@ -1,14 +1,45 @@
 
 
-El usuario muestra que la URL es `congress-companion.vercel.app/ACQFH-2026/home` y la página está en blanco. El secret `APP_URL` aún apunta al dominio viejo de Vercel (`congress-companion.vercel.app`) en lugar del dominio publicado actual `congress-connect-app.lovable.app`.
+## Crear asistente "Daniel Sanchez" en ACQFH-2026 con código `3ZSTDB6X`
 
-Dos problemas distintos:
+### Acción
 
-1. **El correo lleva al dominio incorrecto**: el secret `APP_URL` quedó como `https://congress-companion.vercel.app` (dominio Vercel viejo, probablemente ya no desplegado o sin la última versión de la app). Por eso la pantalla queda en blanco — no es un 404 limpio, es un dominio que ya no sirve la app correctamente.
+Insertar fila en `attendees` para Daniel Sanchez vinculada al evento ACQFH-2026, usando el email `estudiomapeoloinc@gmail.com`.
 
-2. **El helper `buildEventUrl` está funcionando correctamente**: ya no duplicó el slug. La URL salió `/ACQFH-2026/home` (bien formada). El problema ahora es solo el dominio base.
+### SQL a ejecutar
 
-Necesito revisar logs para confirmar y luego presentar el fix: actualizar el secret al dominio correcto.
+```sql
+INSERT INTO attendees (
+  event_id,
+  full_name,
+  email,
+  access_code_hash,
+  registration_status,
+  invitation_sent_at
+)
+VALUES (
+  (SELECT id FROM events WHERE event_code = 'ACQFH-2026'),
+  'Daniel Sanchez',
+  'estudiomapeoloinc@gmail.com',
+  '<bcrypt_hash_of_3ZSTDB6X_cost_10>',
+  'confirmed',
+  now()
+);
+```
 
-Voy a revisar logs rápido para confirmar mi diagnóstico antes de presentar el plan final.
+### Detalles técnicos
+
+- **`credential_code`**: lo genera automáticamente el trigger del proyecto (`{EVENT_CODE}-{sequence}`).
+- **`access_code_hash`**: bcrypt cost 10 de `3ZSTDB6X` (mismo parámetro que `send-invitation-email` y `regenerate-access-code`).
+- **`user_id`**: queda `NULL`. La Edge Function `verify-access-code` lo crea/vincula en el primer login (busca o crea en `auth.users` por email; si ya existe el `profiles` con ese email, reutiliza el `user_id`).
+- **`registration_status = 'confirmed'`**: evita el flujo de pendiente.
+- **`last_session_id`**: queda `NULL` (no hay bloqueo de "sesión activa").
+- **Limpiar `access_attempts`** para tu IP para evitar el rate-limit 429:
+  ```sql
+  DELETE FROM access_attempts WHERE event_code = 'ACQFH-2026';
+  ```
+
+### Resultado esperado
+
+Podrás ir a `https://congress-connect-app.lovable.app/ACQFH-2026`, ingresar `3ZSTDB6X` y entrar como Daniel Sanchez.
 
