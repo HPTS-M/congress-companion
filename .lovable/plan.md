@@ -1,45 +1,68 @@
 
-Plan: Limpieza total de attendees en evento ACQFH-2026 + datos relacionados.
 
-## Resumen
-Borrar TODOS los 573 asistentes del evento `ACQFH-2026` y datos relacionados, dejando la tabla limpia para volver a probar carga masiva desde cero.
+## Plan: Garantizar unicidad del código externo (1 código = 1 individuo)
 
-## Migración SQL (en orden)
+### Estado verificado
+- 0 duplicados de `external_credential_code` en toda la BD (consulta agrupada por evento devolvió vacío).
+- Camino libre para aplicar el constraint sin limpieza previa.
+
+### 1. Migración SQL — índice único parcial
 
 ```sql
--- 1. Identificar event_id objetivo y attendees a borrar
-WITH target_attendees AS (
-  SELECT a.id, a.user_id
-  FROM attendees a
-  JOIN events e ON e.id = a.event_id
-  WHERE e.event_code = 'ACQFH-2026'
-)
-
--- 2. Borrar dependencias (orden importa por FK lógicas)
-DELETE FROM service_tickets st
-USING attendee_services aser
-WHERE st.attendee_service_id = aser.id
-  AND aser.attendee_id IN (SELECT id FROM target_attendees);
-
-DELETE FROM attendee_services WHERE attendee_id IN (...);
-DELETE FROM attendee_checkins WHERE attendee_id IN (...);
-DELETE FROM attendee_notes WHERE user_id IN (...);
-DELETE FROM poll_responses WHERE attendee_id IN (...);
-DELETE FROM contacts WHERE user_id IN (...) OR contact_id IN (...);
-DELETE FROM chat_messages WHERE sender_id IN (...);
-DELETE FROM chat_participants WHERE user_id IN (SELECT user_id FROM target_attendees WHERE user_id IS NOT NULL);
-DELETE FROM sponsor_leads WHERE attendee_id IN (...);
-
--- 3. Hard-delete final de attendees
-DELETE FROM attendees WHERE id IN (SELECT id FROM target_attendees);
+CREATE UNIQUE INDEX IF NOT EXISTS attendees_event_external_code_unique
+ON public.attendees (event_id, lower(trim(external_credential_code)))
+WHERE external_credential_code IS NOT NULL
+  AND trim(external_credential_code) <> ''
+  AND deleted_at IS NULL;
 ```
 
-## Auth users
-Los attendees con `user_id IS NOT NULL` (ya hicieron login) tienen cuenta en `auth.users`. **NO se borrarán automáticamente** desde SQL (el schema `auth` está reservado). Quedarán huérfanas pero inofensivas. Si deseas, puedes borrarlas después manualmente desde el dashboard de Supabase Auth.
+**Por qué así:**
+- **Parcial** (`WHERE … IS NOT NULL`): permite múltiples filas sin código (NULL no colisiona).
+- **`lower(trim(...))`**: insensible a mayúsculas/espacios accidentales (consistente con el código actual que ya normaliza con `toUpperCase().trim()`).
+- **Por `event_id`**: el mismo código puede repetirse entre eventos distintos (multi-tenant), pero NUNCA dentro del mismo evento.
+- **`deleted_at IS NULL`**: un attendee soft-deleted libera su código para reutilización.
 
-## Validación post-borrado
-Verificar `SELECT COUNT(*) FROM attendees WHERE event_id = (SELECT id FROM events WHERE event_code = 'ACQFH-2026')` → debe retornar 0.
+### 2. Confirmación: email puede repetirse
+- No se agrega constraint sobre email. Hoy ya es warning informativo en el import → se mantiene.
+- El check actual `block_blocking_emails` en `ImportCsvModal` ya trata duplicado de email como warning (no bloqueante). Confirmado consistente.
 
-## Ejecución
-Crear migración SQL única, ejecutarla y luego refrescar caches del cliente (TanStack Query) navegando al módulo de asistentes admin.
+### 3. Refactor del flujo de import: matching por código externo
+
+Cambios mínimos en 3 archivos para que el upsert use `external_credential_code` como llave de identidad cuando esté presente:
+
+**`src/services/admin-attendees.service.ts`**
+- Nueva función `lookupAttendeesByExternalCodes(eventId, codes)` que devuelve `Map<codeUpper, attendeeId>` (espejo de `lookupAttendeesByEmails`).
+- Mantener `lookupAttendeesByEmails` como fallback.
+
+**`src/components/admin/attendees/ImportCsvModal.tsx`**
+- En el paso de detección de existentes:
+  1. Si la fila trae `external_credential_code` → lookup por código externo. Si hay match único → resolución automática `update`. Sin ambigüedad posible (es único por definición).
+  2. Si NO trae código externo → cae al flujo actual de match por email (con modal de ambiguos cuando aplique).
+- Esto elimina el modal de "Resolver ambiguos" para filas que vienen con código externo.
+
+**`src/services/admin-attendees.service.ts` — `bulkUpsertAttendees`**
+- La validación actual de duplicados en batch + en BD (líneas 541-603) ya cubre la regla a nivel app. Se mantiene como capa rápida + el constraint UNIQUE es la red de seguridad final.
+- Mejorar mensaje de error: si el `INSERT` falla por violación del índice único nuevo (código `23505`), mapear a `errors[].reason = 'duplicate_external_code'` con i18n key amigable.
+
+### 4. UI — formulario manual (`NewAttendeeModal.tsx`)
+- Hoy ya valida duplicados via `useExistingExternalCodes` (línea 152-204). Se mantiene.
+- Agregar manejo de error 23505 en `useCreateAttendee`/`useUpdateAttendee` por si hay race condition entre validación previa y el INSERT.
+
+### 5. Traducciones
+Agregar a `src/locales/{es,en}/admin.json`:
+- `attendees.errors.duplicateExternalCode`: "El código externo {{code}} ya está asignado a otro asistente en este evento."
+- `attendees.import.matchedByExternalCode`: "{{count}} filas vinculadas automáticamente por código externo."
+
+### Resumen de archivos tocados
+1. **Migración nueva** — índice único parcial.
+2. `src/services/admin-attendees.service.ts` — nueva función lookup + manejo error 23505.
+3. `src/components/admin/attendees/ImportCsvModal.tsx` — preferir match por código externo.
+4. `src/components/admin/attendees/NewAttendeeModal.tsx` — manejo error 23505.
+5. `src/locales/es/admin.json` + `src/locales/en/admin.json` — nuevas keys.
+
+### Garantías post-implementación
+- Imposible (a nivel BD) tener 2 attendees activos con el mismo código externo en un mismo evento.
+- Email duplicado sigue permitido sin warnings nuevos.
+- Import de filas con código externo es 100% determinístico (sin modal de ambigüedad).
+- Mismo código puede existir en eventos distintos.
 
