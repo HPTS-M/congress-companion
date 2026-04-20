@@ -195,7 +195,21 @@ export function NewAttendeeModal({ open, onOpenChange, attendee }: Props) {
       // Force refetch BEFORE closing so the table reflects the new row instantly
       await queryClient.refetchQueries({ queryKey: ['admin-attendees'], type: 'active' });
       onOpenChange(false);
-    } catch {
+    } catch (err) {
+      const e = err as { code?: string; message?: string };
+      // Handle race-condition: external code uniqueness violated at DB level
+      // (between the client-side pre-check and the actual INSERT/UPDATE).
+      if (
+        e?.code === '23505' &&
+        (e?.message?.includes('attendees_event_external_code_unique') ?? false)
+      ) {
+        form.setError('external_credential_code', {
+          message: t('attendees.errors.duplicateExternalCode', {
+            code: values.external_credential_code ?? '',
+          }),
+        });
+        return;
+      }
       toast({
         title: isEditMode ? t('attendees.newAttendeeModal.updateError') : t('attendees.newAttendeeModal.error'),
         variant: 'destructive',
