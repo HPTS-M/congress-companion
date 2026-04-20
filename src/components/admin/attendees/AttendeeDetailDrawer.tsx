@@ -55,12 +55,12 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
   const [showAddService, setShowAddService] = useState(false);
   const [confirmToggleActive, setConfirmToggleActive] = useState(false);
   const [confirmRegenAccess, setConfirmRegenAccess] = useState(false);
+  const [confirmRegenCredential, setConfirmRegenCredential] = useState(false);
   const [regeneratingAccess, setRegeneratingAccess] = useState(false);
   const [newAccessCode, setNewAccessCode] = useState<string | null>(null);
 
   const handleRegenerate = async () => {
     if (!attendeeId) return;
-    if (!window.confirm(t('attendees.detail.regenerateConfirm'))) return;
     try {
       await adminAttendeesService.regenerateCode(attendeeId);
       queryClient.invalidateQueries({ queryKey: ['admin-attendee-detail', attendeeId] });
@@ -68,6 +68,8 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
       toast({ title: t('attendees.detail.regenerateSuccess') });
     } catch {
       toast({ title: 'Error', variant: 'destructive' });
+    } finally {
+      setConfirmRegenCredential(false);
     }
   };
 
@@ -277,7 +279,7 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
                   </div>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="outline" size="sm" className="w-full" onClick={handleRegenerate}>
+                      <Button variant="outline" size="sm" className="w-full" onClick={() => setConfirmRegenCredential(true)}>
                         <RefreshCw className="mr-2 h-3 w-3" />
                         {t('attendees.detail.regenerateCode')}
                       </Button>
