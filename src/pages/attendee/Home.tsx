@@ -49,14 +49,28 @@ export default function Home() {
 
   return (
     <div className="flex flex-col pt-0">
-      {/* Logo Card */}
-      <div className="mx-4 mt-6 flex flex-col items-center rounded-lg bg-card px-6 py-8 shadow-md">
-        <img
-          src={bannerSrc}
-          alt="Logo Congreso"
-          className="h-48 w-auto object-contain"
-        />
-      </div>
+      {/* Hero: banner card if admin uploaded a distinct promo banner,
+          otherwise a clean typographic header (avoids duplicating header logo). */}
+      {hasDistinctBanner ? (
+        <div className="mx-4 mt-6 flex flex-col items-center rounded-lg bg-card px-6 py-8 shadow-md">
+          <img
+            src={bannerUrl}
+            alt={event?.name ?? ''}
+            className="h-48 w-auto object-contain"
+          />
+        </div>
+      ) : (
+        <div className="mx-4 mt-6 rounded-lg bg-card px-6 py-6 shadow-sm">
+          <h1 className="text-2xl font-bold leading-tight text-foreground">
+            {event?.name ?? ''}
+          </h1>
+          {(event?.venue_name || event?.venue_address) && (
+            <p className="mt-2 text-sm text-muted-foreground">
+              {[event?.venue_name, event?.venue_address].filter(Boolean).join(' · ')}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Event Info */}
       <div className="mx-4 mt-6 mb-6">
