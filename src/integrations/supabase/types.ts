@@ -957,6 +957,64 @@ export type Database = {
           },
         ]
       }
+      invitation_send_log: {
+        Row: {
+          attempted_at: string
+          attempted_by: string | null
+          attendee_id: string
+          error_message: string | null
+          event_id: string
+          id: string
+          reason: string | null
+          retries: number
+          status: string
+        }
+        Insert: {
+          attempted_at?: string
+          attempted_by?: string | null
+          attendee_id: string
+          error_message?: string | null
+          event_id: string
+          id?: string
+          reason?: string | null
+          retries?: number
+          status: string
+        }
+        Update: {
+          attempted_at?: string
+          attempted_by?: string | null
+          attendee_id?: string
+          error_message?: string | null
+          event_id?: string
+          id?: string
+          reason?: string | null
+          retries?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invitation_send_log_attendee_id_fkey"
+            columns: ["attendee_id"]
+            isOneToOne: false
+            referencedRelation: "attendees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invitation_send_log_attendee_id_fkey"
+            columns: ["attendee_id"]
+            isOneToOne: false
+            referencedRelation: "public_attendee_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invitation_send_log_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           action_url: string | null
@@ -2006,6 +2064,10 @@ export type Database = {
       }
       get_attendee_itinerary: { Args: { _attendee_id: string }; Returns: Json }
       get_event_statistics: { Args: { _event_id: string }; Returns: Json }
+      get_failed_invitation_attendee_ids: {
+        Args: { _event_id: string }
+        Returns: string[]
+      }
       get_my_attendee_ids: { Args: never; Returns: string[] }
       get_my_direct_conversations: {
         Args: { _attendee_id: string; _event_id: string }
