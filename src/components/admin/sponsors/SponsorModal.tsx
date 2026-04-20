@@ -136,7 +136,7 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
   }), [t]);
 
   const validate = useCallback((): boolean => {
-    const cleanedWhatsapp = whatsapp.replace(/[\s\-()]/g, '');
+    const composedWhatsapp = buildPhoneE164(whatsappDialCode, whatsappNumber);
     const result = schema.safeParse({
       name,
       description: description || undefined,
@@ -145,7 +145,7 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
       social_linkedin: linkedin || undefined,
       social_instagram: instagram || undefined,
       contact_email: contactEmail || undefined,
-      whatsapp: cleanedWhatsapp || undefined,
+      whatsapp: composedWhatsapp || undefined,
     });
 
     const next: Errors = {};
@@ -155,7 +155,7 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
         if (!next[key]) next[key] = issue.message;
       }
     }
-    if (cleanedWhatsapp && !WHATSAPP_REGEX.test(cleanedWhatsapp)) {
+    if (composedWhatsapp && !WHATSAPP_REGEX.test(composedWhatsapp)) {
       next.whatsapp = t('sponsors.validation.whatsappFormat');
     }
 
@@ -165,7 +165,7 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
       return false;
     }
     return true;
-  }, [schema, name, description, websiteUrl, videoUrl, linkedin, instagram, contactEmail, whatsapp, t]);
+  }, [schema, name, description, websiteUrl, videoUrl, linkedin, instagram, contactEmail, whatsappDialCode, whatsappNumber, t]);
 
   const buildForm = useCallback(
     (logoUrl: string | null, materialsUrl: string | null): SponsorFormData & { logo_url?: string | null; materials_url?: string | null } => ({
@@ -176,7 +176,7 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
       stand_location: standLocation.trim() || undefined,
       website_url: websiteUrl.trim() || undefined,
       contact_email: contactEmail.trim() || undefined,
-      whatsapp: whatsapp.replace(/[\s\-()]/g, '') || undefined,
+      whatsapp: buildPhoneE164(whatsappDialCode, whatsappNumber) || undefined,
       whatsapp_message: whatsappMessage.trim() || undefined,
       video_url: videoUrl.trim() || undefined,
       social_linkedin: linkedin.trim() || undefined,
@@ -184,7 +184,7 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
       logo_url: logoUrl,
       materials_url: materialsUrl,
     }),
-    [name, level, category, description, standLocation, websiteUrl, contactEmail, whatsapp, whatsappMessage, videoUrl, linkedin, instagram]
+    [name, level, category, description, standLocation, websiteUrl, contactEmail, whatsappDialCode, whatsappNumber, whatsappMessage, videoUrl, linkedin, instagram]
   );
 
   const handleLogoSelect = useCallback((file: File | null) => {
