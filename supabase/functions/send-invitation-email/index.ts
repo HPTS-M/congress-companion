@@ -238,7 +238,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    return jsonResponse(200, { success: true, sent, failed, errors: errors.length > 0 ? errors : undefined });
+    return jsonResponse(200, {
+      success: true,
+      sent,
+      failed,
+      skipped: skippedDetails.length,
+      skippedDetails: skippedDetails.length > 0 ? skippedDetails : undefined,
+      errors: errors.length > 0 ? errors : undefined,
+    });
   } catch (err) {
     console.error('Unexpected error:', err);
     return jsonResponse(500, { error: 'Server error' });
