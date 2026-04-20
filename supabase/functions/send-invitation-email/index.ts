@@ -9,8 +9,25 @@ const corsHeaders = {
     'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+// CAP per request lowered from 200 → 50.
+// The frontend service auto-paginates large selections in chunks of 50.
+// This guarantees we stay well under the 60s edge function timeout even
+// with retries and Resend rate limiting.
+const MAX_PER_REQUEST = 50;
+
+// Bcrypt cost 8 (was 10): ~80ms per hash vs ~300ms.
+// Still secure for short-lived custom auth codes (2^8 = 256 rounds).
+const BCRYPT_COST = 8;
+
+// Process attendees in chunks of N concurrently using Promise.allSettled,
+// so a single failure (DB or Resend) never blocks the rest of the batch.
+const CHUNK_SIZE = 20;
+
+// Retry policy for Resend transient errors (429, 5xx)
+const RETRY_DELAYS_MS = [500, 1500, 4000];
+
 const requestSchema = z.object({
-  attendee_ids: z.array(z.string().uuid()).min(1).max(200),
+  attendee_ids: z.array(z.string().uuid()).min(1).max(MAX_PER_REQUEST),
   event_id: z.string().uuid(),
 });
 
@@ -27,6 +44,33 @@ function jsonResponse(status: number, body: unknown) {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+type FailureReason =
+  | 'rate_limited'
+  | 'invalid_recipient'
+  | 'resend_error'
+  | 'db_error'
+  | 'unknown';
+
+function classifyResendError(status: number, errBody: unknown): FailureReason {
+  if (status === 429) return 'rate_limited';
+  if (status >= 500) return 'resend_error';
+  // 422 / 400: invalid recipient (bad domain, mailbox blocked, etc.)
+  const message = JSON.stringify(errBody ?? {}).toLowerCase();
+  if (
+    message.includes('invalid') ||
+    message.includes('bounce') ||
+    message.includes('does not exist') ||
+    message.includes('not allowed')
+  ) {
+    return 'invalid_recipient';
+  }
+  return 'resend_error';
 }
 
 function buildEmailHtml(
@@ -70,13 +114,167 @@ function buildEmailHtml(
 </html>`;
 }
 
+interface SendResult {
+  attendeeId: string;
+  ok: boolean;
+  reason?: FailureReason;
+  errorMessage?: string;
+  retries?: number;
+}
+
+async function sendOneInvitation(
+  attendee: { id: string; full_name: string; email: string },
+  event: { name: string; event_code: string },
+  eventLoginUrl: string,
+  resendApiKey: string,
+  supabaseAdmin: ReturnType<typeof createClient>,
+): Promise<SendResult> {
+  // 1) Generate + hash code
+  const plainCode = generateCode(8);
+  let hash: string;
+  try {
+    const salt = bcrypt.genSaltSync(BCRYPT_COST);
+    hash = bcrypt.hashSync(plainCode, salt);
+  } catch (err) {
+    console.log('[send-invitation]', JSON.stringify({
+      attendee_id: attendee.id,
+      email: attendee.email,
+      status: 'failed',
+      reason: 'db_error',
+      stage: 'hash',
+      error: (err as Error).message,
+    }));
+    return { attendeeId: attendee.id, ok: false, reason: 'db_error', errorMessage: 'hash_failed' };
+  }
+
+  // 2) Persist hash + sent_at BEFORE sending email so the credential is valid
+  // even if the email gets stuck in Resend's queue.
+  const { error: updateError } = await supabaseAdmin
+    .from('attendees')
+    .update({
+      access_code_hash: hash,
+      invitation_sent_at: new Date().toISOString(),
+    })
+    .eq('id', attendee.id);
+
+  if (updateError) {
+    console.log('[send-invitation]', JSON.stringify({
+      attendee_id: attendee.id,
+      email: attendee.email,
+      status: 'failed',
+      reason: 'db_error',
+      stage: 'update',
+      error: updateError.message,
+    }));
+    return {
+      attendeeId: attendee.id,
+      ok: false,
+      reason: 'db_error',
+      errorMessage: `DB update failed: ${updateError.message}`,
+    };
+  }
+
+  // 3) Build email + send with retry/backoff on 429 / 5xx
+  const html = buildEmailHtml(
+    attendee.full_name,
+    event.name,
+    event.event_code,
+    plainCode,
+    eventLoginUrl,
+  );
+
+  const payload = JSON.stringify({
+    from: 'Health Plus Travels Events <noreply@healtplustravels.app>',
+    to: [attendee.email],
+    subject: `🎫 Your credentials for ${event.name}`,
+    html,
+  });
+
+  let lastReason: FailureReason = 'unknown';
+  let lastError = '';
+
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      const resendResponse = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${resendApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: payload,
+      });
+
+      if (resendResponse.ok) {
+        console.log('[send-invitation]', JSON.stringify({
+          attendee_id: attendee.id,
+          email: attendee.email,
+          status: 'sent',
+          retries: attempt,
+        }));
+        return { attendeeId: attendee.id, ok: true, retries: attempt };
+      }
+
+      const errBody = await resendResponse.json().catch(() => ({}));
+      lastReason = classifyResendError(resendResponse.status, errBody);
+      lastError = `Resend ${resendResponse.status}: ${JSON.stringify(errBody)}`;
+
+      console.log('[send-invitation]', JSON.stringify({
+        attendee_id: attendee.id,
+        email: attendee.email,
+        status: 'retrying',
+        retry_count: attempt,
+        http_status: resendResponse.status,
+        reason: lastReason,
+      }));
+
+      // Don't retry on permanent failures (invalid recipient, 4xx other than 429)
+      if (lastReason === 'invalid_recipient') break;
+      if (resendResponse.status >= 400 && resendResponse.status < 500 && resendResponse.status !== 429) {
+        break;
+      }
+    } catch (err) {
+      lastReason = 'resend_error';
+      lastError = `Network error: ${(err as Error).message}`;
+      console.log('[send-invitation]', JSON.stringify({
+        attendee_id: attendee.id,
+        email: attendee.email,
+        status: 'retrying',
+        retry_count: attempt,
+        reason: 'network_error',
+        error: lastError,
+      }));
+    }
+
+    // Wait before next attempt (if any retries remain)
+    if (attempt < RETRY_DELAYS_MS.length) {
+      await sleep(RETRY_DELAYS_MS[attempt]);
+    }
+  }
+
+  console.log('[send-invitation]', JSON.stringify({
+    attendee_id: attendee.id,
+    email: attendee.email,
+    status: 'failed',
+    reason: lastReason,
+    error: lastError,
+  }));
+
+  return {
+    attendeeId: attendee.id,
+    ok: false,
+    reason: lastReason,
+    errorMessage: lastError,
+    retries: RETRY_DELAYS_MS.length,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // 1. Auth: validate JWT manually
+    // 1. Auth
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return jsonResponse(401, { error: 'Unauthorized' });
@@ -96,14 +294,13 @@ Deno.serve(async (req) => {
 
     const userId = claimsData.claims.sub;
 
-    // Verify admin/superuser role
     const { data: roles } = await supabaseAuth.rpc('get_user_roles', { _user_id: userId });
     const isAdmin = (roles ?? []).some((r: string) => ['superuser', 'admin'].includes(r));
     if (!isAdmin) {
       return jsonResponse(403, { error: 'Forbidden: admin role required' });
     }
 
-    // 2. Parse & validate input
+    // 2. Parse + validate
     let body: unknown;
     try {
       body = await req.json();
@@ -118,13 +315,13 @@ Deno.serve(async (req) => {
 
     const { attendee_ids, event_id } = parsed.data;
 
-    // 3. Service role client for writes
+    // 3. Service role client
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
-    // 4. Get event info
+    // 4. Event
     const { data: event, error: eventError } = await supabaseAdmin
       .from('events')
       .select('id, name, event_code')
@@ -135,7 +332,7 @@ Deno.serve(async (req) => {
       return jsonResponse(404, { error: 'Event not found' });
     }
 
-    // 5. Get attendees
+    // 5. Attendees
     const { data: attendees, error: attendeesError } = await supabaseAdmin
       .from('attendees')
       .select('id, full_name, email, registration_status')
@@ -152,8 +349,7 @@ Deno.serve(async (req) => {
       return jsonResponse(404, { error: 'No attendees found' });
     }
 
-    // 5b. Defense-in-depth: filter ineligible recipients server-side.
-    // Even if the client filters these, a direct API call could bypass it.
+    // 5b. Filter ineligible recipients (defense-in-depth)
     const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const skippedDetails: { id: string; reason: string }[] = [];
     const eligible = attendees.filter((a) => {
@@ -168,7 +364,7 @@ Deno.serve(async (req) => {
       return true;
     });
 
-    // 6. Get Resend API key
+    // 6. Resend key
     const resendApiKey = Deno.env.get('RESEND_API_KEY');
     if (!resendApiKey) {
       return jsonResponse(500, { error: 'RESEND_API_KEY not configured' });
@@ -176,66 +372,40 @@ Deno.serve(async (req) => {
 
     const eventLoginUrl = buildEventUrl(event.event_code);
 
-    // 7. Process each eligible attendee
+    // 7. Process eligible attendees in parallel chunks
     let sent = 0;
     let failed = 0;
-    const errors: { id: string; error: string }[] = [];
+    const errors: { id: string; error: string; reason: FailureReason }[] = [];
 
-    for (const attendee of eligible) {
-      try {
-        // Generate 8-char code
-        const plainCode = generateCode(8);
+    for (let i = 0; i < eligible.length; i += CHUNK_SIZE) {
+      const chunk = eligible.slice(i, i + CHUNK_SIZE);
+      const results = await Promise.allSettled(
+        chunk.map((a) =>
+          sendOneInvitation(a, event, eventLoginUrl, resendApiKey, supabaseAdmin),
+        ),
+      );
 
-        // Hash with bcrypt (sync due to edge runtime limitation)
-        const salt = bcrypt.genSaltSync(10);
-        const hash = bcrypt.hashSync(plainCode, salt);
-
-        // Update DB: set hash + invitation_sent_at
-        const { error: updateError } = await supabaseAdmin
-          .from('attendees')
-          .update({
-            access_code_hash: hash,
-            invitation_sent_at: new Date().toISOString(),
-          })
-          .eq('id', attendee.id);
-
-        if (updateError) {
-          throw new Error(`DB update failed: ${updateError.message}`);
+      for (const r of results) {
+        if (r.status === 'fulfilled') {
+          if (r.value.ok) {
+            sent++;
+          } else {
+            failed++;
+            errors.push({
+              id: r.value.attendeeId,
+              error: r.value.errorMessage ?? 'unknown',
+              reason: r.value.reason ?? 'unknown',
+            });
+          }
+        } else {
+          // Promise itself rejected (rare — sendOneInvitation catches everything)
+          failed++;
+          errors.push({
+            id: 'unknown',
+            error: String(r.reason),
+            reason: 'unknown',
+          });
         }
-
-        // Build and send email
-        const html = buildEmailHtml(
-          attendee.full_name,
-          event.name,
-          event.event_code,
-          plainCode,
-          eventLoginUrl,
-        );
-
-        const resendResponse = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${resendApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            from: 'Health Plus Travels Events <noreply@healtplustravels.app>',
-            to: [attendee.email],
-            subject: `🎫 Your credentials for ${event.name}`,
-            html,
-          }),
-        });
-
-        if (!resendResponse.ok) {
-          const errData = await resendResponse.json();
-          throw new Error(`Resend error: ${JSON.stringify(errData)}`);
-        }
-
-        sent++;
-      } catch (err) {
-        console.error(`Failed for attendee ${attendee.id}:`, err);
-        failed++;
-        errors.push({ id: attendee.id, error: (err as Error).message });
       }
     }
 
