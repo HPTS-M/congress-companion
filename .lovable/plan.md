@@ -1,89 +1,117 @@
 
 
-## Aviso de privacidad antes de enviar interés a patrocinador
+## Validación técnica de documentos en área comercial (patrocinadores)
 
 ### Objetivo
 
-Antes de registrar el "Me interesa" en un patrocinador, mostrar un modal de confirmación que informe al asistente **qué datos suyos serán compartidos** con ese patrocinador, y requerir aceptación explícita.
+Reforzar la carga de **logo** y **materiales (PDF)** en `SponsorModal.tsx` para que el sistema:
+1. Rechace archivos con formato/tamaño inválido **en el momento de selección** (no al guardar).
+2. Confirme que el archivo subido existe en Storage y tiene tamaño > 0 después del upload.
+3. Dé feedback claro al admin: éxito, error, tipo permitido, tamaño máximo.
 
-### Contexto técnico
+### Estado actual vs. problemas detectados
 
-El flujo actual (`src/components/attendee/SponsorLeadButton.tsx`) ejecuta `sponsorLeadsService.create(...)` directamente al hacer click. El servicio inserta en `sponsor_leads`, y el patrocinador (vía panel admin) ve: `full_name`, `email`, `specialty`, `institution`, `phone` del asistente (definido en `SponsorLeadWithAttendee`).
-
-El usuario nunca es informado explícitamente de esta compartición de datos personales — riesgo de cumplimiento (GDPR / Habeas Data Colombia) y de UX.
+| Archivo | Validación actual | Problema |
+|---|---|---|
+| Logo (imagen) | `accept="image/*"` + límite 2MB **al guardar** | Acepta SVG (riesgo XSS), no valida MIME real, error tardío |
+| Materiales (PDF) | **Sin `accept`**, sin validación MIME, 10MB **al guardar** | Admite cualquier formato; si se sube .docx o .zip, se guarda igual |
+| Post-upload | No hay verificación | Si Storage devuelve path pero objeto corrupto o 0 bytes, pasa desapercibido |
 
 ### Cambios a realizar
 
-#### 1. Nuevo componente `SponsorLeadConsentDialog.tsx`
+#### 1. `src/lib/file-validation.ts` (nuevo)
 
-Ubicación: `src/components/attendee/SponsorLeadConsentDialog.tsx`
+Utilidad centralizada reutilizable:
 
-- Basado en `AlertDialog` de shadcn (ya usado en el proyecto, p. ej. `SponsorModal.tsx`).
-- Props: `open`, `onClose`, `onConfirm`, `sponsorName`, `loading`.
-- Contenido:
-  - **Título**: "Compartir tus datos con {sponsorName}"
-  - **Descripción**: Texto claro que explique:
-    - Qué datos se compartirán: nombre, email, especialidad, institución y teléfono (si está disponible en el perfil).
-    - Para qué: el patrocinador podrá contactarte con información comercial relacionada al evento.
-    - Que la acción es voluntaria y queda registrada.
-  - **Lista visual** de los campos que se compartirán (con iconos: `User`, `Mail`, `Briefcase`, `Building2`, `Phone`).
-  - **Nota de privacidad**: "Solo los patrocinadores que apruebes verán tu información. Puedes contactar al organizador para revocar el consentimiento."
-- Botones:
-  - Cancelar (secundario)
-  - "Sí, compartir mis datos" (primario, color `#1A56A0`)
+```ts
+export const SPONSOR_LOGO_MIME = ['image/png','image/jpeg','image/webp'];
+export const SPONSOR_LOGO_EXT  = ['png','jpg','jpeg','webp'];
+export const SPONSOR_LOGO_MAX  = 2 * 1024 * 1024;
 
-#### 2. Modificar `SponsorLeadButton.tsx`
+export const SPONSOR_MATERIALS_MIME = ['application/pdf'];
+export const SPONSOR_MATERIALS_EXT  = ['pdf'];
+export const SPONSOR_MATERIALS_MAX  = 10 * 1024 * 1024;
 
-- Agregar estado `showConsent: boolean`.
-- Al hacer click en el botón → `setShowConsent(true)` (NO llamar al servicio aún).
-- Renderizar `<SponsorLeadConsentDialog>` controlado por ese estado.
-- `onConfirm` del modal → ejecuta `sponsorLeadsService.create(...)` (la lógica actual del `handleClick` se mueve aquí).
-- El estado `loading` se pasa al modal para deshabilitar el botón de confirmar mientras se crea el lead.
-- Pasar el `sponsorName` como prop nueva al `SponsorLeadButton` (requerido), provisto desde `Commercial.tsx` (`SponsorCard`) y `SponsorDetail.tsx`.
+export interface FileValidationResult {
+  ok: boolean;
+  code?: 'empty' | 'invalid_type' | 'invalid_ext' | 'too_large';
+}
 
-#### 3. Actualizar i18n en `commercial.json` (es y en)
+export function validateFile(file: File, allowedMime: string[], allowedExt: string[], maxSize: number): FileValidationResult
+```
 
-Agregar bajo la clave existente `lead`:
+La función verifica: tamaño > 0, `file.type` en lista MIME, extensión del nombre en lista permitida, tamaño ≤ max. Se alinea con la regla de memoria `storage/event-sponsors-storage` (imágenes PNG/JPG/WEBP; materiales solo PDF).
 
-```json
-"lead": {
-  ...
-  "consent": {
-    "title": "Compartir tus datos con {{sponsor}}",
-    "intro": "Al confirmar, los siguientes datos de tu perfil serán compartidos con este patrocinador para que pueda contactarte:",
-    "fields": {
-      "name": "Nombre completo",
-      "email": "Correo electrónico",
-      "specialty": "Especialidad",
-      "institution": "Institución",
-      "phone": "Teléfono (si está registrado)"
-    },
-    "purpose": "El patrocinador podrá enviarte información comercial relacionada al evento.",
-    "privacy": "Solo los patrocinadores que apruebes recibirán tu información. Para revocar, contacta al organizador del evento.",
-    "confirm": "Sí, compartir mis datos",
-    "cancel": "Cancelar"
+#### 2. Modificar `src/components/admin/sponsors/SponsorModal.tsx`
+
+**a. Validación inmediata al seleccionar archivo:**
+
+- Nuevo handler `handleLogoSelect(file)` y `handleMaterialsSelect(file)` que:
+  - Llaman a `validateFile(...)`.
+  - Si falla → `toast.error(t('sponsors.validation.fileX'))` con mensaje específico y NO setean el estado.
+  - Si pasa → `setLogoFile(file)` / `setMaterialsFile(file)`.
+- Restringir el input del logo a `accept="image/png,image/jpeg,image/webp"` (excluye SVG).
+- Agregar `accept="application/pdf"` al input de materiales (actualmente vacío).
+
+**b. Verificación post-upload:**
+
+- Ampliar `adminSponsorsService.uploadFile` para devolver `{ path, size }` y **después** del upload hacer una llamada a `supabase.storage.from(BUCKET).list(eventId, { search: filename })` o un HEAD vía `createSignedUrl` + `fetch(method:'HEAD')` para confirmar que el objeto existe con tamaño > 0.
+- Si la verificación falla → `throw new Error('upload_verification_failed')` y mostrar toast de error + revertir estado (sin actualizar la fila de sponsors).
+
+**c. Mover validación de tamaño de `performSave` al handler de selección** (el fallback en `performSave` se mantiene como defensa en profundidad).
+
+**d. Feedback visual:**
+
+- Mostrar tamaño del archivo junto al nombre (`1.2 MB`).
+- Estado `uploadingLogo` / `uploadingMaterials` → spinner en el botón durante el upload + verificación.
+
+#### 3. Modificar `src/services/admin-sponsors.service.ts`
+
+```ts
+async uploadFile(eventId, file, prefix): Promise<{ path: string; size: number }> {
+  // subida actual ...
+  // verificación post-upload:
+  const { data: list } = await supabase.storage.from(BUCKET).list(eventId, {
+    search: filename,
+  });
+  const uploaded = list?.find(o => o.name === filename);
+  if (!uploaded || (uploaded.metadata?.size ?? 0) === 0) {
+    // cleanup + throw
+    await supabase.storage.from(BUCKET).remove([path]);
+    throw new Error('verification_failed');
   }
+  return { path, size: uploaded.metadata.size };
 }
 ```
 
-Versión inglesa equivalente.
+- Actualizar `performSave` para consumir `{path, size}` en lugar del string plano.
 
-#### 4. Pasar `sponsorName` al botón
+#### 4. i18n — agregar claves en `src/locales/es/admin.json` y `en/admin.json`
 
-- `src/pages/attendee/Commercial.tsx` — `SponsorCard`: `<SponsorLeadButton sponsorId={sponsor.id} eventId={eventId} sponsorName={sponsor.name} ... />`
-- `src/pages/attendee/SponsorDetail.tsx` — donde se renderice `SponsorLeadButton`, pasar `sponsorName={sponsor.name}`.
+Bajo `sponsors.validation`:
+
+```json
+"fileTypeLogo": "El logo debe ser PNG, JPG o WEBP.",
+"fileTypeMaterials": "Los materiales deben ser un archivo PDF.",
+"fileSizeLogo": "El logo no puede superar 2 MB.",
+"fileSizeMaterials": "Los materiales no pueden superar 10 MB.",
+"fileEmpty": "El archivo está vacío o dañado.",
+"uploadVerificationFailed": "La subida no se pudo verificar. Intenta de nuevo.",
+"uploadSuccess": "Archivo subido correctamente."
+```
 
 ### Resultado esperado
 
-1. Usuario hace tap en "Me interesa" en cualquier card o detalle de patrocinador.
-2. Aparece modal con lista clara de datos a compartir + propósito + nota de privacidad.
-3. Si cancela → no se inserta nada, vuelve al estado anterior.
-4. Si confirma → se inserta en `sponsor_leads`, modal se cierra, botón pasa a estado "Interés registrado" (igual que hoy).
-5. La copia respeta i18n (es/en) y el branding `#1A56A0`.
+1. Al seleccionar un logo no-imagen o SVG → toast rojo inmediato, el archivo no queda en el estado.
+2. Al seleccionar un material que no sea PDF → toast rojo inmediato.
+3. Archivos mayores al límite se rechazan antes de siquiera abrir la petición a Storage.
+4. Tras el upload, el servicio confirma existencia + tamaño > 0; si falla, se hace cleanup y el sponsor NO se guarda con un `logo_url` / `materials_url` roto.
+5. Durante la subida, botones deshabilitados + spinner; al terminar, toast verde de éxito.
 
 ### Consideraciones
 
-- No se altera el esquema de BD ni RLS — el cambio es 100% UI/UX y consentimiento informado.
-- No se modifica el comportamiento idempotente: si ya existe el lead, el botón sigue mostrando "Interés registrado" y el modal nunca se abre.
-- Cumplimiento: queda evidencia explícita del consentimiento (timestamp en `sponsor_leads.created_at` ya existente).
+- No requiere cambios de BD ni RLS: solo UI + servicio cliente.
+- El bucket `event-sponsors` ya es privado con isolation por folder `{event_id}/` (memoria `storage/event-sponsors-storage`), así que la verificación `list()` está permitida para admins del evento.
+- Defensa en profundidad: se valida **al seleccionar**, **antes de subir** y **después de subir**.
+- Patrón reutilizable vía `src/lib/file-validation.ts` para aplicar luego a documentos académicos, importaciones CSV, etc.
 
