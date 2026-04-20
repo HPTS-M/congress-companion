@@ -108,7 +108,7 @@ export function AppHeader({ onMenuOpen }: AppHeaderProps) {
             <Button
               variant="ghost"
               size="icon"
-              className="relative text-white hover:bg-white/10 md:hidden"
+              className="relative hidden text-white hover:bg-white/10"
               onClick={handleMessagingClick}
               aria-label={tMessaging('headerTooltip')}
             >
