@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildBaseUrl } from "../_shared/build-event-url.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -102,9 +103,9 @@ Deno.serve(async (req) => {
     }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
-    const appUrl = (Deno.env.get("APP_URL") ?? "").replace(/\/+$/, "");
+    const baseUrl = buildBaseUrl();
     const sanitizedRedirect = (redirect_to ?? "").toString().replace(/\/+$/, "");
-    const redirectUrl = sanitizedRedirect || (appUrl ? `${appUrl}/provider` : `${supabaseUrl}/provider`);
+    const redirectUrl = sanitizedRedirect || (baseUrl ? `${baseUrl}/provider` : `${supabaseUrl}/provider`);
 
     const { data: provider } = await adminClient
       .from("providers")
