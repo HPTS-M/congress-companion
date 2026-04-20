@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useEvent } from '@/hooks/useEvent';
 import { useAnnouncements } from '@/hooks/useAnnouncements';
+import { useUnreadAnnouncements } from '@/hooks/useUnreadAnnouncements';
 import { format, isToday, isYesterday } from 'date-fns';
 import { es, enUS } from 'date-fns/locale';
 import { Megaphone, Bell } from 'lucide-react';
@@ -21,8 +22,14 @@ export default function Announcements() {
   const { event } = useEvent();
   const eventId = event?.id ?? '';
   const { data: announcements = [], isLoading } = useAnnouncements(eventId);
+  const { markAsSeen } = useUnreadAnnouncements(eventId);
   const dateFnsLocale = i18n.language?.startsWith('es') ? es : enUS;
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (!eventId || isLoading) return;
+    markAsSeen();
+  }, [eventId, isLoading, markAsSeen]);
 
   const toggleExpand = (id: string) =>
     setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
