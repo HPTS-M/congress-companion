@@ -702,10 +702,12 @@ export const adminAttendeesService = {
         .insert(insertsToRun.map((i) => i.payload as never))
         .select('id');
       if (insertErr) {
-        // Mark all as failed
-        insertsToRun.forEach((i) =>
-          errors.push({ rowIndex: i.rowIndex, reason: insertErr.message }),
-        );
+        const reason =
+          (insertErr as { code?: string }).code === '23505' &&
+          insertErr.message.includes('attendees_event_external_code_unique')
+            ? 'duplicate_external_code'
+            : insertErr.message;
+        insertsToRun.forEach((i) => errors.push({ rowIndex: i.rowIndex, reason }));
       } else {
         insertedIds = (insertedData ?? []).map((d) => d.id);
         inserted = insertedIds.length;
@@ -720,7 +722,12 @@ export const adminAttendeesService = {
         .update(u.payload)
         .eq('id', u.targetId);
       if (updErr) {
-        errors.push({ rowIndex: u.rowIndex, reason: updErr.message });
+        const reason =
+          (updErr as { code?: string }).code === '23505' &&
+          updErr.message.includes('attendees_event_external_code_unique')
+            ? 'duplicate_external_code'
+            : updErr.message;
+        errors.push({ rowIndex: u.rowIndex, reason });
       } else {
         updated += 1;
       }
