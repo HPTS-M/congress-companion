@@ -426,6 +426,17 @@ Deno.serve(async (req) => {
       return true;
     });
 
+    // Log skipped recipients to the audit table (best effort)
+    for (const skipped of skippedDetails) {
+      await logInvitationAttempt(supabaseAdmin, {
+        attendeeId: skipped.id,
+        eventId: event.id,
+        status: 'skipped',
+        reason: skipped.reason,
+        attemptedBy: userId,
+      });
+    }
+
     // 6. Resend key
     const resendApiKey = Deno.env.get('RESEND_API_KEY');
     if (!resendApiKey) {
@@ -443,7 +454,7 @@ Deno.serve(async (req) => {
       const chunk = eligible.slice(i, i + CHUNK_SIZE);
       const results = await Promise.allSettled(
         chunk.map((a) =>
-          sendOneInvitation(a, event, eventLoginUrl, resendApiKey, supabaseAdmin),
+          sendOneInvitation(a, event, eventLoginUrl, resendApiKey, supabaseAdmin, userId),
         ),
       );
 
