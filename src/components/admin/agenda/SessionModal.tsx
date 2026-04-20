@@ -47,6 +47,7 @@ const schema = z.object({
   description: z.string(),
   requires_checkin: z.boolean(),
   capacity: z.string(),
+  is_cancelled: z.boolean(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -85,6 +86,7 @@ export function SessionModal({
     description: '',
     requires_checkin: false,
     capacity: '',
+    is_cancelled: false,
   };
 
   const form = useForm<FormValues>({
@@ -92,7 +94,6 @@ export function SessionModal({
     defaultValues: emptyValues,
   });
 
-  // Reset form on session/open change
   useEffect(() => {
     if (!open) {
       draftLoadedRef.current = false;
@@ -112,9 +113,9 @@ export function SessionModal({
         description: session.description ?? '',
         requires_checkin: session.requires_checkin ?? false,
         capacity: session.capacity?.toString() ?? '',
+        is_cancelled: session.status === 'cancelled',
       });
     } else {
-      // Try recover draft for new session
       if (eventId && !draftLoadedRef.current) {
         try {
           const raw = localStorage.getItem(DRAFT_KEY(eventId, 'new'));
@@ -133,7 +134,6 @@ export function SessionModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, open, defaultDate]);
 
-  // Auto-save draft for new session every 2s while form is dirty
   useEffect(() => {
     if (!open || !eventId || isEdit) return;
     const interval = setInterval(() => {
@@ -179,7 +179,7 @@ export function SessionModal({
   return (
     <>
       <Dialog open={open} onOpenChange={(o) => { if (!o) tryClose(); }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100%-1rem)] max-w-lg max-h-[92vh] sm:max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>
               {isEdit ? t('agenda.sessionModal.titleEdit') : t('agenda.sessionModal.titleNew')}
@@ -213,34 +213,33 @@ export function SessionModal({
                 </FormItem>
               )} />
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name="scheduled_date" render={({ field }) => (
+              <FormField control={form.control} name="scheduled_date" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('agenda.sessionModal.day')}</FormLabel>
+                  <FormControl><Input type="date" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <div className="grid grid-cols-2 gap-3">
+                <FormField control={form.control} name="start_time" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('agenda.sessionModal.day')}</FormLabel>
-                    <FormControl><Input type="date" {...field} /></FormControl>
+                    <FormLabel>{t('agenda.sessionModal.startTime')}</FormLabel>
+                    <FormControl>
+                      <TimePicker value={field.value} onChange={field.onChange} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
-                <div className="grid grid-cols-2 gap-2">
-                  <FormField control={form.control} name="start_time" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('agenda.sessionModal.startTime')}</FormLabel>
-                      <FormControl>
-                        <TimePicker value={field.value} onChange={field.onChange} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                  <FormField control={form.control} name="end_time" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('agenda.sessionModal.endTime')}</FormLabel>
-                      <FormControl>
-                        <TimePicker value={field.value} onChange={field.onChange} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                </div>
+                <FormField control={form.control} name="end_time" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('agenda.sessionModal.endTime')}</FormLabel>
+                    <FormControl>
+                      <TimePicker value={field.value} onChange={field.onChange} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
               </div>
 
               <FormField control={form.control} name="location" render={({ field }) => (
@@ -256,7 +255,7 @@ export function SessionModal({
                 </FormItem>
               )} />
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <FormField control={form.control} name="speaker_name" render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t('agenda.sessionModal.speaker')}</FormLabel>
@@ -291,7 +290,7 @@ export function SessionModal({
                 </FormItem>
               )} />
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <FormField control={form.control} name="requires_checkin" render={({ field }) => (
                   <FormItem className="flex items-center gap-3 rounded-lg border border-border p-3">
                     <FormControl>
@@ -308,11 +307,22 @@ export function SessionModal({
                 )} />
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="outline" onClick={tryClose}>
+              <FormField control={form.control} name="is_cancelled" render={({ field }) => (
+                <FormItem className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                  <FormControl>
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
+                  <FormLabel className="!mt-0 cursor-pointer text-destructive">
+                    {t('agenda.sessionModal.markAsCancelled')}
+                  </FormLabel>
+                </FormItem>
+              )} />
+
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={tryClose} className="w-full sm:w-auto">
                   {t('attendees.deleteConfirm.cancel')}
                 </Button>
-                <Button type="submit" disabled={isPending} style={{ backgroundColor: '#1A56A0' }}>
+                <Button type="submit" disabled={isPending} className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90">
                   {isPending ? t('agenda.sessionModal.saving') : t('agenda.sessionModal.save')}
                 </Button>
               </div>
