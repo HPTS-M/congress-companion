@@ -782,7 +782,14 @@
       "emailFormat": "Email inválido",
       "urlFormat": "URL inválida (debe iniciar con http:// o https://)",
       "descriptionMax": "La descripción no puede superar los 500 caracteres",
-      "fixErrors": "Corrige los errores antes de guardar"
+      "fixErrors": "Corrige los errores antes de guardar",
+      "fileTypeLogo": "El logo debe ser PNG, JPG o WEBP.",
+      "fileTypeMaterials": "Los materiales deben ser un archivo PDF.",
+      "fileSizeLogo": "El logo no puede superar 2 MB.",
+      "fileSizeMaterials": "Los materiales no pueden superar 10 MB.",
+      "fileEmpty": "El archivo está vacío o dañado.",
+      "uploadVerificationFailed": "La subida no se pudo verificar. Intenta de nuevo.",
+      "uploadSuccess": "Archivo subido correctamente."
     },
     "duplicate": {
       "foundTitle": "Patrocinador duplicado",

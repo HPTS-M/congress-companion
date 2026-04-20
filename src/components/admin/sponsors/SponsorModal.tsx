@@ -21,6 +21,17 @@ import { toast } from 'sonner';
 import { adminSponsorsService, type SponsorRow, type SponsorFormData } from '@/services/admin-sponsors.service';
 import { useAdminSponsors } from '@/hooks/useAdminSponsors';
 import { SponsorMaterialPreviewModal } from './SponsorMaterialPreviewModal';
+import {
+  validateFile,
+  formatFileSize,
+  SPONSOR_LOGO_MIME,
+  SPONSOR_LOGO_EXT,
+  SPONSOR_LOGO_MAX,
+  SPONSOR_MATERIALS_MIME,
+  SPONSOR_MATERIALS_EXT,
+  SPONSOR_MATERIALS_MAX,
+  type FileValidationResult,
+} from '@/lib/file-validation';
 
 interface Props {
   open: boolean;
@@ -35,6 +46,18 @@ const CATEGORIES = ['pharmaceutical', 'technology', 'medical_equipment', 'servic
 
 const WHATSAPP_REGEX = /^\+?[1-9]\d{7,14}$/;
 const URL_REGEX = /^https?:\/\/.+/i;
+
+function logoErrorKey(r: FileValidationResult): string {
+  if (r.code === 'too_large') return 'fileSizeLogo';
+  if (r.code === 'empty') return 'fileEmpty';
+  return 'fileTypeLogo';
+}
+
+function materialsErrorKey(r: FileValidationResult): string {
+  if (r.code === 'too_large') return 'fileSizeMaterials';
+  if (r.code === 'empty') return 'fileEmpty';
+  return 'fileTypeMaterials';
+}
 
 type Errors = Partial<Record<
   'name' | 'description' | 'website_url' | 'contact_email' | 'whatsapp' | 'video_url' | 'social_linkedin' | 'social_instagram',
@@ -157,9 +180,40 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
     [name, level, category, description, standLocation, websiteUrl, contactEmail, whatsapp, whatsappMessage, videoUrl, linkedin, instagram]
   );
 
+  const handleLogoSelect = useCallback((file: File | null) => {
+    if (!file) { setLogoFile(null); return; }
+    const result = validateFile(file, SPONSOR_LOGO_MIME, SPONSOR_LOGO_EXT, SPONSOR_LOGO_MAX);
+    if (!result.ok) {
+      toast.error(t(`sponsors.validation.${logoErrorKey(result)}`));
+      if (logoRef.current) logoRef.current.value = '';
+      return;
+    }
+    setLogoFile(file);
+    setRemoveLogo(false);
+  }, [t]);
+
+  const handleMaterialsSelect = useCallback((file: File | null) => {
+    if (!file) { setMaterialsFile(null); return; }
+    const result = validateFile(file, SPONSOR_MATERIALS_MIME, SPONSOR_MATERIALS_EXT, SPONSOR_MATERIALS_MAX);
+    if (!result.ok) {
+      toast.error(t(`sponsors.validation.${materialsErrorKey(result)}`));
+      if (materialsRef.current) materialsRef.current.value = '';
+      return;
+    }
+    setMaterialsFile(file);
+    setRemoveMaterials(false);
+  }, [t]);
+
   const performSave = useCallback(async (force = false) => {
-    if (logoFile && logoFile.size > 2 * 1024 * 1024) { toast.error(t('sponsors.logoTooLarge')); return; }
-    if (materialsFile && materialsFile.size > 10 * 1024 * 1024) { toast.error(t('sponsors.materialsTooLarge')); return; }
+    // Defense in depth: re-validate before upload (handlers should already have caught these)
+    if (logoFile) {
+      const r = validateFile(logoFile, SPONSOR_LOGO_MIME, SPONSOR_LOGO_EXT, SPONSOR_LOGO_MAX);
+      if (!r.ok) { toast.error(t(`sponsors.validation.${logoErrorKey(r)}`)); return; }
+    }
+    if (materialsFile) {
+      const r = validateFile(materialsFile, SPONSOR_MATERIALS_MIME, SPONSOR_MATERIALS_EXT, SPONSOR_MATERIALS_MAX);
+      if (!r.ok) { toast.error(t(`sponsors.validation.${materialsErrorKey(r)}`)); return; }
+    }
 
     try {
       // Duplicate check on create
@@ -171,14 +225,14 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
         }
       }
 
-      // Parallel uploads
-      const [logoPath, materialsPath] = await Promise.all([
+      // Parallel uploads with post-upload verification (inside service)
+      const [logoUpload, materialsUpload] = await Promise.all([
         logoFile ? adminSponsorsService.uploadFile(eventId, logoFile, 'logo') : Promise.resolve(null),
         materialsFile ? adminSponsorsService.uploadFile(eventId, materialsFile, 'materials') : Promise.resolve(null),
       ]);
 
-      const finalLogoUrl = logoPath ?? (removeLogo ? null : currentLogoPath);
-      const finalMaterialsUrl = materialsPath ?? (removeMaterials ? null : currentMaterialsPath);
+      const finalLogoUrl = logoUpload?.path ?? (removeLogo ? null : currentLogoPath);
+      const finalMaterialsUrl = materialsUpload?.path ?? (removeMaterials ? null : currentMaterialsPath);
       const form = buildForm(finalLogoUrl, finalMaterialsUrl);
 
       if (isEdit && sponsor) {
@@ -190,8 +244,13 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
       }
       onSaved();
       onClose();
-    } catch {
-      toast.error(t(isEdit ? 'sponsors.editError' : 'sponsors.createError'));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '';
+      if (msg === 'upload_verification_failed') {
+        toast.error(t('sponsors.validation.uploadVerificationFailed'));
+      } else {
+        toast.error(t(isEdit ? 'sponsors.editError' : 'sponsors.createError'));
+      }
     }
   }, [logoFile, materialsFile, isEdit, eventId, name, removeLogo, currentLogoPath, removeMaterials, currentMaterialsPath, buildForm, sponsor, updateSponsor, createSponsor, onSaved, onClose, t]);
 
@@ -288,8 +347,8 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
                       </Button>
                       {logoFile && (
                         <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          {logoFile.name}
-                          <X className="h-3 w-3 cursor-pointer" onClick={() => setLogoFile(null)} />
+                          {logoFile.name} ({formatFileSize(logoFile.size)})
+                          <X className="h-3 w-3 cursor-pointer" onClick={() => { setLogoFile(null); if (logoRef.current) logoRef.current.value = ''; }} />
                         </span>
                       )}
                       {logoPreviewUrl && !logoFile && (
@@ -298,7 +357,13 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
                         </Button>
                       )}
                     </div>
-                    <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={(e) => { setLogoFile(e.target.files?.[0] ?? null); setRemoveLogo(false); }} />
+                    <input
+                      ref={logoRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={(e) => handleLogoSelect(e.target.files?.[0] ?? null)}
+                    />
                     <p className="text-xs text-muted-foreground">{t('sponsors.logoMaxSize')}</p>
                   </div>
                 </div>
@@ -360,8 +425,8 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
                   </Button>
                   {materialsFile && (
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      {materialsFile.name}
-                      <X className="h-3 w-3 cursor-pointer" onClick={() => setMaterialsFile(null)} />
+                      {materialsFile.name} ({formatFileSize(materialsFile.size)})
+                      <X className="h-3 w-3 cursor-pointer" onClick={() => { setMaterialsFile(null); if (materialsRef.current) materialsRef.current.value = ''; }} />
                     </span>
                   )}
                   {currentMaterialsPath && !materialsFile && !removeMaterials && (
@@ -377,7 +442,13 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
                       </Button>
                     </>
                   )}
-                  <input ref={materialsRef} type="file" accept=".pdf" className="hidden" onChange={(e) => { setMaterialsFile(e.target.files?.[0] ?? null); setRemoveMaterials(false); }} />
+                  <input
+                    ref={materialsRef}
+                    type="file"
+                    accept="application/pdf"
+                    className="hidden"
+                    onChange={(e) => handleMaterialsSelect(e.target.files?.[0] ?? null)}
+                  />
                 </div>
                 <p className="text-xs text-muted-foreground">{t('sponsors.materialsMaxSize')}</p>
               </div>

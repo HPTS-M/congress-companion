@@ -95,14 +95,39 @@ export const adminSponsorsService = {
     if (error) throw new Error(error.message);
   },
 
-  async uploadFile(eventId: string, file: File, prefix: string): Promise<string> {
+  async uploadFile(
+    eventId: string,
+    file: File,
+    prefix: string,
+  ): Promise<{ path: string; size: number }> {
     const ext = file.name.split('.').pop() ?? '';
-    const path = `${eventId}/${prefix}-${Date.now()}.${ext}`;
+    const filename = `${prefix}-${Date.now()}.${ext}`;
+    const path = `${eventId}/${filename}`;
+
     const { error } = await supabase.storage
       .from(BUCKET)
       .upload(path, file, { upsert: true });
     if (error) throw new Error(error.message);
-    return path;
+
+    // Post-upload verification: confirm object exists with size > 0
+    const { data: list, error: listError } = await supabase.storage
+      .from(BUCKET)
+      .list(eventId, { search: filename });
+
+    if (listError) {
+      await supabase.storage.from(BUCKET).remove([path]).catch(() => undefined);
+      throw new Error('upload_verification_failed');
+    }
+
+    const uploaded = list?.find((o) => o.name === filename);
+    const size = (uploaded?.metadata as { size?: number } | null)?.size ?? 0;
+
+    if (!uploaded || size === 0) {
+      await supabase.storage.from(BUCKET).remove([path]).catch(() => undefined);
+      throw new Error('upload_verification_failed');
+    }
+
+    return { path, size };
   },
 
   async deleteFile(path: string): Promise<void> {
