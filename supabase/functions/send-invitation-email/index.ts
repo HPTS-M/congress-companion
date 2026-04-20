@@ -240,6 +240,13 @@ async function sendOneInvitation(
           status: 'sent',
           retries: attempt,
         }));
+        await logInvitationAttempt(supabaseAdmin, {
+          attendeeId: attendee.id,
+          eventId: event.id,
+          status: 'sent',
+          retries: attempt,
+          attemptedBy,
+        });
         return { attendeeId: attendee.id, ok: true, retries: attempt };
       }
 
