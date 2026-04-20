@@ -45,6 +45,9 @@
   },
   "attendees": {
     "title": "Attendees",
+    "errors": {
+      "duplicateExternalCode": "External code {{code}} is already assigned to another attendee in this event."
+    },
     "importCsv": "Import Excel",
     "exportCsv": "Export Excel",
     "exporting": "Exporting...",

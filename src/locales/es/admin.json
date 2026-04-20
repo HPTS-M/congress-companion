@@ -45,6 +45,9 @@
   },
   "attendees": {
     "title": "Asistentes",
+    "errors": {
+      "duplicateExternalCode": "El código externo {{code}} ya está asignado a otro asistente en este evento."
+    },
     "importCsv": "Importar Excel",
     "exportCsv": "Exportar Excel",
     "exporting": "Exportando...",
