@@ -163,7 +163,7 @@ export function ErrorFallback({ eventId }: ErrorFallbackProps) {
         {/* Brand logo */}
         <img
           src="/logo-acqfh-v2.jpg"
-          alt="CONGRÉSSAPP"
+          alt="CONGRESSAPP"
           className="h-12 w-auto mb-6 rounded"
           onError={(e) => {
             (e.currentTarget as HTMLImageElement).style.display = 'none';

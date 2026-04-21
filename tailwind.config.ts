@@ -65,7 +65,7 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
-        // CONGRÉSSAPP semantic tokens
+        // CONGRESSAPP semantic tokens
         status: {
           confirmed: "hsl(var(--status-confirmed))",
           pending: "hsl(var(--status-pending))",

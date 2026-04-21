@@ -1,5 +1,5 @@
 /**
- * Shared email template renderer for CONGRÉSSAPP transactional emails.
+ * Shared email template renderer for CONGRESSAPP transactional emails.
  *
  * - Table-based layout (Outlook 2016/2019 compatible)
  * - Centralized branding (gradient, colors, footer, copyright)
@@ -20,7 +20,7 @@ const BRAND = {
   bgCard: '#FFFFFF',
   bgSoft: '#F8FAFC',
   border: '#E2E8F0',
-  appName: 'CONGRÉSSAPP',
+  appName: 'CONGRESSAPP',
   appOwner: 'Health Plus Travels',
 };
 
@@ -157,7 +157,7 @@ function ctaBlock(opts: RenderEmailOptions): string {
 }
 
 /**
- * Render a full HTML email with consistent CONGRÉSSAPP branding.
+ * Render a full HTML email with consistent CONGRESSAPP branding.
  */
 export function renderEmail(opts: RenderEmailOptions): string {
   const lang = opts.lang ?? 'es';

@@ -1,4 +1,4 @@
-// CONGRÉSSAPP Service Worker — Web Push handlers
+// CONGRESSAPP Service Worker — Web Push handlers
 // Minimal SW: only push + notificationclick. No precaching to avoid PWA conflicts.
 
 self.addEventListener('install', (event) => {
@@ -11,7 +11,7 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('push', (event) => {
   let payload = {
-    title: 'CONGRÉSSAPP',
+    title: 'CONGRESSAPP',
     body: '',
     url: '/',
     tag: 'announcement',
