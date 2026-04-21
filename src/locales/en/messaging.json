@@ -43,6 +43,12 @@
   "replyAriaLabel": "Reply to this message",
   "messageActions": "Message options",
   "you": "You",
+  "discard": "Delete",
+  "discardConfirmTitle": "Delete this message?",
+  "discardConfirmBody": "This message hasn't been sent. It will be permanently lost.",
+  "discardConfirmAction": "Delete",
+  "discardCancel": "Cancel",
+  "messageDiscarded": "Message deleted",
   "toast": {
     "viewAction": "View"
   }

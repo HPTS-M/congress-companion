@@ -43,6 +43,12 @@
   "replyAriaLabel": "Responder a este mensaje",
   "messageActions": "Opciones del mensaje",
   "you": "Tú",
+  "discard": "Eliminar",
+  "discardConfirmTitle": "¿Eliminar este mensaje?",
+  "discardConfirmBody": "Este mensaje no se ha enviado. Se perderá permanentemente.",
+  "discardConfirmAction": "Eliminar",
+  "discardCancel": "Cancelar",
+  "messageDiscarded": "Mensaje eliminado",
   "toast": {
     "viewAction": "Ver"
   }
