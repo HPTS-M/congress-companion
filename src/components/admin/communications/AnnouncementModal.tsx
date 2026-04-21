@@ -24,6 +24,7 @@ interface Props {
   announcement?: AdminAnnouncement | null; // null/undefined = create mode
   duplicateError?: boolean;
   onClearDuplicate?: () => void;
+  pushReachCount?: number;
 }
 
 function toLocalInputValue(d: Date | null) {
@@ -33,7 +34,7 @@ function toLocalInputValue(d: Date | null) {
 }
 
 export function AnnouncementModal({
-  open, onClose, onSubmit, isSubmitting, announcement, duplicateError, onClearDuplicate,
+  open, onClose, onSubmit, isSubmitting, announcement, duplicateError, onClearDuplicate, pushReachCount,
 }: Props) {
   const { t } = useTranslation('admin');
 
@@ -133,6 +134,11 @@ export function AnnouncementModal({
                   {t('communications.sendNow')}
                 </Label>
               </div>
+              {mode === 'now' && typeof pushReachCount === 'number' && (
+                <p className="text-xs text-muted-foreground pl-6">
+                  🔔 {t('communications.modalReachInfo', { count: pushReachCount })}
+                </p>
+              )}
               <div className="flex items-center gap-2">
                 <RadioGroupItem id="mode-schedule" value="schedule" />
                 <Label htmlFor="mode-schedule" className="font-normal cursor-pointer">

@@ -24,3 +24,6 @@ verify_jwt = false
 [functions.send-announcement-push]
 verify_jwt = false
 
+[functions.send-message-push]
+verify_jwt = false
+

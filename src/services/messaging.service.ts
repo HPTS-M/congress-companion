@@ -153,8 +153,19 @@ export const messagingService = {
       reply_to_id: parsed.data.replyToId ?? null,
     };
 
-    const { error } = await supabase.from('chat_messages').insert(payload);
+    const { data: inserted, error } = await supabase
+      .from('chat_messages')
+      .insert(payload)
+      .select('id')
+      .single();
     if (error) throw new Error(error.message);
+
+    // Fire Web Push for the recipient (best-effort, never blocks UI)
+    if (inserted?.id) {
+      void supabase.functions
+        .invoke('send-message-push', { body: { message_id: inserted.id } })
+        .catch((e) => console.warn('[dm-push] dispatch failed', e));
+    }
   },
 
   async getAttendeeNames(eventId: string): Promise<Record<string, string>> {

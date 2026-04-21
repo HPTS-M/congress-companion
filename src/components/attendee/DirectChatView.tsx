@@ -462,6 +462,16 @@ export default function DirectChatView({ conversation, onBack }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation.id, attendeeId, isOnline, conversation.status]);
 
+  // Tell the global DM toast hook this conversation is open so it can suppress
+  // both in-app toasts and (via the SW tag) duplicate native notifications.
+  useEffect(() => {
+    if (!conversation.id) return;
+    window.dispatchEvent(new CustomEvent('dm:opened', { detail: conversation.id }));
+    return () => {
+      window.dispatchEvent(new CustomEvent('dm:closed', { detail: conversation.id }));
+    };
+  }, [conversation.id]);
+
   const handleSend = useCallback(async () => {
     if (!input.trim() || sending || isPending) return;
     const content = input.trim();
