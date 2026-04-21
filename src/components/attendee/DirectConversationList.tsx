@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
@@ -10,6 +10,7 @@ import {
   useCreateDirectConversation,
   useAcceptConversation,
   useRejectConversation,
+  useMarkDelivered,
 } from '@/hooks/useMessaging';
 import { supabase } from '@/integrations/supabase/client';
 import { Search, Plus, Clock } from 'lucide-react';
@@ -46,7 +47,32 @@ export default function DirectConversationList({ onSelectConversation }: Props) 
   const { data: conversations = [], isLoading } = useDirectConversations(eventId, attendeeId);
   const acceptMutation = useAcceptConversation();
   const rejectMutation = useRejectConversation();
+  const markDelivered = useMarkDelivered();
   const { pending: allPending } = usePendingMessages();
+
+  // Debounce buffer: collect conversation_ids whose messages need delivery-marking,
+  // then flush once after 500ms to avoid spamming the RPC on bursty INSERTs.
+  const pendingDeliveryRef = useRef<Set<string>>(new Set());
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushDelivery = useCallback(() => {
+    if (!attendeeId) return;
+    const ids = Array.from(pendingDeliveryRef.current);
+    pendingDeliveryRef.current.clear();
+    flushTimerRef.current = null;
+    ids.forEach(conversationId => {
+      markDelivered.mutate({ conversationId, attendeeId });
+    });
+  }, [attendeeId, markDelivered]);
+
+  const scheduleDelivery = useCallback(
+    (conversationId: string) => {
+      pendingDeliveryRef.current.add(conversationId);
+      if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = setTimeout(flushDelivery, 500);
+    },
+    [flushDelivery]
+  );
 
   // Count pending messages by conversation id
   const pendingByConv: Record<string, number> = {};
