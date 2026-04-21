@@ -56,9 +56,11 @@ async function subscribeAndPersist(
   let subscription = await reg.pushManager.getSubscription();
   if (!subscription) {
     try {
+      // Cast to BufferSource — TS infers a generic ArrayBufferLike that is
+      // technically broader than what PushManager.subscribe accepts.
       subscription = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as unknown as BufferSource,
       });
     } catch (err) {
       console.warn('[Push] subscribe failed', err);

@@ -8,6 +8,7 @@ import { es, enUS } from 'date-fns/locale';
 import { Megaphone, Bell } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { EnableNotificationsBanner } from '@/components/attendee/EnableNotificationsBanner';
 
 function formatAnnouncementTime(dateStr: string, locale: typeof es, yesterdayLabel: string): string {
   const d = new Date(dateStr);
@@ -38,6 +39,8 @@ export default function Announcements() {
     <div className="px-4 pt-4 pb-24">
       <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
       <p className="text-sm text-muted-foreground mt-1 mb-4">{t('subtitle')}</p>
+
+      <EnableNotificationsBanner />
 
       {isLoading ? (
         <div className="space-y-4">
