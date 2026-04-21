@@ -302,7 +302,7 @@ export const adminAttendeesService = {
       supabase.from('attendees').select('*').eq('id', attendeeId).single(),
       supabase
         .from('attendee_services')
-        .select('*, service_catalog:service_catalog_id(name, service_type, description)')
+        .select('*, service_catalog:service_catalog_id(name, service_type, description), service_tickets(is_used, used_at, validated_by, validation_method)')
         .eq('attendee_id', attendeeId)
         .order('scheduled_date', { ascending: true }),
       supabase
@@ -314,9 +314,34 @@ export const adminAttendeesService = {
 
     if (attendeeRes.error) throw new Error(attendeeRes.error.message);
 
+    // Resolve validator names (admins are in profiles)
+    const services = servicesRes.data ?? [];
+    const validatorIds = Array.from(new Set(
+      services.flatMap((s) => ((s as { service_tickets?: Array<{ validated_by: string | null }> }).service_tickets ?? [])
+        .map((t) => t.validated_by)
+        .filter((id): id is string => !!id))
+    ));
+    const validatorMap = new Map<string, string>();
+    if (validatorIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', validatorIds);
+      for (const p of profiles ?? []) {
+        validatorMap.set(p.id, p.full_name || p.email || '');
+      }
+    }
+
+    const enrichedServices = services.map((s) => ({
+      ...s,
+      validator_names: ((s as { service_tickets?: Array<{ validated_by: string | null }> }).service_tickets ?? [])
+        .map((t) => (t.validated_by ? validatorMap.get(t.validated_by) ?? null : null))
+        .filter(Boolean),
+    }));
+
     return {
       attendee: attendeeRes.data,
-      services: servicesRes.data ?? [],
+      services: enrichedServices,
       checkins: checkinsRes.data ?? [],
     };
   },

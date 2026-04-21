@@ -45,6 +45,8 @@ export interface LogisticsReport {
   valid_day: number | null;
   total: number;
   used: number;
+  used_qr: number;
+  used_manual: number;
   pending: number;
   cancelled: number;
 }
@@ -236,23 +238,32 @@ export const adminReportsService = {
       .eq('event_id', eventId);
     if (catErr) throw new Error(catErr.message);
 
+    const catalogIds = (catalog ?? []).map((c) => c.id);
+    if (catalogIds.length === 0) return [];
+
     const { data: services, error: svcErr } = await supabase
       .from('attendee_services')
-      .select('service_catalog_id, status');
+      .select('id, service_catalog_id, status, service_tickets(is_used, validation_method)')
+      .in('service_catalog_id', catalogIds);
     if (svcErr) throw new Error(svcErr.message);
 
-    const counts = new Map<string, { total: number; used: number; pending: number; cancelled: number }>();
+    const counts = new Map<string, { total: number; used: number; used_qr: number; used_manual: number; pending: number; cancelled: number }>();
     for (const s of services ?? []) {
-      const c = counts.get(s.service_catalog_id) ?? { total: 0, used: 0, pending: 0, cancelled: 0 };
+      const c = counts.get(s.service_catalog_id) ?? { total: 0, used: 0, used_qr: 0, used_manual: 0, pending: 0, cancelled: 0 };
       c.total++;
-      if (s.status === 'completed') c.used++;
-      else if (s.status === 'cancelled') c.cancelled++;
+      if (s.status === 'completed') {
+        c.used++;
+        const tickets = (s as { service_tickets?: Array<{ is_used: boolean | null; validation_method: string | null }> }).service_tickets ?? [];
+        const usedTicket = tickets.find((t) => t.is_used);
+        if (usedTicket?.validation_method === 'manual_admin') c.used_manual++;
+        else c.used_qr++;
+      } else if (s.status === 'cancelled') c.cancelled++;
       else c.pending++;
       counts.set(s.service_catalog_id, c);
     }
 
     return (catalog ?? []).map((cat) => {
-      const c = counts.get(cat.id) ?? { total: 0, used: 0, pending: 0, cancelled: 0 };
+      const c = counts.get(cat.id) ?? { total: 0, used: 0, used_qr: 0, used_manual: 0, pending: 0, cancelled: 0 };
       return {
         service_id: cat.id,
         name: cat.name,
@@ -299,11 +310,23 @@ export const adminReportsService = {
   },
 
   getSummaryStats: async (eventId: string) => {
+    // First fetch catalog ids for this event so service stats stay event-scoped
+    const { data: catalog } = await supabase
+      .from('service_catalog')
+      .select('id')
+      .eq('event_id', eventId);
+    const catalogIds = (catalog ?? []).map((c) => c.id);
+
     const [{ count: attendeeCount }, { count: activityCount }, ratingsRes, ticketsRes] = await Promise.all([
       supabase.from('attendees').select('*', { count: 'exact', head: true }).eq('event_id', eventId).is('deleted_at', null),
       supabase.from('event_activities').select('*', { count: 'exact', head: true }).eq('event_id', eventId),
       supabase.from('ratings').select('stars').eq('event_id', eventId),
-      supabase.from('attendee_services').select('status'),
+      catalogIds.length > 0
+        ? supabase
+            .from('attendee_services')
+            .select('id, status, service_tickets(is_used, validation_method)')
+            .in('service_catalog_id', catalogIds)
+        : Promise.resolve({ data: [] as Array<{ id: string; status: string | null; service_tickets: Array<{ is_used: boolean | null; validation_method: string | null }> }> }),
     ]);
 
     const ratings = ratingsRes.data ?? [];
@@ -311,14 +334,23 @@ export const adminReportsService = {
       ? Math.round((ratings.reduce((sum, r) => sum + r.stars, 0) / ratings.length) * 10) / 10
       : 0;
 
-    const tickets = ticketsRes.data ?? [];
-    const usedTickets = tickets.filter((t) => t.status === 'completed').length;
+    const tickets = (ticketsRes.data ?? []) as Array<{ status: string | null; service_tickets: Array<{ is_used: boolean | null; validation_method: string | null }> }>;
+    const completed = tickets.filter((t) => t.status === 'completed');
+    let usedQr = 0;
+    let usedManual = 0;
+    for (const t of completed) {
+      const used = (t.service_tickets ?? []).find((st) => st.is_used);
+      if (used?.validation_method === 'manual_admin') usedManual++;
+      else usedQr++;
+    }
 
     return {
       totalAttendees: attendeeCount ?? 0,
       totalSessions: activityCount ?? 0,
       avgRating,
-      usedTickets,
+      usedTickets: completed.length,
+      usedTicketsQr: usedQr,
+      usedTicketsManual: usedManual,
     };
   },
 };

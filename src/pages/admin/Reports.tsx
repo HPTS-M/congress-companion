@@ -16,16 +16,17 @@ import type { AttendanceReport, RatingsReport, LogisticsReport, SponsorEngagemen
 import { usePagination } from '@/hooks/usePagination';
 import { DataTablePagination } from '@/components/ui/data-table-pagination';
 
-function StatCard({ icon: Icon, label, value, loading }: { icon: React.ElementType; label: string; value: string | number; loading?: boolean }) {
+function StatCard({ icon: Icon, label, value, loading, hint }: { icon: React.ElementType; label: string; value: string | number; loading?: boolean; hint?: string }) {
   return (
     <Card>
       <CardContent className="flex items-center gap-4 p-4">
         <div className="rounded-lg bg-primary/10 p-2.5">
           <Icon className="h-5 w-5 text-primary" />
         </div>
-        <div>
+        <div className="min-w-0">
           <p className="text-sm text-muted-foreground">{label}</p>
           {loading ? <Skeleton className="h-7 w-16 mt-1" /> : <p className="text-2xl font-bold">{value}</p>}
+          {hint && !loading && <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{hint}</p>}
         </div>
       </CardContent>
     </Card>
@@ -131,6 +132,8 @@ function exportLogisticsExcel(data: LogisticsReport[], t: (k: string) => string)
       { header: t('reports.logistics.colDay'), key: 'valid_day', width: 8 },
       { header: t('reports.logistics.colTotal'), key: 'total', width: 12 },
       { header: t('reports.logistics.colUsed'), key: 'used', width: 12 },
+      { header: t('reports.logistics.colUsedQr'), key: 'used_qr', width: 14 },
+      { header: t('reports.logistics.colUsedManual'), key: 'used_manual', width: 16 },
       { header: t('reports.logistics.colPending'), key: 'pending', width: 12 },
       { header: t('reports.logistics.colCancelled'), key: 'cancelled', width: 12 },
     ],
@@ -211,6 +214,8 @@ async function exportAll(
     { header: t('reports.logistics.colDay'), key: 'valid_day', width: 8 },
     { header: t('reports.logistics.colTotal'), key: 'total', width: 12 },
     { header: t('reports.logistics.colUsed'), key: 'used', width: 12 },
+    { header: t('reports.logistics.colUsedQr'), key: 'used_qr', width: 14 },
+    { header: t('reports.logistics.colUsedManual'), key: 'used_manual', width: 16 },
     { header: t('reports.logistics.colPending'), key: 'pending', width: 12 },
     { header: t('reports.logistics.colCancelled'), key: 'cancelled', width: 12 },
   ];
@@ -419,7 +424,7 @@ export default function Reports() {
         </Button>
       </div>
 
-      {/* Summary Stats — FIX 4: "Sin datos" instead of "—" */}
+      {/* Summary Stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard icon={Users} label={t('reports.statAttendees')} value={summary.data?.totalAttendees ?? 0} loading={summary.isLoading} />
         <StatCard icon={Calendar} label={t('reports.statSessions')} value={summary.data?.totalSessions ?? 0} loading={summary.isLoading} />
@@ -429,7 +434,20 @@ export default function Reports() {
           value={summary.data?.avgRating ? `⭐ ${summary.data.avgRating}` : t('reports.noRatingData')}
           loading={summary.isLoading}
         />
-        <StatCard icon={Ticket} label={t('reports.statUsedTickets')} value={summary.data?.usedTickets ?? 0} loading={summary.isLoading} />
+        <StatCard
+          icon={Ticket}
+          label={t('reports.statUsedTickets')}
+          value={summary.data?.usedTickets ?? 0}
+          loading={summary.isLoading}
+          hint={
+            summary.data && summary.data.usedTickets > 0
+              ? t('reports.statUsedTicketsBreakdown', {
+                  qr: summary.data.usedTicketsQr ?? 0,
+                  manual: summary.data.usedTicketsManual ?? 0,
+                })
+              : undefined
+          }
+        />
       </div>
 
       {/* 2x2 Report Cards */}
@@ -516,6 +534,8 @@ export default function Reports() {
                       <TableHead>{t('reports.logistics.colService')}</TableHead>
                       <TableHead className="text-center">{t('reports.logistics.colTotal')}</TableHead>
                       <TableHead className="text-center">{t('reports.logistics.colUsed')}</TableHead>
+                      <TableHead className="text-center hidden md:table-cell">{t('reports.logistics.colUsedQr')}</TableHead>
+                      <TableHead className="text-center hidden md:table-cell">{t('reports.logistics.colUsedManual')}</TableHead>
                       <TableHead className="text-center">{t('reports.logistics.colPending')}</TableHead>
                       <TableHead className="w-36">{t('reports.logistics.colProgress')}</TableHead>
                     </TableRow>
@@ -526,6 +546,8 @@ export default function Reports() {
                         <TableCell className="font-medium text-sm">{s.name}</TableCell>
                         <TableCell className="text-center">{s.total}</TableCell>
                         <TableCell className="text-center">{s.used}</TableCell>
+                        <TableCell className="text-center hidden md:table-cell text-xs text-muted-foreground">{s.used_qr}</TableCell>
+                        <TableCell className="text-center hidden md:table-cell text-xs text-muted-foreground">{s.used_manual}</TableCell>
                         <TableCell className="text-center">{s.pending}</TableCell>
                         <TableCell>
                           <LogisticsProgressBar used={s.used} total={s.total} />

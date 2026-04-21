@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Users, ScanLine, FolderOpen, Megaphone, Calendar, Send, Settings } from 'lucide-react';
+import { Users, ScanLine, FolderOpen, Megaphone, Calendar, Send, Settings, Ticket } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,21 +15,29 @@ interface MetricCardProps {
   value: number | undefined;
   icon: React.ElementType;
   loading: boolean;
+  hint?: string;
+  onClick?: () => void;
 }
 
-function MetricCard({ title, value, icon: Icon, loading }: MetricCardProps) {
+function MetricCard({ title, value, icon: Icon, loading, hint, onClick }: MetricCardProps) {
   return (
-    <Card>
+    <Card
+      onClick={onClick}
+      className={onClick ? 'cursor-pointer transition-colors hover:bg-muted/40' : undefined}
+    >
       <CardContent className="flex items-center gap-4 p-5">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10">
           <Icon className="h-6 w-6 text-primary" />
         </div>
-        <div>
+        <div className="min-w-0">
           <p className="text-sm text-muted-foreground">{title}</p>
           {loading ? (
             <Skeleton className="h-7 w-16 mt-1" />
           ) : (
             <p className="text-2xl font-bold text-foreground">{value ?? 0}</p>
+          )}
+          {hint && !loading && (
+            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{hint}</p>
           )}
         </div>
       </CardContent>
@@ -45,9 +53,17 @@ export default function AdminDashboard() {
   const dateFnsLocale = i18n.language?.startsWith('es') ? esLocale : enUS;
   const { stats, recentAnnouncements } = useAdminDashboard(event?.id);
 
+  const servicesHint = stats.data && stats.data.servicesDelivered > 0
+    ? t('dashboard.servicesDeliveredBreakdown', {
+        qr: stats.data.servicesDeliveredQr,
+        manual: stats.data.servicesDeliveredManual,
+      })
+    : undefined;
+
   const metrics = [
     { key: 'totalAttendees', icon: Users, value: stats.data?.totalAttendees },
     { key: 'checkedIn', icon: ScanLine, value: stats.data?.totalCheckins },
+    { key: 'servicesDelivered', icon: Ticket, value: stats.data?.servicesDelivered, hint: servicesHint, onClick: () => navigate(`/${eventSlug}/admin/reports`) },
     { key: 'documents', icon: FolderOpen, value: stats.data?.totalDocuments },
     { key: 'announcements', icon: Megaphone, value: stats.data?.totalAnnouncements },
   ];
@@ -62,7 +78,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {metrics.map((m) => (
           <MetricCard
             key={m.key}
@@ -70,6 +86,8 @@ export default function AdminDashboard() {
             value={m.value}
             icon={m.icon}
             loading={stats.isLoading}
+            hint={m.hint}
+            onClick={m.onClick}
           />
         ))}
       </div>
