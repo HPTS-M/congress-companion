@@ -9,6 +9,7 @@ import { AttendeeOfflineBanner } from './AttendeeOfflineBanner';
 import { useMessageQueueWorker } from '@/hooks/useMessageQueueWorker';
 import { usePushSubscription } from '@/hooks/usePushSubscription';
 import { useAnnouncementToasts } from '@/hooks/useAnnouncementToasts';
+import { useDirectMessageToasts } from '@/hooks/useDirectMessageToasts';
 
 export function AttendeeLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -18,6 +19,8 @@ export function AttendeeLayout() {
   usePushSubscription();
   // Show in-app toasts for new announcements (any screen except the list itself)
   useAnnouncementToasts();
+  // Show in-app toasts for new direct messages (any screen except the open chat)
+  useDirectMessageToasts();
 
   return (
     <SidebarProvider>

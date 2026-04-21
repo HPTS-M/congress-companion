@@ -42,5 +42,8 @@
   "messageNotInView": "Mensaje fuera de vista",
   "replyAriaLabel": "Responder a este mensaje",
   "messageActions": "Opciones del mensaje",
-  "you": "Tú"
+  "you": "Tú",
+  "toast": {
+    "viewAction": "Ver"
+  }
 }
