@@ -1,5 +1,5 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback } from 'react';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { useCallback, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useRealtimeInvalidate } from '@/hooks/useRealtimeInvalidate';
@@ -12,42 +12,66 @@ interface UnreadMessagesResult {
   markAsSeen: () => void;
 }
 
-const LEGACY_KEY_PREFIX = 'notifications_last_seen_';
-const NEW_KEY_PREFIX = 'messages_last_seen_';
-
 interface UnreadMessagesData {
   pendingInvites: number;
   unreadMessages: number;
   total: number;
 }
 
+const LEGACY_KEY_PREFIX = 'notifications_last_seen_';
+const OLD_NEW_KEY_PREFIX = 'messages_last_seen_';
+const SEED_GUARD_PREFIX = 'messages_seed_done_';
+
 export function useUnreadMessages(eventId: string): UnreadMessagesResult {
   const { attendee } = useAuth();
   const queryClient = useQueryClient();
   const isOnline = useOnlineStatus();
   const attendeeId = attendee?.id;
-  const storageKey = attendeeId ? `${NEW_KEY_PREFIX}${attendeeId}` : null;
-  const legacyKey = attendeeId ? `${LEGACY_KEY_PREFIX}${attendeeId}` : null;
 
-  const getLastSeen = (): Date => {
-    if (!storageKey) return new Date(0);
-    const stored = localStorage.getItem(storageKey);
-    if (stored) return new Date(stored);
-    if (legacyKey) {
-      const legacy = localStorage.getItem(legacyKey);
-      if (legacy) return new Date(legacy);
-    }
-    return new Date(0);
-  };
+  // ── One-shot migration of the old localStorage timestamps into the server ──
+  useEffect(() => {
+    if (!attendeeId || !eventId || !isOnline) return;
+
+    const guardKey = `${SEED_GUARD_PREFIX}${attendeeId}_${eventId}`;
+    if (sessionStorage.getItem(guardKey)) return;
+
+    const oldKey = `${OLD_NEW_KEY_PREFIX}${attendeeId}`;
+    const legacyKey = `${LEGACY_KEY_PREFIX}${attendeeId}`;
+    const stored = localStorage.getItem(oldKey) ?? localStorage.getItem(legacyKey);
+
+    const seed = async () => {
+      try {
+        if (stored) {
+          const parsed = new Date(stored);
+          if (!isNaN(parsed.getTime())) {
+            await messagingService.seedSeen(eventId, parsed);
+          }
+        }
+        localStorage.removeItem(oldKey);
+        localStorage.removeItem(legacyKey);
+        sessionStorage.setItem(guardKey, '1');
+        queryClient.invalidateQueries({ queryKey: ['unread-messages', eventId, attendeeId] });
+      } catch {
+        // Best-effort migration; ignore failures.
+      }
+    };
+    seed();
+  }, [attendeeId, eventId, isOnline, queryClient]);
+
+  const markSeenMutation = useMutation({
+    mutationFn: () => messagingService.markSeen(eventId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['unread-messages', eventId, attendeeId] });
+    },
+  });
 
   const markAsSeen = useCallback((): void => {
-    if (!storageKey || !attendeeId || !eventId) return;
-    localStorage.setItem(storageKey, new Date().toISOString());
-    queryClient.invalidateQueries({ queryKey: ['unread-messages', eventId, attendeeId] });
-  }, [storageKey, queryClient, eventId, attendeeId]);
+    if (!attendeeId || !eventId) return;
+    markSeenMutation.mutate();
+  }, [markSeenMutation, attendeeId, eventId]);
 
   // Realtime: invalidate the count whenever a conversation changes
-  // (new invite, new message preview). No polling needed.
+  // (new invite via INSERT, new message preview via UPDATE).
   useRealtimeInvalidate({
     channelName: `unread-messages-${eventId}-${attendeeId}`,
     table: 'chat_conversations',
@@ -59,7 +83,7 @@ export function useUnreadMessages(eventId: string): UnreadMessagesResult {
   const { data } = useQuery<UnreadMessagesData>({
     queryKey: ['unread-messages', eventId, attendeeId],
     queryFn: async () => {
-      const counts = await messagingService.getUnreadCounts(eventId, attendeeId!, getLastSeen());
+      const counts = await messagingService.getUnreadCounts(eventId);
       return {
         pendingInvites: counts.pendingInvites,
         unreadMessages: counts.unreadMessages,

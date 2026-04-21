@@ -152,6 +152,46 @@ export type Database = {
           },
         ]
       }
+      attendee_announcement_views: {
+        Row: {
+          attendee_id: string
+          event_id: string
+          last_seen_at: string
+        }
+        Insert: {
+          attendee_id: string
+          event_id: string
+          last_seen_at?: string
+        }
+        Update: {
+          attendee_id?: string
+          event_id?: string
+          last_seen_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendee_announcement_views_attendee_id_fkey"
+            columns: ["attendee_id"]
+            isOneToOne: false
+            referencedRelation: "attendees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendee_announcement_views_attendee_id_fkey"
+            columns: ["attendee_id"]
+            isOneToOne: false
+            referencedRelation: "public_attendee_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendee_announcement_views_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attendee_checkins: {
         Row: {
           activity_id: string
@@ -203,6 +243,46 @@ export type Database = {
             columns: ["attendee_id"]
             isOneToOne: false
             referencedRelation: "public_attendee_directory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendee_message_views: {
+        Row: {
+          attendee_id: string
+          event_id: string
+          last_seen_at: string
+        }
+        Insert: {
+          attendee_id: string
+          event_id: string
+          last_seen_at?: string
+        }
+        Update: {
+          attendee_id?: string
+          event_id?: string
+          last_seen_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendee_message_views_attendee_id_fkey"
+            columns: ["attendee_id"]
+            isOneToOne: false
+            referencedRelation: "attendees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendee_message_views_attendee_id_fkey"
+            columns: ["attendee_id"]
+            isOneToOne: false
+            referencedRelation: "public_attendee_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendee_message_views_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
             referencedColumns: ["id"]
           },
         ]
@@ -2053,13 +2133,10 @@ export type Database = {
       }
       cleanup_old_attempts: { Args: never; Returns: undefined }
       count_unread_announcements: {
-        Args: { _event_id: string; _last_seen: string }
+        Args: { _event_id: string }
         Returns: number
       }
-      count_unread_messages: {
-        Args: { _attendee_id: string; _event_id: string; _last_seen: string }
-        Returns: Json
-      }
+      count_unread_messages: { Args: { _event_id: string }; Returns: Json }
       create_attendee_credential: {
         Args: { _attendee_id: string }
         Returns: string
@@ -2174,6 +2251,10 @@ export type Database = {
         Args: { _checkin_id: string }
         Returns: boolean
       }
+      mark_announcements_seen: {
+        Args: { _event_id: string }
+        Returns: undefined
+      }
       mark_lead_contacted: { Args: { _lead_id: string }; Returns: undefined }
       mark_messages_as_read: {
         Args: { _conversation_id: string; _user_id: string }
@@ -2183,6 +2264,7 @@ export type Database = {
         Args: { _attendee_id: string; _conversation_id: string }
         Returns: number
       }
+      mark_messages_seen: { Args: { _event_id: string }; Returns: undefined }
       process_checkin: {
         Args: {
           _activity_id: string
@@ -2196,6 +2278,14 @@ export type Database = {
         Returns: Json
       }
       purge_old_provider_activity_logs: { Args: never; Returns: number }
+      seed_announcements_seen: {
+        Args: { _event_id: string; _last_seen: string }
+        Returns: undefined
+      }
+      seed_messages_seen: {
+        Args: { _event_id: string; _last_seen: string }
+        Returns: undefined
+      }
       validate_service_ticket: {
         Args: { _ticket_code: string; _validator_user_id: string }
         Returns: Json
