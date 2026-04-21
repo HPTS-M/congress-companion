@@ -387,12 +387,12 @@ export default function DirectChatView({ conversation, onBack }: Props) {
                             {isOwn && !pendingInfo && (
                               msg.delivered_at ? (
                                 <CheckCheck
-                                  className="h-3.5 w-3.5 text-white/70"
+                                  className="h-3.5 w-3.5 text-[hsl(170,100%,36%)]"
                                   aria-label={t('statusDelivered')}
                                 />
                               ) : (
                                 <Check
-                                  className="h-3.5 w-3.5 text-white/70"
+                                  className="h-3.5 w-3.5 text-muted-foreground"
                                   aria-label={t('statusSent')}
                                 />
                               )
