@@ -430,7 +430,7 @@ export default function DirectChatView({ conversation, onBack }: Props) {
 
           // If the incoming message is from the OTHER party, mark as delivered
           if (attendeeId && newMsg.sender_id !== attendeeId) {
-            markDelivered.mutate({ conversationId: conversation.id, attendeeId });
+            triggerMarkDelivered();
           }
         }
       )
@@ -443,16 +443,24 @@ export default function DirectChatView({ conversation, onBack }: Props) {
           filter: `conversation_id=eq.${conversation.id}`,
         },
         (payload) => {
-          const updated = payload.new as ChatMessage;
+          const updated = payload.new as Partial<ChatMessage> & { id: string };
           queryClient.setQueryData<ChatMessage[]>(
             ['direct-messages', conversation.id],
             (old = []) =>
               old.map(m =>
                 m.id === updated.id
-                  ? { ...m, delivered_at: updated.delivered_at }
+                  // Defensive merge: only overwrite delivered_at, preserve
+                  // reply_to and any other client-resolved fields.
+                  ? { ...m, delivered_at: updated.delivered_at ?? m.delivered_at }
                   : m
               )
           );
+          // Safety net: ensure list is fully fresh in case our cache merge
+          // missed a field (e.g. a reply_to embed pending resolution).
+          queryClient.invalidateQueries({
+            queryKey: ['direct-messages', conversation.id],
+            refetchType: 'none',
+          });
         }
       )
       .subscribe();
@@ -460,15 +468,44 @@ export default function DirectChatView({ conversation, onBack }: Props) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [conversation.id, queryClient, isOnline, realtimeKey, attendeeId, markDelivered]);
+  }, [conversation.id, queryClient, isOnline, realtimeKey, attendeeId, triggerMarkDelivered]);
 
   // Mark messages as delivered when opening the conversation
   useEffect(() => {
     if (!conversation.id || !attendeeId || !isOnline || conversation.status !== 'active') return;
-    markDelivered.mutate({ conversationId: conversation.id, attendeeId });
-    // Only when opening / when connectivity returns
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversation.id, attendeeId, isOnline, conversation.status]);
+    triggerMarkDelivered();
+  }, [conversation.id, attendeeId, isOnline, conversation.status, triggerMarkDelivered]);
+
+  // Re-mark as delivered when the tab regains focus / becomes visible.
+  // Covers the case where messages arrived while the chat was open but the
+  // browser tab was in the background (no user interaction would re-fire it).
+  useEffect(() => {
+    if (!conversation.id || !attendeeId || conversation.status !== 'active') return;
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        triggerMarkDelivered();
+      }
+    };
+    const onFocus = () => triggerMarkDelivered();
+
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onFocus);
+
+    // Heartbeat: idempotent re-check every 15s while tab is visible.
+    // RPC only updates rows where delivered_at IS NULL, so cost is ~zero.
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible' && navigator.onLine) {
+        triggerMarkDelivered();
+      }
+    }, 15000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onFocus);
+      window.clearInterval(interval);
+    };
+  }, [conversation.id, attendeeId, conversation.status, triggerMarkDelivered]);
 
   // Tell the global DM toast hook this conversation is open so it can suppress
   // both in-app toasts and (via the SW tag) duplicate native notifications.
