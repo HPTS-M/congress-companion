@@ -79,7 +79,7 @@ export default function Commercial() {
   }
 
   return (
-    <div className="px-4 py-6 space-y-4">
+    <div className="px-4 pt-4 pb-6 space-y-4">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
@@ -138,7 +138,7 @@ export default function Commercial() {
                 {t(`level.${level}`)}
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-3 sm:grid sm:grid-cols-2">
               {items.map(sponsor => (
                 <SponsorCard
                   key={sponsor.id}
@@ -159,31 +159,47 @@ function SponsorCard({ sponsor, onView, eventId }: { sponsor: Sponsor; onView: (
   const { t } = useTranslation('commercial');
 
   return (
-    <div className="bg-card border border-border rounded-lg p-3 flex flex-col items-center text-center space-y-2 shadow-sm">
+    <div className="bg-card border border-border rounded-lg p-3 shadow-sm flex flex-row items-center gap-3 sm:flex-col sm:items-center sm:text-center sm:space-y-2 sm:gap-0">
+      {/* Logo */}
       {sponsor.logo_url ? (
         <img
           src={sponsor.logo_url}
           alt={sponsor.name}
-          className="h-20 w-20 object-contain rounded"
+          className="h-16 w-16 sm:h-20 sm:w-20 object-contain rounded shrink-0"
         />
       ) : (
-        <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center text-lg font-bold text-muted-foreground">
+        <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-full bg-muted flex items-center justify-center text-base sm:text-lg font-bold text-muted-foreground shrink-0">
           {getInitials(sponsor.name)}
         </div>
       )}
-      <h3 className="text-sm font-semibold text-foreground leading-tight">{sponsor.name}</h3>
-      <Badge variant="secondary" className="text-[11px]">
-        {t(`category.${sponsor.category}`)}
-      </Badge>
-      {sponsor.stand_location && (
-        <p className="text-xs text-muted-foreground">Stand {sponsor.stand_location}</p>
-      )}
-      {eventId && (
-        <SponsorLeadButton sponsorId={sponsor.id} eventId={eventId} sponsorName={sponsor.name} className="w-full text-xs" />
-      )}
-      <Button variant="outline" size="sm" className="w-full text-xs mt-auto" onClick={onView}>
-        {t('viewMore')} →
-      </Button>
+
+      {/* Info + actions */}
+      <div className="flex-1 min-w-0 flex flex-col gap-1.5 sm:items-center sm:gap-2 sm:w-full">
+        <h3 className="text-sm font-semibold text-foreground leading-tight line-clamp-2 sm:text-center">
+          {sponsor.name}
+        </h3>
+        <div className="flex flex-wrap items-center gap-1.5 sm:justify-center">
+          <Badge variant="secondary" className="text-[11px]">
+            {t(`category.${sponsor.category}`)}
+          </Badge>
+          {sponsor.stand_location && (
+            <span className="text-xs text-muted-foreground">Stand {sponsor.stand_location}</span>
+          )}
+        </div>
+        <div className="flex gap-2 mt-1 sm:flex-col sm:w-full sm:gap-2 sm:mt-auto">
+          {eventId && (
+            <SponsorLeadButton
+              sponsorId={sponsor.id}
+              eventId={eventId}
+              sponsorName={sponsor.name}
+              className="flex-1 sm:w-full text-xs"
+            />
+          )}
+          <Button variant="outline" size="sm" className="flex-1 sm:w-full text-xs" onClick={onView}>
+            {t('viewMore')} →
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
