@@ -192,6 +192,16 @@ const MessageBubble = memo(
       setMenuOpen(true);
     };
 
+    // For pending/failed bubbles, a short tap opens the actions menu
+    // (retry + discard). Without this, on mobile the only way in was a
+    // long-press, which users didn't discover.
+    const handleBubbleClick = (e: React.MouseEvent) => {
+      if (!pendingInfo) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setMenuOpen(true);
+    };
+
     const handleReplyClick = () => {
       setMenuOpen(false);
       onReply(msg);
@@ -233,6 +243,7 @@ const MessageBubble = memo(
                 role="button"
                 tabIndex={0}
                 aria-label={t('messageActions')}
+                onClick={handleBubbleClick}
                 onTouchStart={handleTouchStart}
                 onTouchEnd={cancelLongPress}
                 onTouchCancel={cancelLongPress}
