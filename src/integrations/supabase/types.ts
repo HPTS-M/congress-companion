@@ -1736,6 +1736,7 @@ export type Database = {
           ticket_code: string
           used_at: string | null
           validated_by: string | null
+          validation_method: string | null
         }
         Insert: {
           attendee_service_id: string
@@ -1746,6 +1747,7 @@ export type Database = {
           ticket_code: string
           used_at?: string | null
           validated_by?: string | null
+          validation_method?: string | null
         }
         Update: {
           attendee_service_id?: string
@@ -1756,6 +1758,7 @@ export type Database = {
           ticket_code?: string
           used_at?: string | null
           validated_by?: string | null
+          validation_method?: string | null
         }
         Relationships: [
           {
