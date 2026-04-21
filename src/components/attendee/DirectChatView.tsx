@@ -243,6 +243,7 @@ const MessageBubble = memo(
                 role="button"
                 tabIndex={0}
                 aria-label={t('messageActions')}
+                onClick={handleBubbleClick}
                 onTouchStart={handleTouchStart}
                 onTouchEnd={cancelLongPress}
                 onTouchCancel={cancelLongPress}
