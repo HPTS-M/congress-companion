@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { Search, Building2, ChevronRight, MapPin, X, Check, Crown, Award, Medal } from 'lucide-react';
+import { Search, Building2, ChevronRight, MapPin, X, Crown, Award, Medal } from 'lucide-react';
 import { SponsorLeadButton } from '@/components/attendee/SponsorLeadButton';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { FilterChips, type FilterChipOption } from '@/components/ui/filter-chips';
 import { useEvent, useEventSlug } from '@/hooks/useEvent';
 import { useSponsors } from '@/hooks/useSponsors';
 import { cn } from '@/lib/utils';
@@ -150,21 +151,18 @@ export default function Commercial() {
       </div>
 
       {/* Category chips with counters */}
-      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-        <CategoryChip
-          label={`${t('allCategories')} (${searchFiltered.length})`}
-          active={selectedCategories.length === 0}
-          onClick={() => setSelectedCategories([])}
-        />
-        {CATEGORIES.filter(cat => (categoryCounts[cat] ?? 0) > 0).map(cat => (
-          <CategoryChip
-            key={cat}
-            label={`${t(`category.${cat}`)} (${categoryCounts[cat]})`}
-            active={selectedCategories.includes(cat)}
-            onClick={() => toggleCategory(cat)}
-          />
-        ))}
-      </div>
+      <FilterChips
+        ariaLabel={t('allCategories')}
+        allLabel={t('allCategories')}
+        allCount={searchFiltered.length}
+        selected={selectedCategories}
+        onChange={setSelectedCategories}
+        options={CATEGORIES.filter(cat => (categoryCounts[cat] ?? 0) > 0).map<FilterChipOption>(cat => ({
+          value: cat,
+          label: t(`category.${cat}`),
+          count: categoryCounts[cat],
+        }))}
+      />
 
       {/* Sponsors grouped by level */}
       {Object.keys(grouped).length === 0 ? (
