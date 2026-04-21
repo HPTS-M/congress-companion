@@ -2,6 +2,14 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import * as bcrypt from 'https://deno.land/x/bcrypt@v0.4.1/mod.ts';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { buildEventUrl } from '../_shared/build-event-url.ts';
+import {
+  renderEmail,
+  renderEmailText,
+  codeBlock,
+  stepList,
+  formatEventDateRange,
+  escapeHtml,
+} from '../_shared/email-templates.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -73,45 +81,50 @@ function classifyResendError(status: number, errBody: unknown): FailureReason {
   return 'resend_error';
 }
 
-function buildEmailHtml(
-  attendeeName: string,
-  eventName: string,
-  eventCode: string,
-  accessCode: string,
-  loginUrl: string,
-): string {
-  return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <div style="max-width:600px;margin:0 auto;padding:40px 20px;">
-    <div style="background:linear-gradient(135deg,#1A56A0,#00B89F);border-radius:12px 12px 0 0;padding:32px;text-align:center;">
-      <h1 style="color:#fff;margin:0;font-size:24px;">🎫 Your Event Credentials</h1>
-    </div>
-    <div style="background:#fff;border-radius:0 0 12px 12px;padding:32px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-      <p style="color:#334155;font-size:16px;margin:0 0 16px;">Hello <strong>${attendeeName}</strong>,</p>
-      <p style="color:#334155;font-size:14px;margin:0 0 24px;">You have been registered for <strong>${eventName}</strong>. Use the following code to access the event app:</p>
-      
-      <div style="background:#f1f5f9;border:2px dashed #1A56A0;border-radius:8px;padding:20px;text-align:center;margin:0 0 24px;">
-        <div style="color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:1px;margin:0 0 8px;">Access Code</div>
-        <div style="color:#1A56A0;font-size:28px;font-weight:700;letter-spacing:3px;font-family:monospace;">${accessCode}</div>
-      </div>
-      
-      <div style="background:#f8fafc;border-radius:8px;padding:16px;margin:0 0 24px;">
-        <div style="color:#64748b;font-size:12px;margin:0 0 4px;">Event Code</div>
-        <div style="color:#334155;font-size:16px;font-weight:600;">${eventCode}</div>
-      </div>
-      
-      <div style="text-align:center;margin:0 0 24px;">
-        <a href="${loginUrl}" style="display:inline-block;background:linear-gradient(135deg,#1A56A0,#00B89F);color:#fff;text-decoration:none;padding:12px 32px;border-radius:8px;font-weight:600;font-size:14px;">Open Event App</a>
-      </div>
-      
-      <p style="color:#94a3b8;font-size:12px;margin:0;text-align:center;">This code is personal and non-transferable. Do not share it with others.</p>
-    </div>
-  </div>
-</body>
-</html>`;
+interface InvitationEmailContent {
+  html: string;
+  text: string;
+  subject: string;
+}
+
+function buildInvitationEmail(params: {
+  attendeeName: string;
+  eventName: string;
+  accessCode: string;
+  loginUrl: string;
+  eventDates?: string;
+  eventVenue?: string;
+}): InvitationEmailContent {
+  const { attendeeName, eventName, accessCode, loginUrl, eventDates, eventVenue } = params;
+
+  const steps = [
+    'Toca el botón <strong>"Entrar al evento"</strong> que aparece más abajo.',
+    'Ingresa tu <strong>código personal de 8 caracteres</strong>.',
+    'También puedes escanear el QR de tu credencial desde la app.',
+  ];
+
+  const body = codeBlock(accessCode, 'Tu código de acceso') + stepList('Cómo entrar', steps);
+
+  const opts = {
+    preheader: `Tu código personal para entrar a ${eventName}${eventDates ? ' — ' + eventDates : ''}`,
+    eyebrow: '🎫 Tu acceso al congreso',
+    headline: `Hola ${attendeeName}, ¡bienvenido/a a ${eventName}!`,
+    intro: `Has sido registrado/a oficialmente. A continuación tienes tu código personal para acceder a la app del evento.`,
+    body,
+    ctaLabel: 'Entrar al evento',
+    ctaUrl: loginUrl,
+    ctaUrlHint: true,
+    footerNote: 'Este código es personal e intransferible. Si no esperabas este correo, contacta al organizador.',
+    eventName,
+    eventDates,
+    eventVenue,
+  };
+
+  return {
+    html: renderEmail(opts),
+    text: renderEmailText({ ...opts, code: accessCode, codeLabel: 'Código de acceso', steps }),
+    subject: `🎫 ${eventName} — Tu acceso al congreso`,
+  };
 }
 
 interface SendResult {
