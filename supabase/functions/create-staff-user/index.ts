@@ -1,77 +1,39 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { buildEventUrl } from '../_shared/build-event-url.ts'
+import { renderEmail, renderEmailText, infoCard, escapeHtml } from '../_shared/email-templates.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-function buildEmailHtml(params: {
+function buildStaffEmail(params: {
   fullName: string;
   eventName: string;
   loginUrl: string;
   assignedRoom?: string | null;
 }) {
   const { fullName, eventName, loginUrl, assignedRoom } = params;
-  const roomLine = assignedRoom
-    ? `<p style="margin:8px 0;color:#334155;"><strong>Sala asignada:</strong> ${assignedRoom}</p>`
-    : '';
-
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>Acceso Staff — ${eventName}</title>
-</head>
-<body style="margin:0;padding:0;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#f1f5f9;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 0;">
-    <tr>
-      <td align="center">
-        <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 16px rgba(15,23,42,0.08);">
-          <tr>
-            <td style="background:linear-gradient(135deg,#1A56A0 0%,#00B89F 100%);padding:28px 32px;color:#ffffff;">
-              <h1 style="margin:0;font-size:22px;font-weight:700;">CONGRÉSSAPP</h1>
-              <p style="margin:6px 0 0;font-size:14px;opacity:0.9;">Health Plus Travels</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:32px;color:#0f172a;">
-              <h2 style="margin:0 0 12px;font-size:20px;font-weight:600;color:#1A56A0;">Hola ${fullName},</h2>
-              <p style="margin:0 0 16px;line-height:1.6;color:#334155;">
-                Has sido invitado/a a participar como <strong>Staff</strong> en el evento
-                <strong>${eventName}</strong>. Tu rol consistirá en validar el acceso de los asistentes a las sesiones del congreso.
-              </p>
-              ${roomLine}
-              <p style="margin:16px 0;line-height:1.6;color:#334155;">
-                Para activar tu cuenta y comenzar, ingresa al portal Staff usando el siguiente enlace.
-                Allí podrás definir tu contraseña personal.
-              </p>
-              <p style="text-align:center;margin:28px 0;">
-                <a href="${loginUrl}" style="display:inline-block;background:#1A56A0;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:8px;font-weight:600;font-size:15px;">
-                  Acceder al portal Staff
-                </a>
-              </p>
-              <p style="margin:16px 0;line-height:1.6;color:#475569;font-size:13px;">
-                Si el botón no funciona, copia y pega esta dirección en tu navegador:<br />
-                <span style="color:#1A56A0;word-break:break-all;">${loginUrl}</span>
-              </p>
-              <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
-              <p style="margin:0;color:#64748b;font-size:13px;line-height:1.6;">
-                Si tienes alguna duda o no esperabas este correo, por favor contacta al administrador del evento.
-              </p>
-            </td>
-          </tr>
-          <tr>
-            <td style="background:#f8fafc;padding:16px 32px;text-align:center;color:#94a3b8;font-size:12px;">
-              © ${new Date().getFullYear()} CONGRÉSSAPP — Health Plus Travels
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
+  const body =
+    (assignedRoom ? infoCard('Sala asignada', assignedRoom) : '') +
+    `<p style="margin:0 0 20px;color:#334155;font-size:14px;line-height:1.6;font-family:Arial,sans-serif;">Para activar tu cuenta, ingresa al portal Staff con el botón de abajo. Allí podrás definir tu contraseña personal.</p>`;
+  const opts = {
+    preheader: `Acceso al portal Staff de ${eventName}`,
+    eyebrow: '👥 Acceso Staff',
+    headline: `Hola ${fullName}, has sido invitado/a como Staff`,
+    intro: `Participarás como <strong>Staff</strong> en <strong>${escapeHtml(eventName)}</strong>. Tu rol será validar el acceso de los asistentes a las sesiones del congreso.`,
+    body,
+    ctaLabel: 'Acceder al portal Staff',
+    ctaUrl: loginUrl,
+    ctaUrlHint: true,
+    footerNote: 'Si no esperabas este correo, contacta al administrador del evento.',
+    eventName,
+  };
+  return {
+    html: renderEmail(opts),
+    text: renderEmailText(opts),
+    subject: `👥 ${eventName} — Acceso Staff`,
+  };
 }
 
 Deno.serve(async (req) => {
