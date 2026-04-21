@@ -205,7 +205,7 @@ export const adminLogisticsService = {
     const { error } = await supabase.from('attendee_services').insert({
       service_catalog_id: serviceCatalogId,
       attendee_id: attendeeId,
-      status: 'scheduled',
+      status: 'pending',
     });
     if (error) throw new Error(error.message);
   },
