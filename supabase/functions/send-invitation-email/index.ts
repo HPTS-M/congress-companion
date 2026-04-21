@@ -100,7 +100,6 @@ function buildInvitationEmail(params: {
   const steps = [
     'Toca el botón <strong>"Entrar al evento"</strong> que aparece más abajo.',
     'Ingresa tu <strong>código personal de 8 caracteres</strong>.',
-    'También puedes escanear el QR de tu credencial desde la app.',
   ];
 
   const body = codeBlock(accessCode, 'Tu código de acceso') + stepList('Cómo entrar', steps);
