@@ -382,7 +382,22 @@ export default function DirectChatView({ conversation, onBack }: Props) {
                             {t('pendingMessage')}
                           </>
                         ) : (
-                          msg.created_at ? formatMessageTime(msg.created_at) : ''
+                          <>
+                            {msg.created_at ? formatMessageTime(msg.created_at) : ''}
+                            {isOwn && !pendingInfo && (
+                              msg.delivered_at ? (
+                                <CheckCheck
+                                  className="h-3.5 w-3.5 text-white/70"
+                                  aria-label={t('statusDelivered')}
+                                />
+                              ) : (
+                                <Check
+                                  className="h-3.5 w-3.5 text-white/70"
+                                  aria-label={t('statusSent')}
+                                />
+                              )
+                            )}
+                          </>
                         )}
                       </span>
                     </div>
