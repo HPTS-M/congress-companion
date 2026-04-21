@@ -45,6 +45,25 @@ async function sendInviteEmail(email: string, inviteLink: string, resendApiKey: 
   }
 }
 
+/**
+ * Look up an auth user by email across all pages of listUsers().
+ * The Admin API paginates at 50 by default; we iterate up to 20 pages (1000 users)
+ * and compare emails case-insensitively to avoid false negatives.
+ */
+async function findAuthUserByEmail(adminClient: ReturnType<typeof createClient>, email: string): Promise<any | null> {
+  const target = email.trim().toLowerCase();
+  const perPage = 200;
+  for (let page = 1; page <= 20; page++) {
+    const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage });
+    if (error) throw error;
+    const users = (data?.users ?? []) as any[];
+    const found = users.find((u) => (u.email ?? "").trim().toLowerCase() === target);
+    if (found) return found;
+    if (users.length < perPage) break;
+  }
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -93,14 +112,16 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { provider_id, email, event_id, redirect_to, action } = body;
+    const { provider_id, email: rawEmail, event_id, redirect_to, action } = body;
 
-    if (!provider_id || !email || !event_id) {
+    if (!provider_id || !rawEmail || !event_id) {
       return new Response(
         JSON.stringify({ error: "Missing required fields: provider_id, email, event_id" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const email = String(rawEmail).trim().toLowerCase();
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
     const baseUrl = buildBaseUrl();
@@ -115,6 +136,7 @@ Deno.serve(async (req) => {
     const accessCode = (provider as any)?.access_code ?? null;
 
     // === ACTION: reinvite ===
+    // If the provider currently has a linked user, drop it so we go through the invite path again.
     if (action === "reinvite" && provider?.user_id) {
       await adminClient.auth.admin.deleteUser(provider.user_id);
       await adminClient
@@ -153,6 +175,25 @@ Deno.serve(async (req) => {
       .eq("id", event_id)
       .single();
 
+    const linkExistingUser = async (userId: string) => {
+      await adminClient.from("profiles").upsert({ id: userId, email, full_name: `Provider: ${email}` });
+      await adminClient.from("user_roles").upsert(
+        { user_id: userId, role: "provider", organization_id: eventData?.organization_id, assigned_by: caller.id },
+        { onConflict: "user_id,role" }
+      );
+      await adminClient.from("providers").update({ user_id: userId }).eq("id", provider_id);
+
+      const { data: magicData, error: magicError } = await adminClient.auth.admin.generateLink({
+        type: "magiclink",
+        email,
+        options: { redirectTo: redirectUrl },
+      });
+
+      if (!magicError && magicData?.properties?.action_link) {
+        await sendInviteEmail(email, magicData.properties.action_link, resendApiKey, accessCode);
+      }
+    };
+
     const { data: inviteData, error: inviteError } = await adminClient.auth.admin.generateLink({
       type: "invite",
       email,
@@ -163,35 +204,31 @@ Deno.serve(async (req) => {
     });
 
     if (inviteError) {
-      if (inviteError.message?.includes("already been registered") || inviteError.message?.includes("already exists")) {
-        const { data: { users } } = await adminClient.auth.admin.listUsers();
-        const existingUser = users?.find((u: any) => u.email === email);
+      const msg = (inviteError.message ?? "").toLowerCase();
+      const isAlreadyRegistered =
+        msg.includes("already been registered") ||
+        msg.includes("already exists") ||
+        msg.includes("already registered");
 
-        if (existingUser) {
-          const userId = existingUser.id;
+      if (isAlreadyRegistered) {
+        const existingUser = await findAuthUserByEmail(adminClient, email);
 
-          await adminClient.from("profiles").upsert({ id: userId, email, full_name: `Provider: ${email}` });
-          await adminClient.from("user_roles").upsert(
-            { user_id: userId, role: "provider", organization_id: eventData?.organization_id, assigned_by: caller.id },
-            { onConflict: "user_id,role" }
-          );
-          await adminClient.from("providers").update({ user_id: userId }).eq("id", provider_id);
-
-          const { data: magicData, error: magicError } = await adminClient.auth.admin.generateLink({
-            type: "magiclink",
-            email,
-            options: { redirectTo: redirectUrl },
-          });
-
-          if (!magicError && magicData?.properties?.action_link) {
-            await sendInviteEmail(email, magicData.properties.action_link, resendApiKey, accessCode);
-          }
-
+        if (existingUser?.id) {
+          await linkExistingUser(existingUser.id);
           return new Response(
-            JSON.stringify({ success: true, user_id: userId, action: "linked_existing" }),
+            JSON.stringify({ success: true, user_id: existingUser.id, action: "linked_existing" }),
             { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
+
+        return new Response(
+          JSON.stringify({
+            error: "USER_EXISTS_NOT_FOUND",
+            message:
+              "El correo ya está registrado en el sistema pero no se pudo localizar la cuenta automáticamente. Cambia el email del proveedor y vuelve a invitar, o contacta soporte.",
+          }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
 
       return new Response(
