@@ -815,6 +815,7 @@ export default function DirectChatView({ conversation, onBack }: Props) {
                     onCopy={handleCopy}
                     onJumpToQuote={handleJumpToQuote}
                     onRetry={retry}
+                    onDiscard={handleDiscard}
                   />
                 );
               })}
