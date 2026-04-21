@@ -167,13 +167,21 @@ Deno.serve(async (req) => {
       if (resendApiKey) {
         const { data: event } = await supabaseAdmin
           .from('events')
-          .select('name, event_code')
+          .select('name, event_code, start_date, end_date, venue_name')
           .eq('id', attendee.event_id)
           .single();
 
         if (event) {
           const loginUrl = buildEventUrl(event.event_code);
-          const html = buildEmailHtml(attendee.full_name, event.name, event.event_code, plainCode, loginUrl);
+          const eventDates = formatEventDateRange(event.start_date, event.end_date, 'es');
+          const { html, text, subject } = buildRegenEmail({
+            attendeeName: escapeHtml(attendee.full_name),
+            eventName: event.name,
+            accessCode: plainCode,
+            loginUrl,
+            eventDates: eventDates || undefined,
+            eventVenue: event.venue_name || undefined,
+          });
 
           const resendResponse = await fetch('https://api.resend.com/emails', {
             method: 'POST',
@@ -184,8 +192,9 @@ Deno.serve(async (req) => {
             body: JSON.stringify({
               from: 'Health Plus Travels Events <noreply@healtplustravels.app>',
               to: [attendee.email],
-              subject: `🔐 New access code for ${event.name}`,
+              subject,
               html,
+              text,
             }),
           });
           emailSent = resendResponse.ok;
