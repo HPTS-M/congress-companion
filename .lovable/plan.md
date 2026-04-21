@@ -1,96 +1,117 @@
 
 
-## Diagnóstico: por qué Comercial se ve diferente al resto
+## Resumen del rediseño UX/UI — Comercial
 
-Comparé **Comercial** con **Mensajería**, **Tickets**, **Agenda** y **Home** mirando las dos capturas que enviaste y el código. La página Comercial tiene **3 problemas reales** específicos de su layout — no es percepción, es código.
+Mantenemos exactamente como están **la barra superior de tabs** (Inicio, Agenda, Mensajería, Tickets, Comercial) y **el menú hamburguesa de la izquierda** (≡). No tocamos navegación.
 
-### Problema 1 — Padding superior excesivo
-
-| Página | Padding superior del contenido |
-|---|---|
-| Agenda | `pt-4` (16px) |
-| Mensajería | `pt-4` (16px) |
-| Tickets / Home | `pt-4` o `pt-0` |
-| **Comercial** | **`py-6` (24px)** ← exceso |
-
-El layout ya reserva `pt-[7.5rem]` (120px) para header + barra de tabs. Comercial agrega 24px más arriba **y abajo**, mientras las otras agregan 16px solo arriba. Por eso el título "Área Comercial" empieza más abajo y siente que "se desperdicia espacio".
-
-### Problema 2 — Grid de 2 columnas en vez de lista vertical
-
-Las otras páginas usan listas verticales de ancho completo (cada ítem ocupa toda la pantalla). Comercial usa `grid-cols-2` siempre, incluso en móvil de 360-400px de ancho. Esto causa:
-
-- Cada tarjeta queda con ~150px de ancho útil
-- Logo de 80×80px ocupa la mitad de la tarjeta
-- Texto del nombre se aprieta en 2-3 líneas
-- Botones "Me interesa" y "Ver más" se ven mini
-- Genera scroll horizontal interno en categorías largas como "Equipos Médicos"
-
-En la captura se ve claramente: la segunda tarjeta (con la "PP") queda cortada a la derecha.
-
-### Problema 3 — Header que se ve "diferente"
-
-En realidad **el header es el mismo** (mismo gradiente, mismo logo, mismas dimensiones). Lo que cambia es la **percepción**:
-
-- En Mensajería ves 5 tabs (Inicio, Agenda, Mensajería, Tickets, Comercial) — la barra se ve "completa"
-- En Comercial ves solo 3 tabs (Inicio, Agenda, Mensajería) porque el evento de la captura tiene `ticketsEnabled` y `commercialEnabled` apagados — la barra se ve "vacía" y el área negra de fondo domina la vista
-
-Esto es un dato curioso: estás en `/commercial` pero `commercialEnabled=false` en ese evento. El menú de hamburguesa es lo que te llevó ahí. **No es un bug de la página**, es coincidencia.
+Solo rediseñamos la **página Comercial** y sus tarjetas para resolver el scroll horizontal interno y mejorar legibilidad.
 
 ---
 
-### Propuesta de fix
+### Cambios concretos
 
-#### Cambio 1 — Alinear paddings con el resto de páginas
+#### 1. SponsorCard — toda la tarjeta clickeable, un solo botón visible
 
-```tsx
-// src/pages/attendee/Commercial.tsx
-- <div className="px-4 py-6 space-y-4">
-+ <div className="px-4 pt-4 pb-6 space-y-4">
+```
+┌─────────────────────────────────────────────────┐
+│  [LOGO]   CLAUDIA PRUEBA                    ›   │  ← tap en cualquier parte → detalle
+│   56x56   📍 Stand 2                            │
+│           [Farmacéutica]                        │
+│                              [♡ Me interesa]    │  ← único botón visible
+└─────────────────────────────────────────────────┘
 ```
 
-#### Cambio 2 — Lista vertical en móvil, grid solo en pantallas grandes
+- **Toda la card es tappable** y navega al detalle del patrocinador (afford. visual: chevron `›` arriba a la derecha + hover state).
+- **Se elimina el botón "Ver más"** → soluciona el overflow horizontal porque ya no hay 2 botones compitiendo por el ancho.
+- **Único botón "Me interesa"** abajo a la derecha, ancho `auto` (no `flex-1`), tamaño compacto. `stopPropagation` para no disparar la navegación al detalle.
+- Cuando el usuario ya marcó interés → el botón cambia a `♥ Interesado` en color teal (`#00B89F`), deshabilitado.
+- **Logo a 56×56** (antes 64×64) para liberar espacio textual.
+- **Stand location promovido**: aparece junto al nombre con ícono `MapPin` pequeño en color del nivel.
+- **Categoría como chip pequeño** debajo del nombre, padding liviano.
 
-Reemplazar el grid fijo por uno responsive y usar una variante de tarjeta horizontal en móvil (logo a la izquierda, info a la derecha, botones abajo). Patrón idéntico al de Contactos:
+#### 2. Section header de nivel — separadores con jerarquía
 
-```tsx
-// Contenedor del grupo de patrocinadores
-- <div className="grid grid-cols-2 gap-3">
-+ <div className="flex flex-col gap-3 sm:grid sm:grid-cols-2">
+Hoy "Oro" es solo un chip suelto. Mejora a divisor de sección:
+
+```
+─── 🏆 Oro ──────────────────────────────────────
 ```
 
-Y refactor de `SponsorCard` para tener dos layouts:
+- Ícono según nivel: `Crown` (oro), `Award` (plata), `Medal` (bronce), `Building2` (expositor).
+- Color según nivel (amber / slate / orange / slate).
+- Línea horizontal a los lados con el color del nivel atenuado.
 
-- **Móvil (`< 640px`)**: tarjeta horizontal — logo 64×64 a la izquierda, nombre + categoría + stand al centro, botones "Me interesa" + "Ver más" apilados a la derecha o debajo
-- **Tablet/Desktop (`≥ 640px`)**: tarjeta vertical actual (ya funciona bien con más ancho)
+#### 3. Filtros de categoría — chips con contador
 
-Resultado: cada patrocinador ocupa una fila completa en móvil, texto legible, botones grandes, sin scroll horizontal.
+- Cada chip muestra cuántos resultados tiene: `Farmacéutica (3)`, `Tecnología (1)`.
+- Chip "Todos" siempre primero con total.
+- Chips sin resultados se ocultan automáticamente (no muestra "Educación (0)").
+- Estado activo más contrastado: sombra suave + check `✓` a la izquierda.
 
-#### Cambio 3 (opcional) — Aclarar incongruencia de tabs
+#### 4. Búsqueda — feedback inmediato
 
-Si `commercialEnabled=false` pero el usuario llega a `/commercial` desde el hamburguesa, actualmente la barra inferior no muestra la tab de Comercial → el usuario se siente "perdido". Dos opciones:
+- Botón `✕` para limpiar (aparece solo cuando hay texto).
+- Debajo del input: contador "X resultados" cuando hay búsqueda o filtro activo.
 
-- **A**: Si `commercialEnabled=false`, redirigir `/commercial` → `/home` (consistente, oculta totalmente el módulo).
-- **B**: Aceptar el estado actual (el hamburguesa puede ofrecer páginas que no están en la barra). No tocar nada.
+---
 
-Recomiendo **A** para coherencia, pero es decisión tuya.
+### Mockup final del módulo (móvil 360px)
+
+```
+  Área Comercial
+  Patrocinadores y expositores
+
+  ┌────────────────────────────────────────┐
+  │ 🔍  Buscar patrocinador...          ✕ │
+  └────────────────────────────────────────┘
+  3 resultados
+
+  [✓ Todos (3)] [Farmacéutica (3)] [Tecnología (1)]
+
+  ─── 🏆 Oro ──────────────────────────────
+
+  ┌────────────────────────────────────────┐
+  │ [LOGO]  CLAUDIA PRUEBA              ›  │
+  │  56x56  📍 Stand 2                     │
+  │         [Farmacéutica]                 │
+  │                        [♡ Me interesa] │
+  └────────────────────────────────────────┘
+
+  ┌────────────────────────────────────────┐
+  │  LA   Laboratorios ABC              ›  │
+  │       📍 Stand A-15                    │
+  │       [Farmacéutica]                   │
+  │                        [♥ Interesado]  │
+  └────────────────────────────────────────┘
+```
+
+En tablet/desktop (≥640px) se mantiene el grid de 2 columnas con la card vertical actual.
 
 ---
 
 ### Archivos afectados
 
 ```text
-EDIT  src/pages/attendee/Commercial.tsx   — paddings + layout responsive del grid
-                                             + refactor SponsorCard con variante móvil
-EDIT  src/components/guards/AttendeeRoute.tsx (opcional, solo si eliges Cambio 3-A)
+EDIT  src/pages/attendee/Commercial.tsx     — refactor SponsorCard + section headers
+                                               + filtros con contador + búsqueda con ✕ y feedback
+EDIT  src/locales/es/commercial.json        — keys: searchResults, interestedShort, clearSearch
+EDIT  src/locales/en/commercial.json        — mismo set en inglés
 ```
 
-Sin migraciones, sin nuevas dependencias, sin cambios en la lógica de datos.
+Sin cambios en navegación. Sin migraciones DB. Sin nuevas dependencias. Sin cambios en `BottomNav` ni `HamburgerMenu`. Mantiene servicios y RLS actuales.
+
+---
 
 ### Verificación
 
-1. Abrir `/commercial` en móvil real (390×844) → cada patrocinador en fila completa, logo a la izquierda, sin scroll horizontal.
-2. Abrir en tablet (820×1180) → vuelve a grid de 2 columnas.
-3. Abrir en desktop → grid de 2 columnas centrado.
-4. Comparar paddings con Agenda y Mensajería → idénticos.
-5. Confirmar que el header se ve igual que en las otras páginas (porque siempre lo fue — la única diferencia era visual por la barra de tabs incompleta).
+1. Abrir `/commercial` en móvil 360×800 → cada card en una fila, sin scroll horizontal interno.
+2. Tap en cualquier parte del card (logo, nombre, área vacía) → abre detalle.
+3. Tap en "Me interesa" → abre dialog de consentimiento sin abrir detalle.
+4. Después de marcar interés → botón cambia a `♥ Interesado` teal.
+5. Buscar "claud" → muestra "1 resultado" + botón ✕ visible.
+6. Tap en ✕ → limpia búsqueda, vuelve a mostrar todos.
+7. Filtrar por categoría → contador de resultados se actualiza.
+8. Categorías sin patrocinadores no aparecen como chip.
+9. Tablet 820px → vuelve a grid de 2 columnas con card vertical.
+10. Modo oscuro: contraste de cards, chips, separadores de nivel — todo legible.
 
