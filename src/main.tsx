@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client';
 import * as Sentry from '@sentry/react';
 import { initSentry } from '@/lib/sentry';
 import { initWebVitals } from '@/lib/perf';
+import { ErrorFallback } from '@/components/ErrorFallback';
 import App from './App.tsx';
 import './index.css';
 import './lib/i18n';
@@ -48,8 +49,19 @@ if (isPreview) {
   }
 }
 
+// Clear stale error attempts after the app has been alive for >60s without crashing.
+setTimeout(() => {
+  try {
+    sessionStorage.removeItem('errorReloadAttempts');
+  } catch {
+    /* ignore */
+  }
+}, 60_000);
+
 createRoot(document.getElementById('root')!).render(
-  <Sentry.ErrorBoundary fallback={<p>Something went wrong</p>}>
+  <Sentry.ErrorBoundary
+    fallback={({ eventId }) => <ErrorFallback eventId={eventId} />}
+  >
     <App />
   </Sentry.ErrorBoundary>
 );
