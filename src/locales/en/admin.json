@@ -946,7 +946,10 @@
       "assigning": "Assigning...",
       "bulkResult": "{{assigned}} assigned, {{errors}} errors",
       "bulkError": "Error in bulk assignment"
-    }
+    },
+    "statusTooltipScheduled": "Scheduled for {{date}}",
+    "statusTooltipCompleted": "Completed on {{date}}",
+    "statusTooltipCancelled": "Service cancelled"
   },
   "providers": {
     "title": "Providers",
@@ -1022,7 +1025,9 @@
     "activity_login": "Login",
     "activity_invitation_sent": "Invitation sent",
     "activity_invitation_resent": "Invitation resent",
-    "activity_ticket_validated": "Ticket validated"
+    "activity_ticket_validated": "Ticket validated",
+    "duplicateName": "A provider with this name already exists in the event",
+    "userExistsNotFound": "This email is already registered but could not be linked automatically. Change the provider email and reinvite, or contact support."
   },
   "communications": {
     "title": "Communications",
@@ -1171,7 +1176,13 @@
     "activateSuccess": "{{name}} successfully activated. They will receive an email with credentials.",
     "toggleAccess": "Enable or suspend access",
     "accessRestored": "Access restored",
-    "accessSuspended": "Access suspended"
+    "accessSuspended": "Access suspended",
+    "tooltips": {
+      "activate": "Activate staff member account",
+      "resend": "Resend invitation email to staff",
+      "edit": "Edit staff member details",
+      "delete": "Delete staff member"
+    }
   },
   "staffPortal": {
     "title": "Staff Portal",
@@ -1252,6 +1263,14 @@
       "colLeads": "Leads captured",
       "emptyTitle": "No interactions yet",
       "emptyDescription": "Metrics will update when attendees visit sponsor profiles"
+    },
+    "tooltips": {
+      "exportAll": "Download a single Excel file with all event reports",
+      "exportAttendance": "Export attendance report to Excel",
+      "exportRatings": "Export session ratings to Excel",
+      "exportLogistics": "Export logistics and services report to Excel",
+      "exportSponsors": "Export sponsor engagement report to Excel",
+      "exportPolls": "Export poll responses to Excel"
     }
   },
   "polls": {
