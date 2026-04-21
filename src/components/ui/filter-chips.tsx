@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { forwardRef, useEffect, useRef } from 'react';
 import { Check, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -40,7 +40,6 @@ export function FilterChips({
   className,
   ariaLabel = 'Filters',
 }: FilterChipsProps) {
-  const scrollerRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLButtonElement>(null);
 
   // Auto-scroll active chip into view when selection changes
@@ -69,7 +68,6 @@ export function FilterChips({
   return (
     <div className={cn('relative', className)}>
       <div
-        ref={scrollerRef}
         role="group"
         aria-label={ariaLabel}
         className="flex gap-2 overflow-x-auto snap-x snap-mandatory pb-2 -mb-2 pr-6 scrollbar-hide"
@@ -116,11 +114,8 @@ interface ChipProps {
   onClick: () => void;
 }
 
-const Chip = (() => {
-  const Inner = (
-    { label, count, icon: Icon, active, onClick }: ChipProps,
-    ref: React.Ref<HTMLButtonElement>,
-  ) => (
+const Chip = forwardRef<HTMLButtonElement, ChipProps>(
+  ({ label, count, icon: Icon, active, onClick }, ref) => (
     <button
       ref={ref}
       type="button"
@@ -129,7 +124,7 @@ const Chip = (() => {
       onClick={onClick}
       className={cn(
         'shrink-0 snap-start inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full',
-        'text-xs font-medium border transition-all',
+        'text-xs font-medium border transition-all whitespace-nowrap',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
         active
           ? 'bg-primary text-primary-foreground border-primary shadow-sm'
@@ -145,10 +140,6 @@ const Chip = (() => {
         </span>
       )}
     </button>
-  );
-  Inner.displayName = 'FilterChip';
-  return Object.assign(
-    // forwardRef
-    (require('react') as typeof import('react')).forwardRef<HTMLButtonElement, ChipProps>(Inner),
-  );
-})();
+  ),
+);
+Chip.displayName = 'FilterChip';
