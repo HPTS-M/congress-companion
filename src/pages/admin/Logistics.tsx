@@ -19,8 +19,11 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Plus, Search, Pencil, Trash2, Users, Ticket, Clock, CheckCircle2, XCircle,
-  Bus, UtensilsCrossed, Map, Sparkles, Ban, RotateCcw,
+  Bus, UtensilsCrossed, Map, Sparkles, Ban, RotateCcw, Settings,
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
@@ -265,9 +268,22 @@ export default function AdminLogistics() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {s.valid_from && s.valid_until
-                      ? `${s.valid_from.slice(0, 5)} – ${s.valid_until.slice(0, 5)}`
-                      : '—'}
+                    {s.starts_at || s.ends_at ? (
+                      <div className="flex flex-col gap-0.5">
+                        {s.starts_at && (
+                          <span>
+                            <span className="text-xs font-medium text-muted-foreground/70">{t('logistics.startLabel', { defaultValue: 'Inicio' })}: </span>
+                            {formatDateTime(s.starts_at)}
+                          </span>
+                        )}
+                        {s.ends_at && (
+                          <span>
+                            <span className="text-xs font-medium text-muted-foreground/70">{t('logistics.endLabel', { defaultValue: 'Fin' })}: </span>
+                            {formatDateTime(s.ends_at)}
+                          </span>
+                        )}
+                      </div>
+                    ) : '—'}
                   </TableCell>
                   <TableCell>
                     <TooltipProvider delayDuration={150}>
@@ -290,8 +306,8 @@ export default function AdminLogistics() {
                             </Badge>
                           </TooltipTrigger>
                           <TooltipContent>
-                            {s.completed_at
-                              ? t('logistics.statusTooltipCompleted', { date: formatStatusDate(s.completed_at), defaultValue: 'Finalizado el {{date}}' })
+                            {s.ends_at
+                              ? t('logistics.statusTooltipCompleted', { date: formatDateTime(s.ends_at), defaultValue: 'Finalizado el {{date}}' })
                               : t('logistics.serviceStatusCompleted')}
                           </TooltipContent>
                         </Tooltip>
@@ -303,8 +319,8 @@ export default function AdminLogistics() {
                             </Badge>
                           </TooltipTrigger>
                           <TooltipContent>
-                            {s.valid_from
-                              ? t('logistics.statusTooltipScheduled', { date: formatStatusDate(s.valid_from), defaultValue: 'Programado para {{date}}' })
+                            {s.starts_at
+                              ? t('logistics.statusTooltipScheduled', { date: formatDateTime(s.starts_at), defaultValue: 'Programado para {{date}}' })
                               : t('logistics.serviceStatusScheduled')}
                           </TooltipContent>
                         </Tooltip>
@@ -322,25 +338,40 @@ export default function AdminLogistics() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => navigate(`/${eventSlug}/admin/logistics/${s.id}/assign`)} title={t('logistics.viewAssignees')}>
-                        <Users className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(s)} title={t('sponsors.edit')}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      {isCancelled ? (
-                        <Button variant="ghost" size="icon" onClick={() => handleReactivate(s)} title={t('logistics.reactivateService')}>
-                          <RotateCcw className="h-4 w-4" />
-                        </Button>
-                      ) : (
-                        <Button variant="ghost" size="icon" onClick={() => setCancellingId(s)} className="text-amber-600 hover:text-amber-600" title={t('logistics.cancelService')}>
-                          <Ban className="h-4 w-4" />
-                        </Button>
-                      )}
-                      <Button variant="ghost" size="icon" onClick={() => setDeletingId(s.id)} className="text-destructive hover:text-destructive" title={t('sponsors.delete')}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                    <div className="flex items-center justify-end">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" aria-label={t('logistics.actionsMenu', { defaultValue: 'Acciones del servicio' })}>
+                            <Settings className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                          <DropdownMenuItem onClick={() => navigate(`/${eventSlug}/admin/logistics/${s.id}/assign`)}>
+                            <Users className="mr-2 h-4 w-4" />
+                            {t('logistics.viewAssignees')}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleEdit(s)}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            {t('sponsors.edit')}
+                          </DropdownMenuItem>
+                          {isCancelled ? (
+                            <DropdownMenuItem onClick={() => handleReactivate(s)}>
+                              <RotateCcw className="mr-2 h-4 w-4" />
+                              {t('logistics.reactivateService')}
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem onClick={() => setCancellingId(s)} className="text-amber-600 focus:text-amber-600">
+                              <Ban className="mr-2 h-4 w-4" />
+                              {t('logistics.cancelService')}
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => setDeletingId(s.id)} className="text-destructive focus:text-destructive">
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            {t('sponsors.delete')}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -417,7 +448,7 @@ function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-function formatStatusDate(iso: string): string {
+function formatDateTime(iso: string): string {
   try {
     const d = new Date(iso);
     return d.toLocaleString(undefined, {

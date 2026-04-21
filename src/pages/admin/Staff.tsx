@@ -177,9 +177,27 @@ export default function StaffPage() {
 
   const statusBadge = (s: StaffMember) => {
     if (s.invitation_status === 'active') {
-      return <Badge className="bg-accent/10 text-accent border-accent/30">{t('staff.statusActiveLabel')}</Badge>;
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge className="bg-accent/10 text-accent border-accent/30 cursor-help">{t('staff.statusActiveLabel')}</Badge>
+          </TooltipTrigger>
+          <TooltipContent>
+            {t('staff.tooltips.statusActive', { defaultValue: 'El miembro de personal ya activó su cuenta y puede ingresar al portal.' })}
+          </TooltipContent>
+        </Tooltip>
+      );
     }
-    return <Badge variant="outline" className="border-amber-400/40 text-amber-600 dark:text-amber-400">{t('staff.statusPendingLabel')}</Badge>;
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge variant="outline" className="border-amber-400/40 text-amber-600 dark:text-amber-400 cursor-help">{t('staff.statusPendingLabel')}</Badge>
+        </TooltipTrigger>
+        <TooltipContent>
+          {t('staff.tooltips.statusPending', { defaultValue: 'Aún no se ha enviado o aceptado la invitación. Actívalo desde el botón de check.' })}
+        </TooltipContent>
+      </Tooltip>
+    );
   };
 
   return (
