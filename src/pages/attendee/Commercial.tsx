@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { Search, Building2, ChevronRight, MapPin, X, Crown, Award, Medal } from 'lucide-react';
-import { SponsorLeadButton } from '@/components/attendee/SponsorLeadButton';
+import { Search, Building2, X, Crown, Award, Medal } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FilterChips, type FilterChipOption } from '@/components/ui/filter-chips';
+import { SponsorCard } from '@/components/attendee/SponsorCard';
 import { useEvent, useEventSlug } from '@/hooks/useEvent';
 import { useSponsors } from '@/hooks/useSponsors';
 import { cn } from '@/lib/utils';
@@ -41,10 +41,6 @@ const LEVEL_META: Record<string, { icon: typeof Crown; text: string; line: strin
 };
 
 const CATEGORIES = ['pharmaceutical', 'technology', 'medical_equipment', 'services', 'education', 'other'] as const;
-
-function getInitials(name: string) {
-  return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-}
 
 export default function Commercial() {
   const { t } = useTranslation('commercial');
@@ -169,7 +165,7 @@ export default function Commercial() {
         Object.entries(grouped).map(([level, items]) => (
           <section key={level} className="space-y-3">
             <LevelDivider level={level} label={t(`level.${level}`)} />
-            <div className="flex flex-col gap-3 sm:grid sm:grid-cols-2">
+            <div className="flex flex-col gap-3">
               {items.map(sponsor => (
                 <SponsorCard
                   key={sponsor.id}
