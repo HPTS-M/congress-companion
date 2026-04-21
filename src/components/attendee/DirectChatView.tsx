@@ -306,7 +306,7 @@ const MessageBubble = memo(
           </AlertDialog>
 
           {/* Desktop hover reply shortcut */}
-          {canActOnMessage && (
+          {isRealMessage && (
             <button
               type="button"
               onClick={() => onReply(msg)}
