@@ -33,7 +33,12 @@ export function usePendingMessages(conversationId?: string) {
   }, [conversationId]);
 
   const enqueue = useCallback(
-    (input: { conversationId: string; senderId: string; content: string }) => {
+    (input: {
+      conversationId: string;
+      senderId: string;
+      content: string;
+      replyToId?: string | null;
+    }) => {
       const msg = pendingMessages.enqueue(input);
       // Try to flush immediately if online
       if (typeof navigator === 'undefined' || navigator.onLine) {
