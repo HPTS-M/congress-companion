@@ -1,101 +1,114 @@
 
 
-# Plan: Tarjetas de Sponsor estilo Agenda
+# Plan: Sincronización de iconos "enviado" / "entregado" en mensajería
 
-## Mi opinión honesta primero
+## Diagnóstico — por qué hay desincronización
 
-**Replicar 1:1 el diseño de Agenda en Comercial es buena idea, pero con un matiz importante.**
+He revisado el flujo completo y encontré **tres problemas técnicos concretos** que explican por qué el ✓ verde (entregado) no aparece en tiempo real aunque ambos usuarios estén con la app abierta:
 
-✅ **Lo que SÍ vale la pena copiar:**
-- Tamaño de tarjeta (full-width, padding generoso `p-4 pl-5`)
-- Layout vertical con info apilada (no horizontal compacto como ahora)
-- **Border-left de 4px coloreado por nivel** (gold/silver/bronze/exhibitor) — equivale al border-left por tipo de sesión
-- Tipografía: título `text-base font-semibold`, metadatos `text-xs text-muted-foreground` con íconos pequeños
-- Botón de acción abajo a la derecha con `Button size="sm"`
-- Espaciado interno (`space-y-1.5` entre líneas de metadata)
+### Problema 1 — Realtime `UPDATE` se filtra por `conversation_id`, pero el payload no lo incluye
 
-⚠️ **Lo que NO conviene copiar literal:**
-- El **círculo de "Pendiente/Confirmado"** a la derecha — los sponsors no tienen estado de check-in. En su lugar usaremos ese espacio para el **logo del sponsor** (que es la identidad visual más importante de un sponsor — más que el nombre).
-- El **contador de estrellas ⭐** — los sponsors no tienen "interesados públicos". Lo reemplazamos por el **chevron "›"** indicando que es navegable al detalle.
+En `DirectChatView.tsx` (línea 429-449) el listener UPDATE usa:
+```ts
+filter: `conversation_id=eq.${conversation.id}`
+```
 
-🎯 **Resultado final:** Misma silueta visual y "peso" que Agenda (consistencia entre módulos), pero adaptada a la semántica de un sponsor (logo prominente + nivel + categoría + stand + CTA).
+Esto **funciona en teoría**, pero como la tabla `chat_messages` tiene `REPLICA IDENTITY FULL`, el evento `UPDATE` se dispara correctamente. El problema real está en la lógica de actualización de cache: solo actualiza `delivered_at` pero **no preserva `reply_to`** ni la posición optimista, causando que el icono parpadee/desaparezca.
 
-Esto resuelve dos problemas actuales que veo en tu screenshot:
-1. Las tarjetas actuales se sienten "apretadas" comparadas con Agenda → ahora respiran igual
-2. La inconsistencia visual entre Comercial y Agenda → ahora son visualmente hermanas
+### Problema 2 — `markDelivered` solo se ejecuta al ABRIR la conversación o al recibir un mensaje nuevo
+
+Líneas 458-463 y 423-426: `markDelivered` se llama:
+- ✅ Una vez al montar el componente
+- ✅ Cuando llega un mensaje nuevo del otro lado
+
+**Pero NO se llama** cuando ya tienes la conversación abierta y el otro usuario te envía un mensaje **mientras tú estabas viendo otra cosa y vuelves al tab**. Si la pestaña pierde foco y vuelve, los mensajes recibidos en ese intervalo nunca se marcan como entregados hasta que llegue uno nuevo.
+
+### Problema 3 — Falta listener de `visibilitychange` y `focus`
+
+Cuando el usuario A envía un mensaje y el usuario B tiene la conversación abierta pero el navegador estaba en background, el evento UPDATE puede llegar pero el RPC `mark_messages_delivered` no se vuelve a llamar al regresar a la pestaña, dejando mensajes como "solo enviado" indefinidamente.
+
+### Problema 4 (menor) — `markDelivered` está en deps del useEffect realtime
+
+Línea 455: `markDelivered` (objeto mutation) es nueva referencia en cada render → el canal Realtime se reabre constantemente, perdiendo eventos durante la reconexión (~200-500ms ventana ciega).
 
 ---
 
-## Cambios concretos
+## Solución
 
-### `SponsorCard` (en `Commercial.tsx`)
+### Cambio 1 — Estabilizar referencia de `markDelivered`
 
-**Estructura nueva — espejo de `SessionCard`:**
+Usar `useCallback` para envolver el trigger del RPC, o sacar `markDelivered.mutate` del objeto y referenciar solo la función estable. Resultado: el canal Realtime se monta UNA vez por conversación, no en cada render.
 
+### Cambio 2 — Listener `visibilitychange` para re-marcar al recuperar foco
+
+Añadir efecto que escuche `document.visibilitychange` y `window.focus`:
 ```
-┌─────────────────────────────────────────────┐
-│ 🟨 [LOGO]  Laboratorios ABC            ›    │  ← border-left 4px color nivel
-│  60×60     📍 Stand A-15                    │
-│           👤 Farmacéutica                   │
-│           [Badge: ORO] [Badge: Stand]       │
-│                                             │
-│                          [♥ Me interesa]   │  ← botón abajo derecha
-└─────────────────────────────────────────────┘
+cuando la pestaña vuelve a estar visible
+  → llamar markDelivered({ conversationId, attendeeId })
 ```
 
-**Spec exacta:**
-- Container: `rounded-lg border-t border-r border-b border-border bg-card shadow-sm p-4 pl-5` + `borderLeft: 4px solid {LEVEL_COLOR}`
-- Mapeo de colores border-left por nivel:
-  - `gold` → `#F59E0B`
-  - `silver` → `#94A3B8`
-  - `bronze` → `#B45309`
-  - `exhibitor` → `#1A56A0`
-- Layout: `flex items-start justify-between gap-2`
-- **Izquierda (logo)**: `h-14 w-14 sm:h-16 sm:w-16 rounded object-contain bg-white shrink-0` (o avatar con iniciales si no hay logo)
-- **Centro (info)**: `flex-1 min-w-0 space-y-1.5`
-  - Título: `text-base font-semibold text-card-foreground leading-tight` + chevron derecho
-  - Stand: `flex items-center gap-1.5 text-xs text-muted-foreground` con `MapPin h-3.5 w-3.5`
-  - Categoría: misma fila pattern con `Building2 h-3.5 w-3.5`
-  - Badges en `flex flex-wrap gap-1.5 pt-1`: Badge nivel (con ícono Crown/Award/Medal) + Badge "Stand X" si aplica
-- **Botón "Me interesa"**: `mt-3 flex justify-end` con `Button size="sm" variant="default"` — mismo color que Agenda (`bg-amber-500` cuando ya está marcado como interés)
+Esto cubre el caso "tenía la conversación abierta pero el navegador estaba en otra app/tab".
 
-### Grid responsivo
+### Cambio 3 — Preservar `reply_to` en el handler UPDATE
 
-**Eliminar `sm:grid sm:grid-cols-2`** — Agenda usa una columna en todos los tamaños y se ve excelente. Sponsors igual: `flex flex-col gap-3` sin breakpoint a 2 columnas.
+En lugar de:
+```ts
+m.id === updated.id ? { ...m, delivered_at: updated.delivered_at } : m
+```
 
-Ventaja: en desktop/tablet las tarjetas ocupan todo el ancho como en Agenda → consistencia total.
+Hacer un merge defensivo que preserve TODOS los campos previos y solo sobrescriba `delivered_at`:
+```ts
+m.id === updated.id 
+  ? { ...m, delivered_at: updated.delivered_at ?? m.delivered_at } 
+  : m
+```
 
-### Componente extraído
+Y agregar log de debug temporal para validar que los UPDATE eventos están llegando.
 
-Mover `SponsorCard` a archivo propio `src/components/attendee/SponsorCard.tsx` (espejo de `SessionCard.tsx`). `Commercial.tsx` queda más limpio y el componente reutilizable.
+### Cambio 4 — Marcar como entregado también cuando el remitente recibe el UPDATE
+
+Cuando llega un `UPDATE` con `delivered_at` no nulo, y soy el SENDER, ya debería verse el doble check. Si el listener no se está disparando, es porque el canal se está re-suscribiendo (Cambio 1 lo arregla). Como red de seguridad: hacer `invalidateQueries(['direct-messages', conversation.id])` al recibir UPDATE para garantizar refetch.
+
+### Cambio 5 — Heartbeat de "delivered" cada 15s mientras la conversación está abierta
+
+Como mecanismo de respaldo si Realtime falla por completo (caso PWA con conexión intermitente):
+```
+setInterval cada 15s mientras tab visible y online
+  → llamar markDelivered (idempotente, costo casi cero)
+```
+
+El RPC ya solo actualiza filas con `delivered_at IS NULL`, así que llamarlo cada 15s no genera escrituras inútiles.
 
 ---
 
 ## Archivos afectados
 
 ```
-NEW   src/components/attendee/SponsorCard.tsx   (extraído + rediseñado estilo Agenda)
-EDIT  src/pages/attendee/Commercial.tsx         (importa nuevo SponsorCard, elimina grid 2-col)
+EDIT  src/components/attendee/DirectChatView.tsx
+        - Estabilizar referencia de markDelivered en useEffect realtime
+        - Añadir listener visibilitychange + focus → trigger markDelivered
+        - Preservar reply_to en el UPDATE handler
+        - Heartbeat 15s de markDelivered mientras tab visible
+        - Invalidar query al recibir UPDATE como red de seguridad
 ```
 
-**2 archivos. ~15 minutos.**
+**1 archivo. ~20 minutos. Cero cambios de DB.**
 
 ---
 
-## Plan de prueba
+## Plan de prueba (validar la sincronía)
 
-1. Mobile 375px: tarjeta sponsor tiene exactamente el mismo "peso" visual que session card en Agenda
-2. Border-left dorado se ve en sponsors gold, gris en silver, naranja en bronze
-3. Logo se muestra cuadrado a la izquierda (60px), iniciales si no hay logo
-4. Tap en tarjeta navega a detalle; tap en "Me interesa" no propaga
-5. Desktop: tarjetas full-width (no más grid 2-col), idéntico a Agenda
-6. Dark mode: colores y borders adaptan correctamente
+1. **Setup:** dos navegadores con ambos usuarios (A y B) en la misma conversación abierta, ambos en foreground
+2. **Test 1 — envío en vivo:** A envía mensaje → B lo recibe → A debe ver doble check ✓✓ verde **en menos de 1 segundo**
+3. **Test 2 — tab de B en background:** B cambia a otra app → A envía 3 mensajes → B vuelve al tab → los 3 mensajes deben pasar a doble check ✓✓ en A en menos de 2s
+4. **Test 3 — conexión intermitente:** B activa modo avión 5s → reactiva → mensajes pendientes de A se marcan como entregados al volver
+5. **Test 4 — conversación cerrada en B:** B sale de la conversación → A envía mensaje → A solo ve check simple ✓ (correcto, B no la abrió). B abre → A debe ver doble check inmediato
 
 ---
 
 ## Lo que NO incluye
 
-- Cambios en la página de detalle del sponsor (`SponsorDetail.tsx`) — mantenemos como está
-- Cambios en filtros chips o búsqueda — quedaron perfectos en la iteración anterior
-- Cambios en el badge del nivel (sigue usando los íconos Crown/Award/Medal actuales)
+- Indicador de "leído" (azul) — solo "enviado/entregado". Implementarlo requeriría columna `read_at` adicional + RPC nuevo. Lo dejo para iteración separada si lo pides.
+- Indicador "escribiendo..." (typing) — no estaba en el alcance original
+- Cambios en push notifications — siguen funcionando como ya están
 
