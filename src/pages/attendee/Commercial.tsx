@@ -258,9 +258,9 @@ function SponsorCard({
         }
       }}
       className={cn(
-        'group relative bg-card border border-border rounded-lg p-3 shadow-sm cursor-pointer',
+        'group relative bg-card border border-border rounded-lg p-2.5 sm:p-3 shadow-sm cursor-pointer overflow-hidden',
         'transition-all hover:shadow-md hover:border-[#1A56A0]/40 active:scale-[0.99]',
-        'flex flex-row items-start gap-3',
+        'flex flex-row items-start gap-2.5 sm:gap-3',
         'sm:flex-col sm:items-center sm:text-center'
       )}
     >
@@ -269,39 +269,39 @@ function SponsorCard({
         <img
           src={sponsor.logo_url}
           alt={sponsor.name}
-          className="h-14 w-14 sm:h-20 sm:w-20 object-contain rounded shrink-0 bg-white"
+          className="h-12 w-12 sm:h-20 sm:w-20 object-contain rounded shrink-0 bg-white"
         />
       ) : (
-        <div className="h-14 w-14 sm:h-20 sm:w-20 rounded-full bg-muted flex items-center justify-center text-sm sm:text-lg font-bold text-muted-foreground shrink-0">
+        <div className="h-12 w-12 sm:h-20 sm:w-20 rounded-full bg-muted flex items-center justify-center text-sm sm:text-lg font-bold text-muted-foreground shrink-0">
           {getInitials(sponsor.name)}
         </div>
       )}
 
       {/* Info */}
       <div className="flex-1 min-w-0 flex flex-col gap-1.5 sm:items-center sm:w-full">
-        <div className="flex items-start gap-2 w-full sm:justify-center">
-          <h3 className="text-sm font-semibold text-foreground leading-tight line-clamp-2 flex-1 sm:flex-none sm:text-center">
+        <div className="flex items-start gap-2 w-full sm:justify-center min-w-0">
+          <h3 className="text-sm font-semibold text-foreground leading-tight truncate sm:line-clamp-2 sm:whitespace-normal flex-1 sm:flex-none sm:text-center min-w-0">
             {sponsor.name}
           </h3>
           {/* Chevron mobile only */}
-          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5 sm:hidden group-hover:text-[#1A56A0] transition-colors" />
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5 sm:hidden group-hover:text-[#1A56A0] transition-colors" />
         </div>
 
         {sponsor.stand_location && (
           <div className={cn('flex items-center gap-1 text-xs sm:justify-center', meta.text)}>
-            <MapPin className="h-3 w-3" />
-            <span>Stand {sponsor.stand_location}</span>
+            <MapPin className="h-3 w-3 shrink-0" />
+            <span className="truncate">Stand {sponsor.stand_location}</span>
           </div>
         )}
 
-        <span className="inline-flex w-fit text-[11px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground sm:mx-auto">
+        <span className="inline-flex w-fit text-[11px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground sm:mx-auto max-w-full truncate">
           {t(`category.${sponsor.category}`)}
         </span>
 
         {/* Action button — bottom right on mobile, full width on desktop */}
         {eventId && (
           <div
-            className="mt-1.5 flex justify-end sm:justify-center sm:w-full sm:mt-2"
+            className="mt-1 flex justify-end w-full sm:justify-center sm:mt-2"
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => e.stopPropagation()}
           >
@@ -309,7 +309,8 @@ function SponsorCard({
               sponsorId={sponsor.id}
               eventId={eventId}
               sponsorName={sponsor.name}
-              className="text-xs h-8 sm:w-full"
+              compact
+              className="text-[11px] h-7 px-2.5 max-w-full sm:text-xs sm:h-8 sm:w-full sm:px-3"
             />
           </div>
         )}
