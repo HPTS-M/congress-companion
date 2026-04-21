@@ -27,6 +27,8 @@ import { adminProvidersService } from '@/services/admin-providers.service';
 import type { ProviderRow, ProviderForm } from '@/services/admin-providers.service';
 import { usePagination } from '@/hooks/usePagination';
 import { DataTablePagination } from '@/components/ui/data-table-pagination';
+import { FilterChips, type FilterChipOption } from '@/components/ui/filter-chips';
+import { Label } from '@/components/ui/label';
 
 const TYPE_ICONS: Record<string, React.ElementType> = {
   transport: Bus, food: UtensilsCrossed, tour: Map, special: Sparkles,
@@ -66,6 +68,8 @@ export default function AdminProviders() {
   const { providers, isLoading, createProvider, updateProvider, deleteProvider, toggleProvider, isCreating, isUpdating, refetch } = useAdminProviders(event?.id);
 
   const [search, setSearch] = useState('');
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [onlyActive, setOnlyActive] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<ProviderRow | null>(null);
   const [assigning, setAssigning] = useState<ProviderRow | null>(null);
@@ -77,7 +81,8 @@ export default function AdminProviders() {
   const [emailChangedConfirm, setEmailChangedConfirm] = useState<{ provider: ProviderRow; newEmail: string } | null>(null);
   const [activityProvider, setActivityProvider] = useState<ProviderRow | null>(null);
 
-  const filtered = useMemo(() => {
+  // Filtered by search only — for type counters
+  const searchFiltered = useMemo(() => {
     if (!search.trim()) return providers;
     const q = search.toLowerCase();
     return providers.filter((p) =>
@@ -86,6 +91,35 @@ export default function AdminProviders() {
       (p.contact_email ?? '').toLowerCase().includes(q)
     );
   }, [providers, search]);
+
+  const typeCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const p of searchFiltered) {
+      counts[p.category] = (counts[p.category] ?? 0) + 1;
+    }
+    return counts;
+  }, [searchFiltered]);
+
+  const filtered = useMemo(() => {
+    let list = searchFiltered;
+    if (selectedTypes.length > 0) {
+      list = list.filter((p) => selectedTypes.includes(p.category));
+    }
+    if (onlyActive) {
+      list = list.filter((p) => p.is_active ?? true);
+    }
+    return list;
+  }, [searchFiltered, selectedTypes, onlyActive]);
+
+  const typeChipOptions = useMemo<FilterChipOption[]>(() => {
+    const TYPES = ['transport', 'food', 'tour', 'special'] as const;
+    return TYPES.filter((tp) => (typeCounts[tp] ?? 0) > 0).map((tp) => ({
+      value: tp,
+      label: t(`logistics.type${tp.charAt(0).toUpperCase() + tp.slice(1)}`),
+      icon: TYPE_ICONS[tp],
+      count: typeCounts[tp],
+    }));
+  }, [typeCounts, t]);
 
   const pagination = usePagination(filtered, 10);
 
@@ -232,6 +266,26 @@ export default function AdminProviders() {
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('providers.searchPlaceholder')} className="pl-9" />
+      </div>
+
+      {/* Filter chips: type + onlyActive */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <FilterChips
+            ariaLabel={t('providers.filters.allTypes')}
+            allLabel={t('providers.filters.allTypes')}
+            allCount={searchFiltered.length}
+            selected={selectedTypes}
+            onChange={setSelectedTypes}
+            options={typeChipOptions}
+          />
+        </div>
+        <label className="inline-flex items-center gap-2 shrink-0 cursor-pointer select-none">
+          <Switch checked={onlyActive} onCheckedChange={setOnlyActive} />
+          <Label className="text-sm text-muted-foreground cursor-pointer">
+            {t('providers.filters.onlyActive')}
+          </Label>
+        </label>
       </div>
 
       {/* Table */}
