@@ -20,18 +20,42 @@ const schema = z.object({
   service_type: z.string().min(1),
   description: z.string().optional(),
   location: z.string().optional(),
-  valid_from: z.string().optional(),
-  valid_until: z.string().optional(),
-});
+  starts_at: z.string().optional(),
+  ends_at: z.string().optional(),
+}).refine(
+  (d) => {
+    if (!d.starts_at && !d.ends_at) return true;
+    if (d.starts_at && d.ends_at) return new Date(d.ends_at) > new Date(d.starts_at);
+    return false;
+  },
+  { message: 'INVALID_RANGE', path: ['ends_at'] },
+);
 
 type FormValues = z.infer<typeof schema>;
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  onSave: (data: FormValues) => Promise<void>;
+  onSave: (data: { name: string; service_type: string; description?: string; location?: string; starts_at?: string | null; ends_at?: string | null }) => Promise<void>;
   service?: ServiceCatalogRow | null;
   isSaving: boolean;
+}
+
+// Convert ISO timestamptz → 'YYYY-MM-DDTHH:mm' for datetime-local input
+function isoToLocalInput(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// Convert local input → ISO timestamptz
+function localInputToIso(local: string | undefined): string | null {
+  if (!local) return null;
+  const d = new Date(local);
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString();
 }
 
 export function ServiceModal({ open, onClose, onSave, service, isSaving }: Props) {
@@ -43,8 +67,8 @@ export function ServiceModal({ open, onClose, onSave, service, isSaving }: Props
       service_type: 'transport',
       description: '',
       location: '',
-      valid_from: '',
-      valid_until: '',
+      starts_at: '',
+      ends_at: '',
     },
   });
 
@@ -55,8 +79,8 @@ export function ServiceModal({ open, onClose, onSave, service, isSaving }: Props
         service_type: service.service_type,
         description: service.description ?? '',
         location: service.location ?? '',
-        valid_from: service.valid_from ?? '',
-        valid_until: service.valid_until ?? '',
+        starts_at: isoToLocalInput(service.starts_at),
+        ends_at: isoToLocalInput(service.ends_at),
       });
     } else {
       form.reset({
@@ -64,15 +88,22 @@ export function ServiceModal({ open, onClose, onSave, service, isSaving }: Props
         service_type: 'transport',
         description: '',
         location: '',
-        valid_from: '',
-        valid_until: '',
+        starts_at: '',
+        ends_at: '',
       });
     }
   }, [service, form]);
 
   const handleSubmit = async (data: FormValues) => {
     try {
-      await onSave(data);
+      await onSave({
+        name: data.name,
+        service_type: data.service_type,
+        description: data.description,
+        location: data.location,
+        starts_at: localInputToIso(data.starts_at),
+        ends_at: localInputToIso(data.ends_at),
+      });
       onClose();
     } catch {
       // keep modal open on error (e.g. duplicate name)
@@ -120,17 +151,23 @@ export function ServiceModal({ open, onClose, onSave, service, isSaving }: Props
               </FormItem>
             )} />
 
-            <div className="grid grid-cols-2 gap-3">
-              <FormField control={form.control} name="valid_from" render={({ field }) => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <FormField control={form.control} name="starts_at" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('logistics.fieldFrom')}</FormLabel>
-                  <FormControl><Input type="time" {...field} /></FormControl>
+                  <FormLabel>{t('logistics.fieldStartsAt', { defaultValue: 'Inicio del servicio' })}</FormLabel>
+                  <FormControl><Input type="datetime-local" {...field} /></FormControl>
+                  <FormMessage />
                 </FormItem>
               )} />
-              <FormField control={form.control} name="valid_until" render={({ field }) => (
+              <FormField control={form.control} name="ends_at" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('logistics.fieldUntil')}</FormLabel>
-                  <FormControl><Input type="time" {...field} /></FormControl>
+                  <FormLabel>{t('logistics.fieldEndsAt', { defaultValue: 'Fin del servicio' })}</FormLabel>
+                  <FormControl><Input type="datetime-local" {...field} /></FormControl>
+                  {form.formState.errors.ends_at?.message === 'INVALID_RANGE' && (
+                    <p className="text-xs text-destructive">
+                      {t('logistics.invalidRange', { defaultValue: 'La hora de fin debe ser posterior a la de inicio.' })}
+                    </p>
+                  )}
                 </FormItem>
               )} />
             </div>

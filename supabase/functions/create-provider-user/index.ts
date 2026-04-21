@@ -8,6 +8,16 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const log = (step: string, data?: unknown) => {
+  console.log(`[invite-provider] ${step}`, data !== undefined ? JSON.stringify(data) : "");
+};
+
+const errorResponse = (status: number, error: string, details?: unknown) =>
+  new Response(JSON.stringify({ error, ...(details ? { details } : {}) }), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
 async function sendInviteEmail(
   email: string,
   inviteLink: string,
@@ -48,20 +58,19 @@ async function sendInviteEmail(
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(`Resend error: ${JSON.stringify(error)}`);
+    const errorBody = await response.text();
+    throw new Error(`Resend error (${response.status}): ${errorBody}`);
   }
 }
 
 /**
- * Look up an auth user by email across all pages of listUsers().
- * The Admin API paginates at 50 by default; we iterate up to 20 pages (1000 users)
- * and compare emails case-insensitively to avoid false negatives.
+ * Look up an auth user by email across pages of listUsers().
+ * Limited to 5 pages × 200 users = 1000 max for snappy responses.
  */
 async function findAuthUserByEmail(adminClient: ReturnType<typeof createClient>, email: string): Promise<any | null> {
   const target = email.trim().toLowerCase();
   const perPage = 200;
-  for (let page = 1; page <= 20; page++) {
+  for (let page = 1; page <= 5; page++) {
     const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage });
     if (error) throw error;
     const users = (data?.users ?? []) as any[];
@@ -81,22 +90,15 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const resendApiKey = Deno.env.get("RESEND_API_KEY")!;
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
 
     if (!resendApiKey) {
-      return new Response(JSON.stringify({ error: "RESEND_API_KEY not configured" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      log("missing-secret", "RESEND_API_KEY");
+      return errorResponse(500, "RESEND_API_KEY not configured");
     }
 
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!authHeader) return errorResponse(401, "Unauthorized");
 
     const anonClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
@@ -104,56 +106,76 @@ Deno.serve(async (req) => {
 
     const { data: { user: caller }, error: authError } = await anonClient.auth.getUser();
     if (authError || !caller) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      log("auth-failed", authError?.message);
+      return errorResponse(401, "Unauthorized");
     }
 
-    const { data: roles } = await anonClient.rpc("get_user_roles", { _user_id: caller.id });
+    const { data: roles, error: rolesError } = await anonClient.rpc("get_user_roles", { _user_id: caller.id });
+    if (rolesError) {
+      log("roles-error", rolesError.message);
+      return errorResponse(403, "Failed to read roles", rolesError.message);
+    }
     const isAdmin = (roles ?? []).some((r: string) => ["superuser", "admin"].includes(r));
-    if (!isAdmin) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!isAdmin) return errorResponse(403, "Forbidden");
 
-    const body = await req.json();
-    const { provider_id, email: rawEmail, event_id, redirect_to, action } = body;
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return errorResponse(400, "Invalid JSON body");
+    }
+    const { provider_id, email: rawEmail, event_id, redirect_to, action } = body ?? {};
 
     if (!provider_id || !rawEmail || !event_id) {
-      return new Response(
-        JSON.stringify({ error: "Missing required fields: provider_id, email, event_id" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse(400, "Missing required fields: provider_id, email, event_id");
     }
 
     const email = String(rawEmail).trim().toLowerCase();
+    log("start", { provider_id, email, event_id, action });
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
     const baseUrl = buildBaseUrl();
     const sanitizedRedirect = (redirect_to ?? "").toString().replace(/\/+$/, "");
     const redirectUrl = sanitizedRedirect || (baseUrl ? `${baseUrl}/provider` : `${supabaseUrl}/provider`);
 
-    const { data: provider } = await adminClient
+    // Use maybeSingle to avoid silent failure
+    const { data: provider, error: providerError } = await adminClient
       .from("providers")
       .select("user_id, contact_email, access_code")
       .eq("id", provider_id)
-      .single();
+      .maybeSingle();
+    if (providerError) {
+      log("provider-fetch-error", providerError.message);
+      return errorResponse(500, "Failed to fetch provider", providerError.message);
+    }
+    if (!provider) {
+      return errorResponse(404, "Provider not found");
+    }
     const accessCode = (provider as any)?.access_code ?? null;
 
-    const { data: eventInfo } = await adminClient
+    const { data: eventInfo, error: eventError } = await adminClient
       .from("events")
       .select("name, organization_id")
       .eq("id", event_id)
-      .single();
+      .maybeSingle();
+    if (eventError) {
+      log("event-fetch-error", eventError.message);
+      return errorResponse(500, "Failed to fetch event", eventError.message);
+    }
+    if (!eventInfo) {
+      return errorResponse(404, "Event not found");
+    }
     const eventName = (eventInfo as any)?.name ?? null;
+    const eventData = eventInfo as { name: string; organization_id: string };
 
     // === ACTION: reinvite ===
-    // If the provider currently has a linked user, drop it so we go through the invite path again.
     if (action === "reinvite" && provider?.user_id) {
-      await adminClient.auth.admin.deleteUser(provider.user_id);
+      log("reinvite-deleting-user", provider.user_id);
+      const { error: delErr } = await adminClient.auth.admin.deleteUser(provider.user_id);
+      if (delErr) {
+        log("reinvite-delete-error", delErr.message);
+        return errorResponse(500, "Failed to delete previous user", delErr.message);
+      }
       await adminClient
         .from("providers")
         .update({ user_id: null, last_login: null, login_count: 0, password_changed: false })
@@ -162,6 +184,7 @@ Deno.serve(async (req) => {
 
     // === ACTION: resend ===
     if (action === "resend" && provider?.user_id) {
+      log("resend-generate-link");
       const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
         type: "magiclink",
         email,
@@ -169,14 +192,18 @@ Deno.serve(async (req) => {
       });
 
       if (linkError || !linkData?.properties?.action_link) {
-        return new Response(
-          JSON.stringify({ error: linkError?.message ?? "Failed to generate link" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        log("resend-link-error", linkError?.message);
+        return errorResponse(400, linkError?.message ?? "Failed to generate link");
       }
 
-      await sendInviteEmail(email, linkData.properties.action_link, resendApiKey, accessCode, eventName);
+      try {
+        await sendInviteEmail(email, linkData.properties.action_link, resendApiKey, accessCode, eventName);
+      } catch (emailErr: any) {
+        log("resend-email-error", emailErr?.message);
+        return errorResponse(502, "Failed to send email", emailErr?.message);
+      }
 
+      log("resend-success");
       return new Response(
         JSON.stringify({ success: true, action: "resent" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -184,12 +211,11 @@ Deno.serve(async (req) => {
     }
 
     // === INVITE: nuevo proveedor ===
-    const eventData = eventInfo;
-
     const linkExistingUser = async (userId: string) => {
+      log("link-existing-user", userId);
       await adminClient.from("profiles").upsert({ id: userId, email, full_name: `Provider: ${email}` });
       await adminClient.from("user_roles").upsert(
-        { user_id: userId, role: "provider", organization_id: eventData?.organization_id, assigned_by: caller.id },
+        { user_id: userId, role: "provider", organization_id: eventData.organization_id, assigned_by: caller.id },
         { onConflict: "user_id,role" }
       );
       await adminClient.from("providers").update({ user_id: userId }).eq("id", provider_id);
@@ -200,11 +226,14 @@ Deno.serve(async (req) => {
         options: { redirectTo: redirectUrl },
       });
 
-      if (!magicError && magicData?.properties?.action_link) {
-        await sendInviteEmail(email, magicData.properties.action_link, resendApiKey, accessCode, eventName);
+      if (magicError || !magicData?.properties?.action_link) {
+        log("link-magic-error", magicError?.message);
+        throw new Error(magicError?.message ?? "Failed to generate magic link");
       }
+      await sendInviteEmail(email, magicData.properties.action_link, resendApiKey, accessCode, eventName);
     };
 
+    log("generating-invite-link");
     const { data: inviteData, error: inviteError } = await adminClient.auth.admin.generateLink({
       type: "invite",
       email,
@@ -221,15 +250,23 @@ Deno.serve(async (req) => {
         msg.includes("already exists") ||
         msg.includes("already registered");
 
+      log("invite-error", { msg: inviteError.message, isAlreadyRegistered });
+
       if (isAlreadyRegistered) {
         const existingUser = await findAuthUserByEmail(adminClient, email);
 
         if (existingUser?.id) {
-          await linkExistingUser(existingUser.id);
-          return new Response(
-            JSON.stringify({ success: true, user_id: existingUser.id, action: "linked_existing" }),
-            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          try {
+            await linkExistingUser(existingUser.id);
+            log("linked-existing-success");
+            return new Response(
+              JSON.stringify({ success: true, user_id: existingUser.id, action: "linked_existing" }),
+              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          } catch (linkErr: any) {
+            log("link-existing-error", linkErr?.message);
+            return errorResponse(500, "Failed to link existing user", linkErr?.message);
+          }
         }
 
         return new Response(
@@ -242,32 +279,41 @@ Deno.serve(async (req) => {
         );
       }
 
-      return new Response(
-        JSON.stringify({ error: inviteError.message }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse(400, inviteError.message);
     }
 
     const userId = inviteData.user.id;
     const inviteLink = inviteData.properties?.action_link;
+    if (!inviteLink) {
+      log("missing-invite-link");
+      return errorResponse(500, "Invite generated but action_link missing");
+    }
 
     await adminClient.from("profiles").upsert({ id: userId, email, full_name: `Provider: ${email}` });
     await adminClient.from("user_roles").insert({
-      user_id: userId, role: "provider", organization_id: eventData?.organization_id, assigned_by: caller.id,
+      user_id: userId, role: "provider", organization_id: eventData.organization_id, assigned_by: caller.id,
     });
     await adminClient.from("providers").update({ user_id: userId }).eq("id", provider_id);
 
-    await sendInviteEmail(email, inviteLink, resendApiKey, accessCode, eventName);
+    try {
+      await sendInviteEmail(email, inviteLink, resendApiKey, accessCode, eventName);
+    } catch (emailErr: any) {
+      log("invite-email-error", emailErr?.message);
+      // user is created; surface a 207-style partial success
+      return new Response(
+        JSON.stringify({ success: true, user_id: userId, action: "invited", warning: "User created but email delivery failed", details: emailErr?.message }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
+    log("invite-success", userId);
     return new Response(
       JSON.stringify({ success: true, user_id: userId, action: "invited" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
-  } catch (err) {
-    return new Response(
-      JSON.stringify({ error: err.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+  } catch (err: any) {
+    console.error("[invite-provider] unhandled", err?.message, err?.stack);
+    return errorResponse(500, err?.message ?? "Internal error");
   }
 });

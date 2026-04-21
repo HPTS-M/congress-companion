@@ -177,9 +177,27 @@ export default function StaffPage() {
 
   const statusBadge = (s: StaffMember) => {
     if (s.invitation_status === 'active') {
-      return <Badge className="bg-accent/10 text-accent border-accent/30">{t('staff.statusActiveLabel')}</Badge>;
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge className="bg-accent/10 text-accent border-accent/30 cursor-help">{t('staff.statusActiveLabel')}</Badge>
+          </TooltipTrigger>
+          <TooltipContent>
+            {t('staff.tooltips.statusActive', { defaultValue: 'El miembro de personal ya activó su cuenta y puede ingresar al portal.' })}
+          </TooltipContent>
+        </Tooltip>
+      );
     }
-    return <Badge variant="outline" className="border-amber-400/40 text-amber-600 dark:text-amber-400">{t('staff.statusPendingLabel')}</Badge>;
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge variant="outline" className="border-amber-400/40 text-amber-600 dark:text-amber-400 cursor-help">{t('staff.statusPendingLabel')}</Badge>
+        </TooltipTrigger>
+        <TooltipContent>
+          {t('staff.tooltips.statusPending', { defaultValue: 'Aún no se ha enviado o aceptado la invitación. Actívalo desde el botón de check.' })}
+        </TooltipContent>
+      </Tooltip>
+    );
   };
 
   return (
@@ -230,6 +248,7 @@ export default function StaffPage() {
         </Card>
       ) : (
         <>
+        <TooltipProvider delayDuration={150}>
         <div className="overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
@@ -267,16 +286,25 @@ export default function StaffPage() {
                 <TableCell>{statusBadge(s)}</TableCell>
                 <TableCell>
                   {isActive ? (
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        checked={s.is_active}
-                        onCheckedChange={(v) => handleToggleAccess(s, v)}
-                        aria-label={t('staff.toggleAccess')}
-                      />
-                      <span className="text-xs text-muted-foreground">
-                        {s.is_active ? t('staff.accessEnabled') : t('staff.accessDisabled')}
-                      </span>
-                    </div>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center gap-2 cursor-help w-fit">
+                          <Switch
+                            checked={s.is_active}
+                            onCheckedChange={(v) => handleToggleAccess(s, v)}
+                            aria-label={t('staff.toggleAccess')}
+                          />
+                          <span className="text-xs text-muted-foreground">
+                            {s.is_active ? t('staff.accessEnabled') : t('staff.accessDisabled')}
+                          </span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {s.is_active
+                          ? t('staff.tooltips.accessEnabled', { defaultValue: 'Acceso activo. Puede iniciar sesión en el portal Staff.' })
+                          : t('staff.tooltips.accessDisabled', { defaultValue: 'Acceso revocado temporalmente. No podrá iniciar sesión hasta restaurarlo.' })}
+                      </TooltipContent>
+                    </Tooltip>
                   ) : (
                     <span className="text-xs text-muted-foreground">—</span>
                   )}
@@ -370,6 +398,7 @@ export default function StaffPage() {
           endIndex={pagination.endIndex}
           onPageChange={pagination.setPage}
         />
+        </TooltipProvider>
         </>
       )}
 

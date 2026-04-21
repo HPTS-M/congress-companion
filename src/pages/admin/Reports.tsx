@@ -19,9 +19,9 @@ import type { AttendanceReport, RatingsReport, LogisticsReport, SponsorEngagemen
 import { usePagination } from '@/hooks/usePagination';
 import { DataTablePagination } from '@/components/ui/data-table-pagination';
 
-function StatCard({ icon: Icon, label, value, loading, hint }: { icon: React.ElementType; label: string; value: string | number; loading?: boolean; hint?: string }) {
-  return (
-    <Card>
+function StatCard({ icon: Icon, label, value, loading, hint, tooltip }: { icon: React.ElementType; label: string; value: string | number; loading?: boolean; hint?: string; tooltip?: string }) {
+  const card = (
+    <Card className={tooltip ? 'cursor-help' : ''}>
       <CardContent className="flex items-center gap-4 p-4">
         <div className="rounded-lg bg-primary/10 p-2.5">
           <Icon className="h-5 w-5 text-primary" />
@@ -33,6 +33,13 @@ function StatCard({ icon: Icon, label, value, loading, hint }: { icon: React.Ele
         </div>
       </CardContent>
     </Card>
+  );
+  if (!tooltip) return card;
+  return (
+    <UiTooltip>
+      <TooltipTrigger asChild><div>{card}</div></TooltipTrigger>
+      <TooltipContent>{tooltip}</TooltipContent>
+    </UiTooltip>
   );
 }
 
@@ -437,19 +444,21 @@ export default function Reports() {
 
       {/* Summary Stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard icon={Users} label={t('reports.statAttendees')} value={summary.data?.totalAttendees ?? 0} loading={summary.isLoading} />
-        <StatCard icon={Calendar} label={t('reports.statSessions')} value={summary.data?.totalSessions ?? 0} loading={summary.isLoading} />
+        <StatCard icon={Users} label={t('reports.statAttendees')} value={summary.data?.totalAttendees ?? 0} loading={summary.isLoading} tooltip={t('reports.tooltips.kpiAttendees', { defaultValue: 'Asistentes registrados en el evento (excluye eliminados).' })} />
+        <StatCard icon={Calendar} label={t('reports.statSessions')} value={summary.data?.totalSessions ?? 0} loading={summary.isLoading} tooltip={t('reports.tooltips.kpiSessions', { defaultValue: 'Sesiones del programa con al menos un check-in.' })} />
         <StatCard
           icon={Star}
           label={t('reports.statAvgRating')}
           value={summary.data?.avgRating ? `⭐ ${summary.data.avgRating}` : t('reports.noRatingData')}
           loading={summary.isLoading}
+          tooltip={t('reports.tooltips.kpiAvgRating', { defaultValue: 'Promedio simple de las estrellas dadas por los asistentes a todas las sesiones.' })}
         />
         <StatCard
           icon={Ticket}
           label={t('reports.statUsedTickets')}
           value={summary.data?.usedTickets ?? 0}
           loading={summary.isLoading}
+          tooltip={t('reports.tooltips.kpiUsedTickets', { defaultValue: 'Tickets logísticos marcados como usados (escaneo QR + validación manual).' })}
           hint={
             summary.data && summary.data.usedTickets > 0
               ? t('reports.statUsedTicketsBreakdown', {

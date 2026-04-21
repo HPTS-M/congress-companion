@@ -1686,11 +1686,13 @@ export type Database = {
           cancelled_at: string | null
           created_at: string | null
           description: string | null
+          ends_at: string | null
           event_id: string
           id: string
           location: string | null
           name: string
           service_type: string
+          starts_at: string | null
           status: string
           valid_day: number | null
           valid_from: string | null
@@ -1700,11 +1702,13 @@ export type Database = {
           cancelled_at?: string | null
           created_at?: string | null
           description?: string | null
+          ends_at?: string | null
           event_id: string
           id?: string
           location?: string | null
           name: string
           service_type: string
+          starts_at?: string | null
           status?: string
           valid_day?: number | null
           valid_from?: string | null
@@ -1714,11 +1718,13 @@ export type Database = {
           cancelled_at?: string | null
           created_at?: string | null
           description?: string | null
+          ends_at?: string | null
           event_id?: string
           id?: string
           location?: string | null
           name?: string
           service_type?: string
+          starts_at?: string | null
           status?: string
           valid_day?: number | null
           valid_from?: string | null
@@ -2095,42 +2101,51 @@ export type Database = {
       }
       service_catalog_with_status: {
         Row: {
+          cancelled_at: string | null
           created_at: string | null
           description: string | null
           effective_status: string | null
+          ends_at: string | null
           event_id: string | null
           id: string | null
           location: string | null
           name: string | null
           service_type: string | null
+          starts_at: string | null
           status: string | null
           valid_day: number | null
           valid_from: string | null
           valid_until: string | null
         }
         Insert: {
+          cancelled_at?: string | null
           created_at?: string | null
           description?: string | null
           effective_status?: never
+          ends_at?: string | null
           event_id?: string | null
           id?: string | null
           location?: string | null
           name?: string | null
           service_type?: string | null
+          starts_at?: string | null
           status?: string | null
           valid_day?: number | null
           valid_from?: string | null
           valid_until?: string | null
         }
         Update: {
+          cancelled_at?: string | null
           created_at?: string | null
           description?: string | null
           effective_status?: never
+          ends_at?: string | null
           event_id?: string | null
           id?: string | null
           location?: string | null
           name?: string | null
           service_type?: string | null
+          starts_at?: string | null
           status?: string | null
           valid_day?: number | null
           valid_from?: string | null

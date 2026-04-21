@@ -902,6 +902,12 @@
     "fieldLocationPlaceholder": "Main hotel lobby",
     "fieldFrom": "Start time",
     "fieldUntil": "End time",
+    "fieldStartsAt": "Service start",
+    "fieldEndsAt": "Service end",
+    "startLabel": "Start",
+    "endLabel": "End",
+    "invalidRange": "End must be after start.",
+    "actionsMenu": "Service actions",
     "fieldDescription": "Description",
     "fieldDescriptionPlaceholder": "Service details...",
     "createSuccess": "Service created successfully",
@@ -1181,7 +1187,11 @@
       "activate": "Activate staff member account",
       "resend": "Resend invitation email to staff",
       "edit": "Edit staff member details",
-      "delete": "Delete staff member"
+      "delete": "Delete staff member",
+      "statusActive": "This staff member has activated their account and can sign in to the portal.",
+      "statusPending": "Invitation has not been sent or accepted yet. Activate them with the check button.",
+      "accessEnabled": "Access active. Can sign in to the Staff portal.",
+      "accessDisabled": "Access temporarily revoked. Cannot sign in until restored."
     }
   },
   "staffPortal": {
@@ -1270,7 +1280,11 @@
       "exportRatings": "Export session ratings to Excel",
       "exportLogistics": "Export logistics and services report to Excel",
       "exportSponsors": "Export sponsor engagement report to Excel",
-      "exportPolls": "Export poll responses to Excel"
+      "exportPolls": "Export poll responses to Excel",
+      "kpiAttendees": "Attendees registered in the event (excludes deleted).",
+      "kpiSessions": "Program sessions with at least one check-in.",
+      "kpiAvgRating": "Simple average of stars given by attendees across all sessions.",
+      "kpiUsedTickets": "Logistics tickets marked as used (QR scan + manual validation)."
     }
   },
   "polls": {
