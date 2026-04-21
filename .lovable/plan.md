@@ -1,117 +1,78 @@
 
 
-## Resumen del rediseño UX/UI — Comercial
+## Ajuste de tamaño de las tarjetas de patrocinadores
 
-Mantenemos exactamente como están **la barra superior de tabs** (Inicio, Agenda, Mensajería, Tickets, Comercial) y **el menú hamburguesa de la izquierda** (≡). No tocamos navegación.
+Mirando tu captura, el problema es claro: **el botón "Me interesa" se sale del lado derecho** de la tarjeta. Sucede porque en móvil la columna de info (centro) tiene `flex-1` y el botón ocupa su ancho natural, lo que en pantallas de ~360px hace que el botón se desborde junto al chevron.
 
-Solo rediseñamos la **página Comercial** y sus tarjetas para resolver el scroll horizontal interno y mejorar legibilidad.
+### Diagnóstico preciso
 
----
-
-### Cambios concretos
-
-#### 1. SponsorCard — toda la tarjeta clickeable, un solo botón visible
-
+Layout móvil actual de la card:
 ```
-┌─────────────────────────────────────────────────┐
-│  [LOGO]   CLAUDIA PRUEBA                    ›   │  ← tap en cualquier parte → detalle
-│   56x56   📍 Stand 2                            │
-│           [Farmacéutica]                        │
-│                              [♡ Me interesa]    │  ← único botón visible
-└─────────────────────────────────────────────────┘
+[Logo 56×56] [ Info flex-1 ............ ] [ Chevron ]
+                Nombre
+                📍 Stand
+                [chip categoría]
+                                  [♡ Me interesa]  ← se sale
 ```
 
-- **Toda la card es tappable** y navega al detalle del patrocinador (afford. visual: chevron `›` arriba a la derecha + hover state).
-- **Se elimina el botón "Ver más"** → soluciona el overflow horizontal porque ya no hay 2 botones compitiendo por el ancho.
-- **Único botón "Me interesa"** abajo a la derecha, ancho `auto` (no `flex-1`), tamaño compacto. `stopPropagation` para no disparar la navegación al detalle.
-- Cuando el usuario ya marcó interés → el botón cambia a `♥ Interesado` en color teal (`#00B89F`), deshabilitado.
-- **Logo a 56×56** (antes 64×64) para liberar espacio textual.
-- **Stand location promovido**: aparece junto al nombre con ícono `MapPin` pequeño en color del nivel.
-- **Categoría como chip pequeño** debajo del nombre, padding liviano.
+Causas:
+- Logo `h-14 w-14` (56px) + gaps + padding del card consumen ~80-90px del ancho útil.
+- El bloque de info usa `flex-1` pero su contenido interno (nombre + botón) no respeta el ancho del contenedor — el botón "Me interesa" tiene texto largo y termina empujando el layout.
+- En el screenshot se ve el corte en "Me interes**a**" a la derecha de las 3 tarjetas.
 
-#### 2. Section header de nivel — separadores con jerarquía
+### Cambios propuestos (todos en `src/pages/attendee/Commercial.tsx`)
 
-Hoy "Oro" es solo un chip suelto. Mejora a divisor de sección:
+**1. Reducir tamaño general de la card en móvil**
+- Padding del card: `p-3` → `p-2.5` (libera 4px laterales).
+- Logo móvil: `h-14 w-14` → `h-12 w-12` (48px, libera 8px).
+- Gap entre logo e info: `gap-3` → `gap-2.5`.
 
-```
-─── 🏆 Oro ──────────────────────────────────────
-```
+**2. Hacer el botón "Me interesa" más compacto**
+- Tamaño de botón: `text-xs h-8` → `text-[11px] h-7` con `px-2.5`.
+- Acortar texto cuando el espacio es tight: usar `lead.interestedShort` ("Interesa" / "Interested") en móvil, mantener "Me interesa" / "I'm interested" en desktop.
+- Truncar con `max-w-full` y `whitespace-nowrap` para garantizar que respete el contenedor.
 
-- Ícono según nivel: `Crown` (oro), `Award` (plata), `Medal` (bronce), `Building2` (expositor).
-- Color según nivel (amber / slate / orange / slate).
-- Línea horizontal a los lados con el color del nivel atenuado.
+**3. Garantizar contención del overflow**
+- Card: agregar `overflow-hidden` al contenedor principal.
+- Bloque de info: cambiar `flex-1 min-w-0` → asegurar que `min-w-0` esté presente para que `truncate` funcione en el nombre.
+- Nombre: agregar `truncate` (single line con `…`) en móvil cuando excede, mantener `line-clamp-2` solo en desktop.
+- El contenedor del botón: `flex justify-end w-full` para que el botón nunca exceda el ancho del bloque de info.
 
-#### 3. Filtros de categoría — chips con contador
+**4. Ajustar chevron**
+- Reducir tamaño: `h-4 w-4` → `h-3.5 w-3.5` y darle `shrink-0` (ya lo tiene).
+- Mantener visible solo en móvil (ya está con `sm:hidden`).
 
-- Cada chip muestra cuántos resultados tiene: `Farmacéutica (3)`, `Tecnología (1)`.
-- Chip "Todos" siempre primero con total.
-- Chips sin resultados se ocultan automáticamente (no muestra "Educación (0)").
-- Estado activo más contrastado: sombra suave + check `✓` a la izquierda.
-
-#### 4. Búsqueda — feedback inmediato
-
-- Botón `✕` para limpiar (aparece solo cuando hay texto).
-- Debajo del input: contador "X resultados" cuando hay búsqueda o filtro activo.
-
----
-
-### Mockup final del módulo (móvil 360px)
+### Mockup resultante (móvil 360px)
 
 ```
-  Área Comercial
-  Patrocinadores y expositores
-
-  ┌────────────────────────────────────────┐
-  │ 🔍  Buscar patrocinador...          ✕ │
-  └────────────────────────────────────────┘
-  3 resultados
-
-  [✓ Todos (3)] [Farmacéutica (3)] [Tecnología (1)]
-
-  ─── 🏆 Oro ──────────────────────────────
-
-  ┌────────────────────────────────────────┐
-  │ [LOGO]  CLAUDIA PRUEBA              ›  │
-  │  56x56  📍 Stand 2                     │
-  │         [Farmacéutica]                 │
-  │                        [♡ Me interesa] │
-  └────────────────────────────────────────┘
-
-  ┌────────────────────────────────────────┐
-  │  LA   Laboratorios ABC              ›  │
-  │       📍 Stand A-15                    │
-  │       [Farmacéutica]                   │
-  │                        [♥ Interesado]  │
-  └────────────────────────────────────────┘
+┌──────────────────────────────────────────┐
+│ [LOGO]  CLAUDIA PRUEBA              ›   │
+│  48×48  📍 Stand 2                       │
+│         [Farmacéutica]                   │
+│                          [♡ Interesa]    │  ← cabe completo
+└──────────────────────────────────────────┘
 ```
 
-En tablet/desktop (≥640px) se mantiene el grid de 2 columnas con la card vertical actual.
-
----
+En desktop/tablet (≥640px) **no cambia nada visible** — el grid de 2 columnas con card vertical sigue idéntico, ya que tiene espacio sobrado.
 
 ### Archivos afectados
 
 ```text
-EDIT  src/pages/attendee/Commercial.tsx     — refactor SponsorCard + section headers
-                                               + filtros con contador + búsqueda con ✕ y feedback
-EDIT  src/locales/es/commercial.json        — keys: searchResults, interestedShort, clearSearch
-EDIT  src/locales/en/commercial.json        — mismo set en inglés
+EDIT  src/pages/attendee/Commercial.tsx     — paddings, tamaños y truncado del card móvil
+EDIT  src/locales/es/commercial.json        — agregar key lead.interestedShort = "Interesa"
+EDIT  src/locales/en/commercial.json        — agregar key lead.interestedShort = "Interested"
+EDIT  src/components/attendee/SponsorLeadButton.tsx — usar variante corta cuando se pase prop `compact`
 ```
 
-Sin cambios en navegación. Sin migraciones DB. Sin nuevas dependencias. Sin cambios en `BottomNav` ni `HamburgerMenu`. Mantiene servicios y RLS actuales.
-
----
+Sin migraciones, sin nuevas dependencias, sin cambios de lógica, sin cambios en navegación.
 
 ### Verificación
 
-1. Abrir `/commercial` en móvil 360×800 → cada card en una fila, sin scroll horizontal interno.
-2. Tap en cualquier parte del card (logo, nombre, área vacía) → abre detalle.
-3. Tap en "Me interesa" → abre dialog de consentimiento sin abrir detalle.
-4. Después de marcar interés → botón cambia a `♥ Interesado` teal.
-5. Buscar "claud" → muestra "1 resultado" + botón ✕ visible.
-6. Tap en ✕ → limpia búsqueda, vuelve a mostrar todos.
-7. Filtrar por categoría → contador de resultados se actualiza.
-8. Categorías sin patrocinadores no aparecen como chip.
-9. Tablet 820px → vuelve a grid de 2 columnas con card vertical.
-10. Modo oscuro: contraste de cards, chips, separadores de nivel — todo legible.
+1. Abrir `/commercial` en móvil 360×800 → el botón "♡ Interesa" cabe completo dentro del card, sin corte.
+2. El chevron `›` queda alineado a la derecha del nombre, visible.
+3. Tap en cualquier parte del card → abre detalle.
+4. Tap en "Interesa" → abre dialog de consentimiento sin abrir detalle.
+5. Después de marcar interés → cambia a "♥ Enviado" (también compacto).
+6. En tablet 820px → vuelve al grid de 2 columnas con texto completo "Me interesa".
+7. Modo oscuro → contraste y bordes legibles, sin overflow.
 
