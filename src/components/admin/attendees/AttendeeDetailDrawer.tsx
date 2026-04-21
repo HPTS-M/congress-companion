@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
-import { Calendar, RefreshCw, Mail, Bus, UtensilsCrossed, Sparkles, Map, Plus, Trash2, Ban, RotateCcw, KeyRound, Copy } from 'lucide-react';
+import { Calendar, RefreshCw, Mail, Bus, UtensilsCrossed, Sparkles, Map, Plus, Trash2, Ban, RotateCcw, KeyRound, Copy, CheckCircle2, Undo2, QrCode, ShieldCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
@@ -361,6 +361,11 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
                       const serviceType = catalog?.service_type || 'special';
                       const Icon = SERVICE_ICONS[serviceType] || Sparkles;
                       const colorClass = SERVICE_COLORS[serviceType] || SERVICE_COLORS.special;
+                      const ticket = Array.isArray(s.service_tickets) ? s.service_tickets[0] : null;
+                      const isUsed = !!ticket?.is_used || s.status === 'completed';
+                      const isCancelledSrv = s.status === 'cancelled';
+                      const validationMethod = ticket?.validation_method || 'qr';
+                      const validatorName = Array.isArray(s.validator_names) ? s.validator_names[0] : null;
 
                       return (
                         <div key={s.id} className="rounded-lg border p-3 space-y-2">
@@ -372,34 +377,98 @@ export function AttendeeDetailDrawer({ attendeeId, onClose }: Props) {
                               <div className="font-medium text-sm text-foreground">
                                 {catalog?.name ?? s.service_catalog_id}
                               </div>
-                              {s.scheduled_date && (
-                                <div className="text-xs text-muted-foreground">
-                                  {format(new Date(s.scheduled_date), 'dd/MM/yyyy')}
+                              <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                {s.scheduled_date && (
+                                  <span className="text-xs text-muted-foreground">
+                                    {format(new Date(s.scheduled_date), 'dd/MM/yyyy')}
+                                  </span>
+                                )}
+                                <span className={cn(
+                                  'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium',
+                                  isUsed && 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+                                  !isUsed && !isCancelledSrv && 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+                                  isCancelledSrv && 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+                                )}>
+                                  {isUsed
+                                    ? t('attendees.detail.statusCompleted')
+                                    : isCancelledSrv
+                                      ? t('attendees.detail.statusCancelled')
+                                      : t('attendees.detail.statusScheduled')}
+                                </span>
+                              </div>
+                              {isUsed && (
+                                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                                  {validationMethod === 'manual_admin' ? (
+                                    <span className="inline-flex items-center gap-1">
+                                      <ShieldCheck className="h-3 w-3 text-primary" />
+                                      {t('attendees.detail.validatedManual')}
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1">
+                                      <QrCode className="h-3 w-3 text-primary" />
+                                      {t('attendees.detail.validatedQr')}
+                                    </span>
+                                  )}
+                                  {ticket?.used_at && (
+                                    <span>· {format(new Date(ticket.used_at), 'dd/MM HH:mm')}</span>
+                                  )}
+                                  {validatorName && (
+                                    <span>· {validatorName}</span>
+                                  )}
                                 </div>
                               )}
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Select
-                              value={s.status || 'scheduled'}
-                              onValueChange={(val) => handleStatusChange(s.id, val)}
-                            >
-                              <SelectTrigger className="h-7 w-[130px] text-xs">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="scheduled">{t('attendees.detail.statusScheduled')}</SelectItem>
-                                <SelectItem value="completed">{t('attendees.detail.statusCompleted')}</SelectItem>
-                                <SelectItem value="cancelled">{t('attendees.detail.statusCancelled')}</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            {isCancelledSrv ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1 h-8 text-xs"
+                                onClick={() => handleStatusChange(s.id, 'scheduled')}
+                              >
+                                <RotateCcw className="mr-1.5 h-3 w-3" />
+                                {t('attendees.detail.reactivateService')}
+                              </Button>
+                            ) : isUsed ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1 h-8 text-xs"
+                                onClick={() => handleStatusChange(s.id, 'scheduled')}
+                              >
+                                <Undo2 className="mr-1.5 h-3 w-3" />
+                                {t('attendees.detail.revertToPending')}
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1 h-8 text-xs border-accent/40 text-accent hover:bg-accent/10"
+                                onClick={() => handleStatusChange(s.id, 'completed')}
+                              >
+                                <CheckCircle2 className="mr-1.5 h-3 w-3" />
+                                {t('attendees.detail.markDelivered')}
+                              </Button>
+                            )}
+                            {!isUsed && !isCancelledSrv && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 text-xs text-muted-foreground"
+                                onClick={() => handleStatusChange(s.id, 'cancelled')}
+                              >
+                                <Ban className="mr-1.5 h-3 w-3" />
+                                {t('attendees.detail.cancelService')}
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 text-destructive hover:text-destructive"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
                               onClick={() => handleDeleteService(s.id)}
                             >
-                              <Trash2 className="h-3 w-3" />
+                              <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
                         </div>
