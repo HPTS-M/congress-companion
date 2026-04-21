@@ -147,6 +147,12 @@ Deno.serve(async (req) => {
     const resendKey = Deno.env.get('RESEND_API_KEY')
     if (resendKey) {
       try {
+        const { html, text, subject } = buildStaffEmail({
+          fullName: full_name,
+          eventName,
+          loginUrl,
+          assignedRoom: assigned_room ?? null,
+        });
         await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
@@ -154,15 +160,11 @@ Deno.serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: 'CONGRÉSSAPP <noreply@healtplustravels.app>',
+            from: 'Health Plus Travels Events <noreply@healtplustravels.app>',
             to: [email],
-            subject: `Acceso al Staff de ${eventName}`,
-            html: buildEmailHtml({
-              fullName: full_name,
-              eventName,
-              loginUrl,
-              assignedRoom: assigned_room ?? null,
-            }),
+            subject,
+            html,
+            text,
           }),
         })
       } catch (e) {
