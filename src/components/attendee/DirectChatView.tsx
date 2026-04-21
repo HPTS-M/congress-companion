@@ -126,6 +126,7 @@ interface BubbleProps {
   onCopy: (content: string) => void;
   onJumpToQuote: (id: string) => void;
   onRetry: (id: string) => void;
+  onDiscard: (pendingId: string) => void;
 }
 
 const MessageBubble = memo(
@@ -138,9 +139,11 @@ const MessageBubble = memo(
     onCopy,
     onJumpToQuote,
     onRetry,
+    onDiscard,
   }: BubbleProps) {
     const { t } = useTranslation('messaging');
     const [menuOpen, setMenuOpen] = useState(false);
+    const [discardOpen, setDiscardOpen] = useState(false);
     const longPressTimer = useRef<number | null>(null);
     const touchStartPos = useRef<{ x: number; y: number } | null>(null);
 
@@ -148,11 +151,15 @@ const MessageBubble = memo(
     const isFailed = pendingInfo?.status === 'failed';
     const isSending = pendingInfo?.status === 'sending';
     const isQueued = pendingInfo?.status === 'pending';
-    const canActOnMessage = !pendingInfo && !msg.id.startsWith('temp-');
+    const isRealMessage = !pendingInfo && !msg.id.startsWith('temp-');
+    // Allow opening menu on real messages OR pending entries (any status).
+    // Sending shows only "Copy" to avoid race conditions with the worker.
+    const canOpenMenu = isRealMessage || !!pendingInfo;
+    const canDiscard = isFailed || isQueued;
 
     // Long-press detection (mobile). Threshold cancels accidental scrolls.
     const handleTouchStart = (e: React.TouchEvent) => {
-      if (!canActOnMessage) return;
+      if (!canOpenMenu) return;
       const touch = e.touches[0];
       touchStartPos.current = { x: touch.clientX, y: touch.clientY };
       longPressTimer.current = window.setTimeout(() => {
@@ -180,7 +187,7 @@ const MessageBubble = memo(
     };
 
     const handleContextMenu = (e: React.MouseEvent) => {
-      if (!canActOnMessage) return;
+      if (!canOpenMenu) return;
       e.preventDefault();
       setMenuOpen(true);
     };
@@ -193,6 +200,21 @@ const MessageBubble = memo(
     const handleCopyClick = () => {
       setMenuOpen(false);
       onCopy(msg.content);
+    };
+
+    const handleRetryClick = () => {
+      setMenuOpen(false);
+      if (pendingInfo) onRetry(pendingInfo.id);
+    };
+
+    const handleDiscardClick = () => {
+      setMenuOpen(false);
+      setDiscardOpen(true);
+    };
+
+    const confirmDiscard = () => {
+      if (pendingInfo) onDiscard(pendingInfo.id);
+      setDiscardOpen(false);
     };
 
     return (
@@ -233,22 +255,58 @@ const MessageBubble = memo(
                 {msg.content}
               </div>
             </DropdownMenuTrigger>
-            {canActOnMessage && (
+            {canOpenMenu && (
               <DropdownMenuContent align={isOwn ? 'end' : 'start'} className="min-w-[160px]">
-                <DropdownMenuItem onClick={handleReplyClick} aria-label={t('replyAriaLabel')}>
-                  <Reply className="h-4 w-4 mr-2" />
-                  {t('reply')}
-                </DropdownMenuItem>
+                {isRealMessage && (
+                  <DropdownMenuItem onClick={handleReplyClick} aria-label={t('replyAriaLabel')}>
+                    <Reply className="h-4 w-4 mr-2" />
+                    {t('reply')}
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={handleCopyClick}>
                   <Copy className="h-4 w-4 mr-2" />
                   {t('copy')}
                 </DropdownMenuItem>
+                {isFailed && (
+                  <DropdownMenuItem onClick={handleRetryClick}>
+                    <AlertTriangle className="h-4 w-4 mr-2" />
+                    {t('tapToRetry')}
+                  </DropdownMenuItem>
+                )}
+                {canDiscard && (
+                  <DropdownMenuItem
+                    onClick={handleDiscardClick}
+                    className="text-destructive focus:text-destructive"
+                    aria-label={t('discard')}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    {t('discard')}
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             )}
           </DropdownMenu>
 
+          <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t('discardConfirmTitle')}</AlertDialogTitle>
+                <AlertDialogDescription>{t('discardConfirmBody')}</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{t('discardCancel')}</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={confirmDiscard}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {t('discardConfirmAction')}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
           {/* Desktop hover reply shortcut */}
-          {canActOnMessage && (
+          {isRealMessage && (
             <button
               type="button"
               onClick={() => onReply(msg)}
@@ -635,7 +693,13 @@ export default function DirectChatView({ conversation, onBack }: Props) {
     [toast, t]
   );
 
-  // Pending msgs converted to ChatMessage shape (with kind tag) for unified rendering.
+  const handleDiscard = useCallback(
+    (pendingId: string) => {
+      removePending(pendingId);
+      toast({ title: t('messageDiscarded') });
+    },
+    [removePending, toast, t]
+  );
   const pendingAsMessages: DisplayMessage[] = pending.map(p => ({
     id: p.id,
     conversation_id: p.conversationId,
@@ -757,6 +821,7 @@ export default function DirectChatView({ conversation, onBack }: Props) {
                     onCopy={handleCopy}
                     onJumpToQuote={handleJumpToQuote}
                     onRetry={retry}
+                    onDiscard={handleDiscard}
                   />
                 );
               })}
