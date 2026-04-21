@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildBaseUrl } from "../_shared/build-event-url.ts";
+import { renderEmail, renderEmailText, codeBlock, escapeHtml } from "../_shared/email-templates.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,10 +8,30 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-async function sendInviteEmail(email: string, inviteLink: string, resendApiKey: string, accessCode?: string | null): Promise<void> {
-  const codeBlock = accessCode
-    ? `<div style="background-color:#F8FAFC; border:1px solid #E2E8F0; border-radius:8px; padding:16px; margin:16px 0; text-align:center;"><p style="color:#64748B; font-size:12px; margin:0 0 6px;">Tu código de acceso interno</p><p style="color:#1A56A0; font-size:22px; font-weight:700; letter-spacing:4px; font-family:monospace; margin:0;">${accessCode}</p></div>`
-    : '';
+async function sendInviteEmail(
+  email: string,
+  inviteLink: string,
+  resendApiKey: string,
+  accessCode?: string | null,
+  eventName?: string | null,
+): Promise<void> {
+  const eventLabel = eventName?.trim() || 'Health Plus Travels Events';
+  const body = accessCode ? codeBlock(accessCode, 'Tu código de acceso interno') : '';
+  const opts = {
+    preheader: `Acceso a tu portal de proveedor — ${eventLabel}`,
+    eyebrow: '🤝 Portal de Proveedores',
+    headline: 'Bienvenido al portal de proveedores',
+    intro: `Has sido invitado/a a acceder al <strong>portal de proveedores</strong> de <strong>${escapeHtml(eventLabel)}</strong>. Configura tu acceso con el botón de abajo.`,
+    body,
+    ctaLabel: 'Acceder al portal',
+    ctaUrl: inviteLink,
+    ctaUrlHint: true,
+    footerNote: 'Este enlace expira en 24 horas. Si no esperabas este correo, puedes ignorarlo.',
+    eventName: eventLabel,
+  };
+  const html = renderEmail(opts);
+  const text = renderEmailText({ ...opts, code: accessCode ?? undefined, codeLabel: 'Código interno' });
+
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -20,22 +41,9 @@ async function sendInviteEmail(email: string, inviteLink: string, resendApiKey: 
     body: JSON.stringify({
       from: "Health Plus Travels Events <noreply@healtplustravels.app>",
       to: [email],
-      subject: "Acceso a tu Portal de Proveedor — Health Plus Travels Events",
-      html: `
-        <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;">
-          <h1 style="color: #1A56A0; font-size: 24px; margin-bottom: 16px;">Bienvenido al Portal de Proveedores</h1>
-          <p style="color: #334155; font-size: 16px; line-height: 1.6;">Has sido invitado a acceder al portal de proveedores de Health Plus Travels Events.</p>
-          ${codeBlock}
-          <p style="color: #334155; font-size: 16px; line-height: 1.6;">Haz clic en el botón para configurar tu acceso:</p>
-          <a href="${inviteLink}" style="display: inline-block; background: linear-gradient(135deg, #1A56A0, #00B89F); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px; margin: 24px 0;">
-            Acceder al Portal
-          </a>
-          <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #E2E8F0;">
-            <p style="color: #94A3B8; font-size: 12px;">Si no esperabas este correo, puedes ignorarlo.</p>
-            <p style="color: #94A3B8; font-size: 12px;">Este enlace expira en 24 horas.</p>
-          </div>
-        </div>
-      `,
+      subject: `🤝 ${eventLabel} — Acceso al portal de proveedor`,
+      html,
+      text,
     }),
   });
 
