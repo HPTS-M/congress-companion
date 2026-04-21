@@ -38,6 +38,8 @@
     "documents": "Documents",
     "announcements": "Announcements",
     "totalActivities": "Activities",
+    "servicesDelivered": "Services delivered",
+    "servicesDeliveredBreakdown": "QR: {{qr}} · Manual: {{manual}}",
     "recentActivity": "Recent Activity",
     "noActivity": "No recent activity",
     "sendAnnouncement": "Send Announcement",
