@@ -248,6 +248,7 @@ export default function StaffPage() {
         </Card>
       ) : (
         <>
+        <TooltipProvider delayDuration={150}>
         <div className="overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
@@ -285,16 +286,25 @@ export default function StaffPage() {
                 <TableCell>{statusBadge(s)}</TableCell>
                 <TableCell>
                   {isActive ? (
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        checked={s.is_active}
-                        onCheckedChange={(v) => handleToggleAccess(s, v)}
-                        aria-label={t('staff.toggleAccess')}
-                      />
-                      <span className="text-xs text-muted-foreground">
-                        {s.is_active ? t('staff.accessEnabled') : t('staff.accessDisabled')}
-                      </span>
-                    </div>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center gap-2 cursor-help w-fit">
+                          <Switch
+                            checked={s.is_active}
+                            onCheckedChange={(v) => handleToggleAccess(s, v)}
+                            aria-label={t('staff.toggleAccess')}
+                          />
+                          <span className="text-xs text-muted-foreground">
+                            {s.is_active ? t('staff.accessEnabled') : t('staff.accessDisabled')}
+                          </span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {s.is_active
+                          ? t('staff.tooltips.accessEnabled', { defaultValue: 'Acceso activo. Puede iniciar sesión en el portal Staff.' })
+                          : t('staff.tooltips.accessDisabled', { defaultValue: 'Acceso revocado temporalmente. No podrá iniciar sesión hasta restaurarlo.' })}
+                      </TooltipContent>
+                    </Tooltip>
                   ) : (
                     <span className="text-xs text-muted-foreground">—</span>
                   )}
