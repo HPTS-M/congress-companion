@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { Search, Building2, ChevronRight, MapPin, X, Crown, Award, Medal } from 'lucide-react';
-import { SponsorLeadButton } from '@/components/attendee/SponsorLeadButton';
+import { Search, Building2, X, Crown, Award, Medal } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FilterChips, type FilterChipOption } from '@/components/ui/filter-chips';
+import { SponsorCard } from '@/components/attendee/SponsorCard';
 import { useEvent, useEventSlug } from '@/hooks/useEvent';
 import { useSponsors } from '@/hooks/useSponsors';
 import { cn } from '@/lib/utils';
@@ -41,10 +41,6 @@ const LEVEL_META: Record<string, { icon: typeof Crown; text: string; line: strin
 };
 
 const CATEGORIES = ['pharmaceutical', 'technology', 'medical_equipment', 'services', 'education', 'other'] as const;
-
-function getInitials(name: string) {
-  return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-}
 
 export default function Commercial() {
   const { t } = useTranslation('commercial');
@@ -169,7 +165,7 @@ export default function Commercial() {
         Object.entries(grouped).map(([level, items]) => (
           <section key={level} className="space-y-3">
             <LevelDivider level={level} label={t(`level.${level}`)} />
-            <div className="flex flex-col gap-3 sm:grid sm:grid-cols-2">
+            <div className="flex flex-col gap-3">
               {items.map(sponsor => (
                 <SponsorCard
                   key={sponsor.id}
@@ -201,87 +197,3 @@ function LevelDivider({ level, label }: { level: string; label: string }) {
   );
 }
 
-function SponsorCard({
-  sponsor,
-  onView,
-  eventId,
-}: {
-  sponsor: Sponsor;
-  onView: () => void;
-  eventId?: string;
-}) {
-  const { t } = useTranslation('commercial');
-  const meta = LEVEL_META[sponsor.level] ?? LEVEL_META.exhibitor;
-
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onView}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onView();
-        }
-      }}
-      className={cn(
-        'group relative bg-card border border-border rounded-lg p-2 sm:p-3 shadow-sm cursor-pointer overflow-hidden',
-        'transition-all hover:shadow-md hover:border-[#1A56A0]/40 active:scale-[0.99]',
-        'flex flex-row items-start gap-2 sm:gap-3',
-        'sm:flex-col sm:items-center sm:text-center'
-      )}
-    >
-      {/* Logo */}
-      {sponsor.logo_url ? (
-        <img
-          src={sponsor.logo_url}
-          alt={sponsor.name}
-          className="h-10 w-10 sm:h-20 sm:w-20 object-contain rounded shrink-0 bg-white"
-        />
-      ) : (
-        <div className="h-10 w-10 sm:h-20 sm:w-20 rounded-full bg-muted flex items-center justify-center text-sm sm:text-lg font-bold text-muted-foreground shrink-0">
-          {getInitials(sponsor.name)}
-        </div>
-      )}
-
-      {/* Info */}
-      <div className="flex-1 min-w-0 flex flex-col gap-1.5 sm:items-center sm:w-full">
-        <div className="flex items-start gap-2 w-full sm:justify-center min-w-0">
-          <h3 className="text-sm font-semibold text-foreground leading-tight truncate sm:line-clamp-2 sm:whitespace-normal flex-1 sm:flex-none sm:text-center min-w-0">
-            {sponsor.name}
-          </h3>
-          {/* Chevron mobile only */}
-          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5 sm:hidden group-hover:text-[#1A56A0] transition-colors" />
-        </div>
-
-        {sponsor.stand_location && (
-          <div className={cn('flex items-center gap-1 text-xs sm:justify-center', meta.text)}>
-            <MapPin className="h-3 w-3 shrink-0" />
-            <span className="truncate">Stand {sponsor.stand_location}</span>
-          </div>
-        )}
-
-        <span className="inline-flex w-fit text-[11px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground sm:mx-auto max-w-full truncate">
-          {t(`category.${sponsor.category}`)}
-        </span>
-
-        {/* Action button — bottom left on mobile, full width on desktop */}
-        {eventId && (
-          <div
-            className="mt-0.5 flex justify-start w-full max-w-full sm:justify-center sm:mt-2"
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => e.stopPropagation()}
-          >
-            <SponsorLeadButton
-              sponsorId={sponsor.id}
-              eventId={eventId}
-              sponsorName={sponsor.name}
-              compact
-              className="text-[11px] h-7 px-2.5 max-w-full sm:text-xs sm:h-8 sm:w-full sm:px-3"
-            />
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
