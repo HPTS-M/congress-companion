@@ -1,47 +1,55 @@
 
 
-## Plan — Agregar Encuestas al menú hamburguesa (mobile)
+## Plan — Fix error "Error al asignar asistente" en Logística
 
-### Problema
-En mobile, el módulo **Encuestas** (`/{event-slug}/polls`) no aparece en ningún lado:
-- `BottomNav` solo muestra los 5 módulos de mayor prioridad (Polls queda 7°).
-- `HamburgerMenu` nunca incluyó Polls en su lista.
+### Causa raíz (confirmada en logs de Postgres)
 
-Resultado: los asistentes no pueden contestar encuestas desde un teléfono.
+```
+new row for relation "attendee_services" violates check constraint "attendee_services_status_check"
+```
 
-### Solución
-Agregar **Encuestas** como último ítem del menú hamburguesa, respetando el toggle `pollsEnabled` del evento.
+El servicio `adminLogisticsService.assignAttendee()` (línea 208) inserta `status: 'scheduled'`, pero el check constraint de la tabla `attendee_services` solo permite:
 
-### Cambios
+```
+'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
+```
 
-**`src/components/layout/HamburgerMenu.tsx`**
-- Importar el ícono `BarChart3` de `lucide-react` (mismo ícono que ya usan `BottomNav` y `AttendeeSidebar` para Polls — consistencia visual).
-- Ampliar el tipo `SettingsKey` para incluir `'pollsEnabled'`.
-- Agregar al final del array `menuItems` (justo después de `venueMap`):
-  ```ts
-  { key: 'polls', icon: BarChart3, path: '/polls', settingsKey: 'pollsEnabled' }
-  ```
+`'scheduled'` **no está en la lista** → toda inserción falla, tanto individual como masiva.
 
-### Sin cambios en
-- **i18n**: las claves `nav.polls` ya existen en `es/common.json` y `en/common.json` ("Encuestas" / "Polls").
-- **`BottomNav`**: conserva su lógica de top-5 por prioridad.
-- **`AttendeeSidebar` (desktop)**: ya tiene Polls.
-- **Settings / RLS / servicios**: nada que tocar.
-- **Filtro `pollsEnabled = false`**: si el organizador desactiva la feature, el ítem no aparece (filtro `visibleItems` ya existente lo oculta).
+### Por qué pasó
+En el cambio reciente del módulo Logística agregamos `effective_status = 'scheduled'` en la vista `service_catalog_with_status` (correcto, refleja el estado del servicio en sí). Pero por error replicamos ese mismo valor al insertar en `attendee_services`, que es otra tabla con su propio dominio de estados.
 
-### Verificación
-- Mobile (≤768px) con `pollsEnabled = true`: ícono 📊 Encuestas aparece como último ítem del hamburger, antes del separador y "Cerrar sesión".
-- Mobile con `pollsEnabled = false`: no aparece.
-- Desktop: sin cambios visibles (sidebar ya lo tenía).
+### Solución (1 línea)
+
+**`src/services/admin-logistics.service.ts`** — método `assignAttendee` (línea 204-211):
+
+Cambiar:
+```ts
+status: 'scheduled',
+```
+por:
+```ts
+status: 'pending',
+```
+
+`'pending'` es el estado natural inicial: el asistente queda asignado al servicio pero aún no ha sido validado/usado. Coincide con el resto del flujo (cuando se usa el ticket pasa a `'completed'`, cuando se cancela a `'cancelled'`).
+
+### Verificación posterior
+1. Reasignar individualmente desde `/admin/logistics/{id}/assign` → debe mostrar toast de éxito.
+2. Asignar masivamente (modo "confirmed" o "all") → debe mover los 590 registros sin errores.
+3. Confirmar en la tabla que aparecen con badge "Pendiente" (amber).
 
 ### Archivos a modificar
 | Archivo | Cambio |
 |---|---|
-| `src/components/layout/HamburgerMenu.tsx` | Importar `BarChart3`, agregar `'pollsEnabled'` al tipo, agregar entrada `polls` al final de `menuItems` |
+| `src/services/admin-logistics.service.ts` | Línea 208: `'scheduled'` → `'pending'` |
+
+### Sin cambios en
+- Base de datos / RLS / triggers (el constraint actual es correcto, no hay que tocarlo).
+- UI / modales / hooks.
+- i18n.
+- Lógica de cancelación, reactivación, validación de tickets — todas ya usan estados válidos.
 
 ### Esfuerzo
-~2 minutos. Edición de un solo archivo, 3 líneas modificadas.
-
-### Nota fuera de alcance
-El sistema de prioridades fijas en `BottomNav` puede ocultar otros módulos en mobile cuando hay 5+ features activas. Vale la pena revisar en una próxima iteración si conviene permitir al admin elegir qué pestañas van en el bottom nav.
+~30 segundos. Una sola línea.
 
