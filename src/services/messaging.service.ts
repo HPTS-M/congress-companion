@@ -146,14 +146,12 @@ export const messagingService = {
       throw new Error(parsed.error.errors[0]?.message ?? 'Invalid message');
     }
 
-    const payload: Record<string, unknown> = {
+    const payload = {
       conversation_id: parsed.data.conversationId,
       sender_id: parsed.data.senderId,
       content: parsed.data.content,
+      reply_to_id: parsed.data.replyToId ?? null,
     };
-    if (parsed.data.replyToId) {
-      payload.reply_to_id = parsed.data.replyToId;
-    }
 
     const { error } = await supabase.from('chat_messages').insert(payload);
     if (error) throw new Error(error.message);
