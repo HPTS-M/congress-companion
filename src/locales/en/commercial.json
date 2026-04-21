@@ -5,6 +5,9 @@
   "allCategories": "All",
   "noSponsors": "No sponsors found",
   "viewMore": "View more",
+  "clearSearch": "Clear search",
+  "searchResults_one": "{{count}} result",
+  "searchResults_other": "{{count}} results",
   "level": {
     "gold": "Gold",
     "silver": "Silver",
