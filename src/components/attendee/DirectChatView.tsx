@@ -2,14 +2,14 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/hooks/useAuth';
 import { useEvent } from '@/hooks/useEvent';
-import { useDirectMessages, useAttendeeNames, useDeleteConversation } from '@/hooks/useMessaging';
+import { useDirectMessages, useAttendeeNames, useDeleteConversation, useMarkDelivered } from '@/hooks/useMessaging';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { usePendingMessages } from '@/hooks/usePendingMessages';
 import { messagingService, type ChatMessage, type DirectConversation } from '@/services/messaging.service';
 import { supabase } from '@/integrations/supabase/client';
 import { format, isToday, isYesterday } from 'date-fns';
 import { es, enUS } from 'date-fns/locale';
-import { ArrowLeft, Send, Trash2, MessageSquare, Clock, AlertTriangle, Loader2 } from 'lucide-react';
+import { ArrowLeft, Send, Trash2, MessageSquare, Clock, AlertTriangle, Loader2, Check, CheckCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -62,6 +62,7 @@ export default function DirectChatView({ conversation, onBack }: Props) {
   );
   const { data: nameMap = {} } = useAttendeeNames(eventId);
   const deleteMutation = useDeleteConversation();
+  const markDelivered = useMarkDelivered();
   const { pending, enqueue, retry, remove: removePending } = usePendingMessages(conversation.id);
 
   const [input, setInput] = useState('');
@@ -115,6 +116,32 @@ export default function DirectChatView({ conversation, onBack }: Props) {
           );
           // Refresh conversation list (preview + ordering)
           queryClient.invalidateQueries({ queryKey: ['direct-conversations'] });
+
+          // If the incoming message is from the OTHER party, mark as delivered
+          if (attendeeId && newMsg.sender_id !== attendeeId) {
+            markDelivered.mutate({ conversationId: conversation.id, attendeeId });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'chat_messages',
+          filter: `conversation_id=eq.${conversation.id}`,
+        },
+        (payload) => {
+          const updated = payload.new as ChatMessage;
+          queryClient.setQueryData<ChatMessage[]>(
+            ['direct-messages', conversation.id],
+            (old = []) =>
+              old.map(m =>
+                m.id === updated.id
+                  ? { ...m, delivered_at: updated.delivered_at }
+                  : m
+              )
+          );
         }
       )
       .subscribe();
@@ -122,7 +149,15 @@ export default function DirectChatView({ conversation, onBack }: Props) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [conversation.id, queryClient, isOnline, realtimeKey]);
+  }, [conversation.id, queryClient, isOnline, realtimeKey, attendeeId, markDelivered]);
+
+  // Mark messages as delivered when opening the conversation
+  useEffect(() => {
+    if (!conversation.id || !attendeeId || !isOnline || conversation.status !== 'active') return;
+    markDelivered.mutate({ conversationId: conversation.id, attendeeId });
+    // Only when opening / when connectivity returns
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversation.id, attendeeId, isOnline, conversation.status]);
 
   const handleSend = useCallback(async () => {
     if (!input.trim() || sending || isPending) return;
@@ -149,6 +184,7 @@ export default function DirectChatView({ conversation, onBack }: Props) {
         sender_id: attendeeId,
         content,
         created_at: new Date().toISOString(),
+        delivered_at: null,
       };
       queryClient.setQueryData<ChatMessage[]>(
         ['direct-messages', conversation.id],
@@ -196,6 +232,7 @@ export default function DirectChatView({ conversation, onBack }: Props) {
     sender_id: p.senderId,
     content: p.content,
     created_at: p.createdAt,
+    delivered_at: null,
     __pending: p,
   }));
 
@@ -345,7 +382,22 @@ export default function DirectChatView({ conversation, onBack }: Props) {
                             {t('pendingMessage')}
                           </>
                         ) : (
-                          msg.created_at ? formatMessageTime(msg.created_at) : ''
+                          <>
+                            {msg.created_at ? formatMessageTime(msg.created_at) : ''}
+                            {isOwn && !pendingInfo && (
+                              msg.delivered_at ? (
+                                <CheckCheck
+                                  className="h-3.5 w-3.5 text-white/70"
+                                  aria-label={t('statusDelivered')}
+                                />
+                              ) : (
+                                <Check
+                                  className="h-3.5 w-3.5 text-white/70"
+                                  aria-label={t('statusSent')}
+                                />
+                              )
+                            )}
+                          </>
                         )}
                       </span>
                     </div>

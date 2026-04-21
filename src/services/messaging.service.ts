@@ -7,6 +7,7 @@ export interface ChatMessage {
   sender_id: string;
   content: string;
   created_at: string | null;
+  delivered_at: string | null;
   sender_name?: string;
 }
 
@@ -51,13 +52,22 @@ export const messagingService = {
   async getMessages(conversationId: string): Promise<ChatMessage[]> {
     const { data, error } = await supabase
       .from('chat_messages')
-      .select('id, conversation_id, sender_id, content, created_at')
+      .select('id, conversation_id, sender_id, content, created_at, delivered_at')
       .eq('conversation_id', conversationId)
       .is('deleted_at', null)
       .order('created_at', { ascending: true });
 
     if (error) throw new Error(error.message);
-    return data ?? [];
+    return (data ?? []) as ChatMessage[];
+  },
+
+  async markDelivered(conversationId: string, attendeeId: string): Promise<number> {
+    const { data, error } = await (supabase as unknown as { rpc: RpcCaller }).rpc(
+      'mark_messages_delivered',
+      { _conversation_id: conversationId, _attendee_id: attendeeId }
+    );
+    if (error) throw new Error(error.message);
+    return (data as number | null) ?? 0;
   },
 
   async sendMessage(conversationId: string, senderId: string, content: string): Promise<void> {
