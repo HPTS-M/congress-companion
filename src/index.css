@@ -5,7 +5,7 @@
 @tailwind utilities;
 
 /*
- * CONGRÉSSAPP Design System
+ * CONGRESSAPP Design System
  * All colors in HSL format for shadcn/ui compatibility.
  * Dark mode via prefers-color-scheme media query ONLY.
  */
@@ -44,7 +44,7 @@
 
     --radius: 0.5rem;
 
-    /* CONGRÉSSAPP Status Colors */
+    /* CONGRESSAPP Status Colors */
     --status-confirmed: 172 100% 36%;
     --status-pending: 213 72% 36%;
     --status-used: 215 16% 65%;

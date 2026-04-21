@@ -1,4 +1,4 @@
-# CONGRÉSSAPP — Documento de Historias de Usuario
+# CONGRESSAPP — Documento de Historias de Usuario
 > Para Product Owner · v1.0 · Febrero 2026
 
 ---
@@ -895,4 +895,4 @@ Toda historia se considera **DONE** cuando:
 
 ---
 
-*CONGRÉSSAPP · Product Owner User Stories · v1.0 · Confidencial*
+*CONGRESSAPP · Product Owner User Stories · v1.0 · Confidencial*

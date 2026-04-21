@@ -27,8 +27,8 @@ export default defineConfig(({ mode }) => ({
       },
       includeAssets: ["favicon.ico", "apple-touch-icon.png", "favicon-32x32.png", "favicon-16x16.png"],
       manifest: {
-        name: "CONGRÉSSAPP — Health Plus Travels",
-        short_name: "CONGRÉSSAPP",
+        name: "CONGRESSAPP — Health Plus Travels",
+        short_name: "CONGRESSAPP",
         start_url: "/",
         display: "standalone",
         theme_color: "#1A56A0",

@@ -13,7 +13,7 @@ initWebVitals();
 
 // Build marker for cache debugging
 // @ts-ignore — injected by Vite define
-console.log('[CONGRÉSSAPP] Build:', __BUILD_TIME__);
+console.log('[CONGRESSAPP] Build:', __BUILD_TIME__);
 
 // Detect preview vs production
 const isInIframe = (() => {
