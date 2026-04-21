@@ -22,6 +22,7 @@ import {
   useCancelScheduled,
   useDeleteAnnouncement,
 } from '@/hooks/useAdminCommunications';
+import { useAdminPushReachStats } from '@/hooks/useAdminPushReachStats';
 import { format } from 'date-fns';
 import { es as esLocale } from 'date-fns/locale';
 import type { AdminAnnouncement } from '@/services/admin-communications.service';
@@ -57,6 +58,7 @@ export default function AdminCommunications() {
 
   const announcements = useAdminAnnouncements(eventId);
   const stats = useAdminCommsStats(eventId);
+  const pushReach = useAdminPushReachStats(eventId);
   const createMutation = useCreateAnnouncement(eventId);
   const updateMutation = useUpdateAnnouncement(eventId);
   const resendMutation = useResendAnnouncement(eventId);
@@ -164,10 +166,30 @@ export default function AdminCommunications() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label={t('communications.statTotal')} value={stats.total.data} icon={Megaphone} loading={stats.total.isLoading} />
         <StatCard label={t('communications.statToday')} value={stats.today.data} icon={CalendarClock} loading={stats.today.isLoading} />
         <StatCard label={t('communications.statReach')} value={stats.attendees.data} icon={Users} loading={stats.attendees.isLoading} />
+        <Card>
+          <CardContent className="flex items-center gap-4 p-5">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+              <BellRing className="h-6 w-6 text-primary" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm text-muted-foreground">{t('communications.statPushReach')}</p>
+              {pushReach.isLoading ? (
+                <Skeleton className="h-7 w-20 mt-1" />
+              ) : (
+                <p className="text-2xl font-bold text-foreground">
+                  {pushReach.data?.activeCount ?? 0}
+                  <span className="text-sm font-normal text-muted-foreground"> / {pushReach.data?.totalConfirmed ?? 0}</span>
+                  <span className="ml-2 text-sm font-medium text-primary">({pushReach.data?.percentage ?? 0}%)</span>
+                </p>
+              )}
+              <p className="text-[11px] text-muted-foreground">{t('communications.statPushReachSub')}</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Scheduled section */}
