@@ -165,7 +165,7 @@ async function logInvitationAttempt(
 
 async function sendOneInvitation(
   attendee: { id: string; full_name: string; email: string },
-  event: { id: string; name: string; event_code: string },
+  event: { id: string; name: string; event_code: string; start_date?: string | null; end_date?: string | null; venue_name?: string | null },
   eventLoginUrl: string,
   resendApiKey: string,
   supabaseAdmin: ReturnType<typeof createClient>,
@@ -233,19 +233,22 @@ async function sendOneInvitation(
   }
 
   // 3) Build email + send with retry/backoff on 429 / 5xx
-  const html = buildEmailHtml(
-    attendee.full_name,
-    event.name,
-    event.event_code,
-    plainCode,
-    eventLoginUrl,
-  );
+  const eventDates = formatEventDateRange(event.start_date, event.end_date, 'es');
+  const { html, text, subject } = buildInvitationEmail({
+    attendeeName: escapeHtml(attendee.full_name),
+    eventName: event.name,
+    accessCode: plainCode,
+    loginUrl: eventLoginUrl,
+    eventDates: eventDates || undefined,
+    eventVenue: event.venue_name || undefined,
+  });
 
   const payload = JSON.stringify({
     from: 'Health Plus Travels Events <noreply@healtplustravels.app>',
     to: [attendee.email],
-    subject: `🎫 Your credentials for ${event.name}`,
+    subject,
     html,
+    text,
   });
 
   let lastReason: FailureReason = 'unknown';
@@ -399,7 +402,7 @@ Deno.serve(async (req) => {
     // 4. Event
     const { data: event, error: eventError } = await supabaseAdmin
       .from('events')
-      .select('id, name, event_code')
+      .select('id, name, event_code, start_date, end_date, venue_name')
       .eq('id', event_id)
       .single();
 
