@@ -35,6 +35,7 @@ Deno.serve(async (req) => {
     }
 
     let dispatched = 0;
+    const dispatchedIds: string[] = [];
     for (const ann of pending) {
       // Recalculate reach_count = confirmed attendees at dispatch time
       const { count } = await admin
@@ -49,7 +50,27 @@ Deno.serve(async (req) => {
         .update({ sent_at: nowIso, reach_count: count ?? 0 })
         .eq("id", ann.id);
 
-      if (!updErr) dispatched += 1;
+      if (!updErr) {
+        dispatched += 1;
+        dispatchedIds.push(ann.id);
+      }
+    }
+
+    // Fire Web Push for every dispatched announcement (best-effort, parallel)
+    if (dispatchedIds.length > 0) {
+      const pushUrl = `${supabaseUrl}/functions/v1/send-announcement-push`;
+      await Promise.allSettled(
+        dispatchedIds.map((id) =>
+          fetch(pushUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${serviceRoleKey}`,
+            },
+            body: JSON.stringify({ announcement_id: id }),
+          }).then((r) => r.text()),
+        ),
+      );
     }
 
     return new Response(JSON.stringify({ dispatched }), {
