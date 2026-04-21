@@ -34,6 +34,8 @@
   },
   "lead": {
     "interested": "I'm interested",
+    "interestedShort": "Interested",
+    "submittedShort": "Sent",
     "submitted": "Interest registered",
     "success": "Your interest has been registered. The sponsor may contact you.",
     "error": "Error registering interest",

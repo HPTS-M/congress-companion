@@ -12,9 +12,10 @@ interface Props {
   eventId: string;
   sponsorName: string;
   className?: string;
+  compact?: boolean;
 }
 
-export function SponsorLeadButton({ sponsorId, eventId, sponsorName, className }: Props) {
+export function SponsorLeadButton({ sponsorId, eventId, sponsorName, className, compact }: Props) {
   const { t } = useTranslation('commercial');
   const { attendee } = useAuth();
   const [submitted, setSubmitted] = useState(false);
@@ -55,8 +56,12 @@ export function SponsorLeadButton({ sponsorId, eventId, sponsorName, className }
         onClick={() => setShowConsent(true)}
         disabled={loading || submitted}
       >
-        <Heart className={`h-4 w-4 ${submitted ? 'fill-current' : ''}`} />
-        {submitted ? t('lead.submitted') : t('lead.interested')}
+        <Heart className={`h-3.5 w-3.5 ${submitted ? 'fill-current' : ''}`} />
+        <span className="whitespace-nowrap">
+          {compact
+            ? (submitted ? t('lead.submittedShort') : t('lead.interestedShort'))
+            : (submitted ? t('lead.submitted') : t('lead.interested'))}
+        </span>
       </Button>
       <SponsorLeadConsentDialog
         open={showConsent}
