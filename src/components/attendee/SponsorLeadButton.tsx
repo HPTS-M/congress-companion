@@ -52,7 +52,7 @@ export function SponsorLeadButton({ sponsorId, eventId, sponsorName, className, 
       <Button
         variant={submitted ? 'secondary' : 'default'}
         size="sm"
-        className={className}
+        className={`${compact ? 'px-2.5 gap-1 max-w-full' : ''} ${className ?? ''}`.trim()}
         onClick={() => setShowConsent(true)}
         disabled={loading || submitted}
       >

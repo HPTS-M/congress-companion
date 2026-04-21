@@ -258,9 +258,9 @@ function SponsorCard({
         }
       }}
       className={cn(
-        'group relative bg-card border border-border rounded-lg p-2.5 sm:p-3 shadow-sm cursor-pointer overflow-hidden',
+        'group relative bg-card border border-border rounded-lg p-2 sm:p-3 shadow-sm cursor-pointer overflow-hidden',
         'transition-all hover:shadow-md hover:border-[#1A56A0]/40 active:scale-[0.99]',
-        'flex flex-row items-start gap-2.5 sm:gap-3',
+        'flex flex-row items-start gap-2 sm:gap-3',
         'sm:flex-col sm:items-center sm:text-center'
       )}
     >
@@ -269,10 +269,10 @@ function SponsorCard({
         <img
           src={sponsor.logo_url}
           alt={sponsor.name}
-          className="h-12 w-12 sm:h-20 sm:w-20 object-contain rounded shrink-0 bg-white"
+          className="h-10 w-10 sm:h-20 sm:w-20 object-contain rounded shrink-0 bg-white"
         />
       ) : (
-        <div className="h-12 w-12 sm:h-20 sm:w-20 rounded-full bg-muted flex items-center justify-center text-sm sm:text-lg font-bold text-muted-foreground shrink-0">
+        <div className="h-10 w-10 sm:h-20 sm:w-20 rounded-full bg-muted flex items-center justify-center text-sm sm:text-lg font-bold text-muted-foreground shrink-0">
           {getInitials(sponsor.name)}
         </div>
       )}
@@ -298,10 +298,10 @@ function SponsorCard({
           {t(`category.${sponsor.category}`)}
         </span>
 
-        {/* Action button — bottom right on mobile, full width on desktop */}
+        {/* Action button — bottom left on mobile, full width on desktop */}
         {eventId && (
           <div
-            className="mt-1 flex justify-end w-full sm:justify-center sm:mt-2"
+            className="mt-0.5 flex justify-start w-full max-w-full sm:justify-center sm:mt-2"
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => e.stopPropagation()}
           >
