@@ -30,7 +30,8 @@ import { DataTablePagination } from '@/components/ui/data-table-pagination';
 import { FilterChips, type FilterChipOption } from '@/components/ui/filter-chips';
 import { Label } from '@/components/ui/label';
 
-const TYPE_ICONS: Record<string, React.ElementType> = {
+import type { LucideIcon } from 'lucide-react';
+const TYPE_ICONS: Record<string, LucideIcon> = {
   transport: Bus, food: UtensilsCrossed, tour: Map, special: Sparkles,
 };
 const TYPE_COLORS: Record<string, string> = {
