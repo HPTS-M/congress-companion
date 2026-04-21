@@ -999,6 +999,10 @@
     "emailChangedNo": "No, mantener pendiente",
     "reinviteSent": "Invitación reenviada al nuevo email {{email}}",
     "duplicateEmail": "Ya existe un proveedor con ese email en este evento",
+    "filters": {
+      "allTypes": "Todos los tipos",
+      "onlyActive": "Solo activos"
+    },
     "viewActivity": "Ver actividad",
     "activityHistory": "Historial de actividad",
     "filterFrom": "Desde",
