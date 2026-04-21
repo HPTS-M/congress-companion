@@ -7,11 +7,17 @@ import { HamburgerMenu } from './HamburgerMenu';
 import { AttendeeSidebar } from './AttendeeSidebar';
 import { AttendeeOfflineBanner } from './AttendeeOfflineBanner';
 import { useMessageQueueWorker } from '@/hooks/useMessageQueueWorker';
+import { usePushSubscription } from '@/hooks/usePushSubscription';
+import { useAnnouncementToasts } from '@/hooks/useAnnouncementToasts';
 
 export function AttendeeLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   // Drain offline message queue (WhatsApp-style) once for the whole attendee app
   useMessageQueueWorker();
+  // Keep this device's Web Push subscription up-to-date (when permission granted)
+  usePushSubscription();
+  // Show in-app toasts for new announcements (any screen except the list itself)
+  useAnnouncementToasts();
 
   return (
     <SidebarProvider>

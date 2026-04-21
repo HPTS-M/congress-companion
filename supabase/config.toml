@@ -17,3 +17,10 @@ verify_jwt = false
 
 [functions.regenerate-access-code]
 verify_jwt = false
+
+[functions.dispatch-scheduled-announcements]
+verify_jwt = false
+
+[functions.send-announcement-push]
+verify_jwt = false
+

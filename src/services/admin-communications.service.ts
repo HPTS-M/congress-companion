@@ -49,19 +49,30 @@ export const adminCommunicationsService = {
       reach_count = await this.getConfirmedAttendeesCount(eventId);
     }
 
-    const { error } = await supabase.from('announcements').insert({
-      event_id: eventId,
-      title: payload.title,
-      body: payload.body,
-      reach,
-      reach_count,
-      sent_at: isScheduled ? null : new Date().toISOString(),
-      scheduled_for: isScheduled ? payload.scheduledFor!.toISOString() : null,
-    });
+    const { data: inserted, error } = await supabase
+      .from('announcements')
+      .insert({
+        event_id: eventId,
+        title: payload.title,
+        body: payload.body,
+        reach,
+        reach_count,
+        sent_at: isScheduled ? null : new Date().toISOString(),
+        scheduled_for: isScheduled ? payload.scheduledFor!.toISOString() : null,
+      })
+      .select('id, sent_at')
+      .single();
 
     if (error) {
       if (error.code === '23505') throw new Error('DUPLICATE_TITLE');
       throw new Error(error.message);
+    }
+
+    // Fire Web Push for immediate sends (best-effort, never blocks UI)
+    if (inserted && !isScheduled && inserted.sent_at) {
+      void supabase.functions
+        .invoke('send-announcement-push', { body: { announcement_id: inserted.id } })
+        .catch((e) => console.warn('[push] dispatch failed', e));
     }
   },
 
@@ -132,6 +143,11 @@ export const adminCommunicationsService = {
       if (error.code === '23505') throw new Error('DUPLICATE_TITLE');
       throw new Error(error.message);
     }
+
+    // Fire Web Push for the resend (best-effort)
+    void supabase.functions
+      .invoke('send-announcement-push', { body: { announcement_id: id } })
+      .catch((e) => console.warn('[push] resend dispatch failed', e));
   },
 
   async cancelScheduled(id: string): Promise<void> {
