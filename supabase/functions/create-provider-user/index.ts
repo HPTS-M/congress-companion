@@ -143,6 +143,13 @@ Deno.serve(async (req) => {
       .single();
     const accessCode = (provider as any)?.access_code ?? null;
 
+    const { data: eventInfo } = await adminClient
+      .from("events")
+      .select("name, organization_id")
+      .eq("id", event_id)
+      .single();
+    const eventName = (eventInfo as any)?.name ?? null;
+
     // === ACTION: reinvite ===
     // If the provider currently has a linked user, drop it so we go through the invite path again.
     if (action === "reinvite" && provider?.user_id) {
@@ -168,7 +175,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      await sendInviteEmail(email, linkData.properties.action_link, resendApiKey, accessCode);
+      await sendInviteEmail(email, linkData.properties.action_link, resendApiKey, accessCode, eventName);
 
       return new Response(
         JSON.stringify({ success: true, action: "resent" }),
