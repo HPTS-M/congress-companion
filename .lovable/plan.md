@@ -1,106 +1,137 @@
 
 
-## Plan: Indicadores ✓ enviado y ✓✓ entregado en chat (best practices)
+## Plan: Pantalla de error amigable con auto-recuperación
 
-### Alcance
-
-Solo dos estados visuales en mensajes propios (sin "leído"):
-
-| Estado | Icono | Cuándo |
-|---|---|---|
-| Enviado al servidor | **✓** gris | Mensaje persistido en `chat_messages` |
-| Entregado al receptor | **✓✓** gris | El otro asistente lo descargó en su dispositivo |
-
-Se mantienen los estados existentes 🕐 pendiente offline · ⟳ enviando · ⚠ falló.
+### Qué resuelve
+Cuando algo falla y se rompe la app, hoy el usuario ve solo *"Something went wrong"* sobre fondo oscuro, sin idioma, sin acción. Queda atrapado. Vamos a reemplazar esa pantalla por una experiencia amigable, en su idioma, que se auto-recupera sola en la mayoría de casos.
 
 ---
 
-### Best practices aplicadas
+### Cómo se verá
 
-1. **Backend-first**: migración SQL + RLS antes de tocar UI.
-2. **`SECURITY DEFINER` con validación interna** vía `get_my_attendee_ids()` — nunca `auth.uid()` dentro del cuerpo, siempre parámetro explícito.
-3. **Idempotencia**: la RPC filtra `delivered_at IS NULL`, llamarla N veces es seguro.
-4. **Índice parcial** sobre `(conversation_id) WHERE delivered_at IS NULL` para que el UPDATE masivo no escanee tabla completa.
-5. **Realtime con cleanup explícito** (`supabase.removeChannel`) — regla del proyecto.
-6. **Optimistic update vía `setQueryData`**, no `invalidateQueries`, para evitar refetch en cada UPDATE entrante.
-7. **i18n estricto** — sin strings hardcodeados; `aria-label` traducido en cada icono.
-8. **Sin "leído"** — privacidad por defecto, escalable a un toggle futuro.
-9. **TypeScript estricto** — tipo `ChatMessage` extendido, sin `any`.
-10. **Throttle de marcado**: en el list, batchear `markDelivered` por conversación con un debounce de 500 ms para evitar spam de RPC cuando llegan varios INSERT seguidos.
+```text
+┌──────────────────────────────────────┐
+│                                      │
+│        [Logo CONGRÉSSAPP]            │
+│                                      │
+│              ⚠ (icono)               │
+│                                      │
+│   Algo no salió como esperábamos     │
+│                                      │
+│   No te preocupes, esto suele        │
+│   resolverse al refrescar.           │
+│   Tu sesión y tus datos están        │
+│   seguros.                           │
+│                                      │
+│   Reintentando en 5 s…               │
+│                                      │
+│   [  Refrescar ahora  ]              │
+│   [  Volver al inicio ]              │
+│                                      │
+│   ID del error: a1b2c3 · Copiar      │
+└──────────────────────────────────────┘
+```
 
 ---
 
 ### Cambios
 
-#### 1. Migración SQL
-- `ALTER TABLE chat_messages ADD COLUMN delivered_at timestamptz NULL;`
-- `CREATE INDEX idx_chat_messages_undelivered ON chat_messages(conversation_id) WHERE delivered_at IS NULL;`
-- Función `mark_messages_delivered(_conversation_id uuid, _attendee_id uuid)` `SECURITY DEFINER`:
-  - Valida `_attendee_id IN (SELECT get_my_attendee_ids())`.
-  - `UPDATE chat_messages SET delivered_at = now() WHERE conversation_id = _conversation_id AND sender_id != (sender del receptor) AND delivered_at IS NULL`.
-  - Resuelve el `sender_id` ajeno comparando contra los `attendee_id` del receptor a través de la conversación.
-- `GRANT EXECUTE ... TO authenticated` y revoke a `anon`.
-- Confirmar que `chat_messages` ya está en la publicación de Realtime para `UPDATE` (si no, agregar).
+#### 1. Nuevo componente `src/components/ErrorFallback.tsx`
+Pantalla full-screen con:
+- Logo CONGRÉSSAPP arriba (consistencia de marca).
+- Icono `AlertTriangle` en círculo `bg-accent/10` color teal `#00B89F`.
+- Título empático y mensaje tranquilizador (ver textos en sección i18n).
+- **Cuenta regresiva visible** de 5 s para auto-reintento.
+- Botón primario **"Refrescar ahora"** (`window.location.reload()`).
+- Botón secundario **"Volver al inicio"** (`window.location.href = '/'`).
+- ID técnico de Sentry al pie, copiable, para soporte.
 
-#### 2. Servicio + hook
-- `messagingService.markDelivered(conversationId, attendeeId)` — llama la RPC.
-- Tipo `ChatMessage` añade `delivered_at: string | null`.
-- Hook `useMarkDelivered()` con `useMutation` — sin invalidar, solo dispara.
+#### 2. Auto-recuperación inteligente
+- Auto-reload tras **5 segundos** la primera vez que se monta el fallback.
+- Si `navigator.onLine === false` → no recarga, muestra *"Esperando conexión a internet…"* y espera al evento `online` del navegador.
+- `sessionStorage.errorReloadAttempts`:
+  - Tras **2 intentos en menos de 60 s** → cancela auto-reload, deja solo botones manuales (evita loop infinito).
+  - Se limpia si la app vive >60 s sin error.
 
-#### 3. UI — render del icono (`DirectChatView.tsx`)
-Solo en mensajes propios (`isOwn`):
+#### 3. Diseño (alineado al design system)
+- Fondo `bg-background` (respeta light/dark automático).
+- Card centrado, max-width 400 px, `rounded-2xl`, `shadow-lg`, padding 24.
+- Botón primario `bg-primary` (#1A56A0) blanco · secundario `variant="outline"`.
+- Mobile-first 360 px en adelante.
 
-```text
-[hora]  [icono]
+#### 4. i18n — claves nuevas en `common.json`
+
+```json
+"errorFallback": {
+  "title": "Algo no salió como esperábamos",
+  "message": "No te preocupes, esto suele resolverse al refrescar. Tu sesión y tus datos están seguros.",
+  "autoRetry": "Reintentando automáticamente en {{seconds}} s…",
+  "offlineWaiting": "Esperando conexión a internet…",
+  "maxAttemptsReached": "Si el problema continúa, intenta más tarde o contacta al organizador.",
+  "refreshNow": "Refrescar ahora",
+  "goHome": "Volver al inicio",
+  "errorId": "ID del error: {{id}}",
+  "copyId": "Copiar ID",
+  "idCopied": "ID copiado"
+}
 ```
 
-- Pendiente offline → 🕐 (existente)
-- Enviando → ⟳ (existente)
-- Falló → ⚠ rojo (existente)
-- Real, sin `delivered_at` → **✓** gris (`Check` de `lucide-react`, `size={14}`, `text-white/70`)
-- Real, con `delivered_at` → **✓✓** gris (`CheckCheck`, mismo tamaño y color)
+Versión EN equivalente.
 
-Mensajes recibidos: solo hora, sin icono.
+#### 5. Integración en `src/main.tsx`
+Reemplazar el fallback inline:
 
-#### 4. Cuándo marcar entregado
-- **`DirectChatView`**: al montar y al recibir INSERT realtime estando abierto → `markDelivered`.
-- **`DirectConversationList`**: al recibir INSERT realtime de cualquier conversación → debounce 500 ms → `markDelivered`.
-
-#### 5. Realtime para refrescar el ✓ → ✓✓ del emisor
-Ampliar el canal existente en `DirectChatView` para escuchar `event: 'UPDATE'` en `chat_messages` filtrado por `conversation_id`. Al recibir UPDATE:
-
-```ts
-queryClient.setQueryData(['direct-messages', conversationId], (old) =>
-  old?.map(m => m.id === payload.new.id ? { ...m, delivered_at: payload.new.delivered_at } : m)
-);
+```tsx
+<Sentry.ErrorBoundary
+  fallback={({ resetError, eventId }) => (
+    <ErrorFallback resetError={resetError} eventId={eventId} />
+  )}
+>
+  <App />
+</Sentry.ErrorBoundary>
 ```
 
-Sin refetch.
+#### 6. Edge case — fallback de emergencia
+Si `i18n.isInitialized === false` (error muy temprano antes de cargar traducciones), el componente usa textos hardcoded en español como último recurso. Caso raro pero cubierto.
+
+---
+
+### Best practices aplicadas
+
+1. **Tono empático** — sin lenguaje técnico ni alarmante.
+2. **Acción clara** — botón primario destacado.
+3. **Auto-recuperación con límite** — evita loops infinitos.
+4. **Respeta estado offline** — no recarga sin red.
+5. **Trazabilidad** — `eventId` de Sentry copiable para soporte.
+6. **i18n estricto + fallback de emergencia**.
+7. **Dark mode automático** vía Tailwind.
+8. **Mobile-first** 360 px.
+9. **Accesibilidad** — `role="alert"`, `aria-live="assertive"`, foco automático en botón primario.
+10. **Sin dependencias nuevas** — solo `lucide-react` ya instalado.
 
 ---
 
 ### Archivos afectados
 
 ```text
-NUEVA migración SQL                                  delivered_at + índice + RPC + grants
-src/services/messaging.service.ts                    markDelivered + tipo ChatMessage
-src/hooks/useMessaging.ts                            useMarkDelivered
-src/components/attendee/DirectChatView.tsx           UPDATE en realtime, markDelivered, render ✓/✓✓
-src/components/attendee/DirectConversationList.tsx   markDelivered debounced al recibir INSERT
-src/locales/es/messaging.json + en/messaging.json    statusSent, statusDelivered (aria-labels)
+NUEVO  src/components/ErrorFallback.tsx
+EDIT   src/main.tsx                   — usar ErrorFallback
+EDIT   src/locales/es/common.json     — claves errorFallback.*
+EDIT   src/locales/en/common.json     — claves errorFallback.*
 ```
 
-Sin tocar el flujo offline ni el worker de cola.
+Sin migraciones SQL, sin nuevas dependencias.
 
 ---
 
 ### Verificación
 
-1. Dos navegadores, dos asistentes A y B.
-2. A envía → **✓ gris** inmediato.
-3. B abre la app (cualquier pantalla) → en A pasa a **✓✓ gris** en segundos.
-4. B totalmente offline → A sigue viendo **✓**. Cuando B vuelve y carga conversaciones → A ve **✓✓**.
-5. A sin internet → 🕐 → al volver online → ⟳ → ✓ → ✓✓.
-6. Recibidos: nunca muestran iconos de estado, solo hora.
-7. Confirmar en consola que no hay refetch de mensajes en cada UPDATE (solo `setQueryData`).
+1. Forzar un error temporal (`throw new Error('test')` en algún componente).
+2. Aparece pantalla amigable con logo, mensaje y cuenta regresiva.
+3. A los 5 s recarga sola.
+4. Disparar el error 2 veces seguidas → la cuenta regresiva desaparece, solo quedan botones manuales y mensaje de "intenta más tarde".
+5. Modo avión → forzar error → muestra *"Esperando conexión a internet…"* en lugar de la cuenta regresiva. Al volver el internet, recarga.
+6. Cambiar idioma a EN → forzar error → todo en inglés.
+7. Cambiar tema del SO a dark → colores correctos.
+8. Probar el botón "Copiar ID" → toast de confirmación.
 
