@@ -999,6 +999,10 @@
     "emailChangedNo": "No, keep pending",
     "reinviteSent": "Invitation resent to new email {{email}}",
     "duplicateEmail": "A provider with that email already exists in this event",
+    "filters": {
+      "allTypes": "All types",
+      "onlyActive": "Active only"
+    },
     "viewActivity": "View activity",
     "activityHistory": "Activity history",
     "filterFrom": "From",
