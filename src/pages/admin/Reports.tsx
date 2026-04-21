@@ -131,6 +131,8 @@ function exportLogisticsExcel(data: LogisticsReport[], t: (k: string) => string)
       { header: t('reports.logistics.colDay'), key: 'valid_day', width: 8 },
       { header: t('reports.logistics.colTotal'), key: 'total', width: 12 },
       { header: t('reports.logistics.colUsed'), key: 'used', width: 12 },
+      { header: t('reports.logistics.colUsedQr'), key: 'used_qr', width: 14 },
+      { header: t('reports.logistics.colUsedManual'), key: 'used_manual', width: 16 },
       { header: t('reports.logistics.colPending'), key: 'pending', width: 12 },
       { header: t('reports.logistics.colCancelled'), key: 'cancelled', width: 12 },
     ],
@@ -211,6 +213,8 @@ async function exportAll(
     { header: t('reports.logistics.colDay'), key: 'valid_day', width: 8 },
     { header: t('reports.logistics.colTotal'), key: 'total', width: 12 },
     { header: t('reports.logistics.colUsed'), key: 'used', width: 12 },
+    { header: t('reports.logistics.colUsedQr'), key: 'used_qr', width: 14 },
+    { header: t('reports.logistics.colUsedManual'), key: 'used_manual', width: 16 },
     { header: t('reports.logistics.colPending'), key: 'pending', width: 12 },
     { header: t('reports.logistics.colCancelled'), key: 'cancelled', width: 12 },
   ];
@@ -516,6 +520,8 @@ export default function Reports() {
                       <TableHead>{t('reports.logistics.colService')}</TableHead>
                       <TableHead className="text-center">{t('reports.logistics.colTotal')}</TableHead>
                       <TableHead className="text-center">{t('reports.logistics.colUsed')}</TableHead>
+                      <TableHead className="text-center hidden md:table-cell">{t('reports.logistics.colUsedQr')}</TableHead>
+                      <TableHead className="text-center hidden md:table-cell">{t('reports.logistics.colUsedManual')}</TableHead>
                       <TableHead className="text-center">{t('reports.logistics.colPending')}</TableHead>
                       <TableHead className="w-36">{t('reports.logistics.colProgress')}</TableHead>
                     </TableRow>
@@ -526,6 +532,8 @@ export default function Reports() {
                         <TableCell className="font-medium text-sm">{s.name}</TableCell>
                         <TableCell className="text-center">{s.total}</TableCell>
                         <TableCell className="text-center">{s.used}</TableCell>
+                        <TableCell className="text-center hidden md:table-cell text-xs text-muted-foreground">{s.used_qr}</TableCell>
+                        <TableCell className="text-center hidden md:table-cell text-xs text-muted-foreground">{s.used_manual}</TableCell>
                         <TableCell className="text-center">{s.pending}</TableCell>
                         <TableCell>
                           <LogisticsProgressBar used={s.used} total={s.total} />
