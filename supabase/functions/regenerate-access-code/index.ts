@@ -2,6 +2,13 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import * as bcrypt from 'https://deno.land/x/bcrypt@v0.4.1/mod.ts';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { buildEventUrl } from '../_shared/build-event-url.ts';
+import {
+  renderEmail,
+  renderEmailText,
+  codeBlock,
+  formatEventDateRange,
+  escapeHtml,
+} from '../_shared/email-templates.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -29,33 +36,36 @@ function jsonResponse(status: number, body: unknown) {
   });
 }
 
-function buildEmailHtml(
-  attendeeName: string,
-  eventName: string,
-  eventCode: string,
-  accessCode: string,
-  loginUrl: string,
-): string {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <div style="max-width:600px;margin:0 auto;padding:40px 20px;">
-    <div style="background:linear-gradient(135deg,#1A56A0,#00B89F);border-radius:12px 12px 0 0;padding:32px;text-align:center;">
-      <h1 style="color:#fff;margin:0;font-size:24px;">🔐 New Access Code</h1>
-    </div>
-    <div style="background:#fff;border-radius:0 0 12px 12px;padding:32px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-      <p style="color:#334155;font-size:16px;margin:0 0 16px;">Hello <strong>${attendeeName}</strong>,</p>
-      <p style="color:#334155;font-size:14px;margin:0 0 24px;">Your access code for <strong>${eventName}</strong> has been regenerated. Use the new code below:</p>
-      <div style="background:#f1f5f9;border:2px dashed #1A56A0;border-radius:8px;padding:20px;text-align:center;margin:0 0 24px;">
-        <div style="color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:1px;margin:0 0 8px;">Access Code</div>
-        <div style="color:#1A56A0;font-size:28px;font-weight:700;letter-spacing:3px;font-family:monospace;">${accessCode}</div>
-      </div>
-      <div style="text-align:center;margin:0 0 24px;">
-        <a href="${loginUrl}" style="display:inline-block;background:linear-gradient(135deg,#1A56A0,#00B89F);color:#fff;text-decoration:none;padding:12px 32px;border-radius:8px;font-weight:600;">Open Event App</a>
-      </div>
-      <p style="color:#94a3b8;font-size:12px;margin:0;text-align:center;">Your previous code is no longer valid.</p>
-    </div>
-  </div>
-</body></html>`;
+function buildRegenEmail(params: {
+  attendeeName: string;
+  eventName: string;
+  accessCode: string;
+  loginUrl: string;
+  eventDates?: string;
+  eventVenue?: string;
+}) {
+  const { attendeeName, eventName, accessCode, loginUrl, eventDates, eventVenue } = params;
+  const opts = {
+    preheader: 'Tu código anterior ya no es válido. Aquí está el nuevo.',
+    eyebrow: '🔐 Nuevo código de acceso',
+    headline: `Hola ${attendeeName}, tu código fue regenerado`,
+    intro:
+      'El organizador del evento ha generado un <strong>nuevo código de acceso</strong> para ti. Tu código anterior ya no funciona — usa el siguiente para entrar a la app.',
+    body: codeBlock(accessCode, 'Tu nuevo código de acceso'),
+    ctaLabel: 'Entrar al evento',
+    ctaUrl: loginUrl,
+    ctaUrlHint: true,
+    footerNote:
+      'Si no solicitaste este cambio, contacta de inmediato al organizador del evento.',
+    eventName,
+    eventDates,
+    eventVenue,
+  };
+  return {
+    html: renderEmail(opts),
+    text: renderEmailText({ ...opts, code: accessCode, codeLabel: 'Nuevo código' }),
+    subject: `🔐 ${eventName} — Nuevo código de acceso`,
+  };
 }
 
 Deno.serve(async (req) => {
