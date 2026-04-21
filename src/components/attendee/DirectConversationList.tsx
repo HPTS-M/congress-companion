@@ -101,12 +101,32 @@ export default function DirectConversationList({ onSelectConversation }: Props) 
         },
         invalidate
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_messages',
+        },
+        (payload) => {
+          const msg = payload.new as { conversation_id: string; sender_id: string };
+          // Only mark delivered for messages NOT sent by me
+          if (msg.sender_id !== attendeeId) {
+            scheduleDelivery(msg.conversation_id);
+          }
+          invalidate();
+        }
+      )
       .subscribe();
 
     return () => {
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
       supabase.removeChannel(channel);
     };
-  }, [eventId, attendeeId, isOnline, queryClient]);
+  }, [eventId, attendeeId, isOnline, queryClient, scheduleDelivery]);
   const [showNewDialog, setShowNewDialog] = useState(false);
 
   const pendingInvites = conversations.filter(
