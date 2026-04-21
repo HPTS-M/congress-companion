@@ -130,21 +130,13 @@ export const messagingService = {
 
   /**
    * Server-side count of pending invites + unread direct messages.
-   * Replaces the client-side approach that downloaded every conversation.
+   * `last_seen_at` is resolved server-side via auth.uid() — no client param.
    */
-  async getUnreadCounts(
-    eventId: string,
-    attendeeId: string,
-    lastSeen: Date
-  ): Promise<UnreadCounts> {
+  async getUnreadCounts(eventId: string): Promise<UnreadCounts> {
     return measure('count.messages', async () => {
       const { data, error } = await (supabase as unknown as { rpc: RpcCaller }).rpc(
         'count_unread_messages',
-        {
-          _event_id: eventId,
-          _attendee_id: attendeeId,
-          _last_seen: lastSeen.toISOString(),
-        }
+        { _event_id: eventId }
       );
 
       if (error) throw new Error(error.message);
@@ -154,6 +146,30 @@ export const messagingService = {
         unreadMessages: payload.unread_messages ?? 0,
       };
     });
+  },
+
+  /**
+   * Persist "last seen" timestamp for the current attendee on the server.
+   * Survives device changes, incognito mode and cache clears.
+   */
+  async markSeen(eventId: string): Promise<void> {
+    const { error } = await (supabase as unknown as { rpc: RpcCaller }).rpc(
+      'mark_messages_seen',
+      { _event_id: eventId }
+    );
+    if (error) throw new Error(error.message);
+  },
+
+  /**
+   * One-time migration of the legacy localStorage timestamp into the server.
+   * Inserts only if the attendee has no existing server record.
+   */
+  async seedSeen(eventId: string, lastSeen: Date): Promise<void> {
+    const { error } = await (supabase as unknown as { rpc: RpcCaller }).rpc(
+      'seed_messages_seen',
+      { _event_id: eventId, _last_seen: lastSeen.toISOString() }
+    );
+    if (error) throw new Error(error.message);
   },
 
   async createDirectConversation(
