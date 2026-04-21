@@ -3,6 +3,7 @@ import { Star, Clock, MapPin, User, CheckCircle2, Circle, Award } from 'lucide-r
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useEventSettings } from '@/hooks/useEvent';
 import type { EventActivity, ActivityType } from '@/types';
 
 const typeBorderColors: Record<string, string> = {
@@ -39,6 +40,7 @@ export function SessionCard({
   isToggling,
 }: SessionCardProps) {
   const { t } = useTranslation('agenda');
+  const { qrEnabled } = useEventSettings();
 
   const actType = (activity.activity_type ?? 'conference') as string;
   const borderClass = typeBorderColors[actType] ?? typeBorderColors.conference;
@@ -105,17 +107,19 @@ export function SessionCard({
           </div>
         </div>
 
-        {/* Right — attendance indicator */}
-        <div className="flex flex-col items-center gap-1 shrink-0 pt-1">
-          {isCheckedIn ? (
-            <CheckCircle2 className="h-6 w-6 text-[hsl(170,100%,36%)]" />
-          ) : (
-            <Circle className="h-6 w-6 text-muted-foreground/40" />
-          )}
-          <span className="text-[10px] text-muted-foreground">
-            {isCheckedIn ? t('session.confirmed') : t('session.pending')}
-          </span>
-        </div>
+        {/* Right — attendance indicator (only when QR check-in is enabled) */}
+        {qrEnabled && (
+          <div className="flex flex-col items-center gap-1 shrink-0 pt-1">
+            {isCheckedIn ? (
+              <CheckCircle2 className="h-6 w-6 text-[hsl(170,100%,36%)]" />
+            ) : (
+              <Circle className="h-6 w-6 text-muted-foreground/40" />
+            )}
+            <span className="text-[10px] text-muted-foreground">
+              {isCheckedIn ? t('session.confirmed') : t('session.pending')}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Bottom — interest toggle */}
