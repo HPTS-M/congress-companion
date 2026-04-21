@@ -56,11 +56,6 @@ export default function Commercial() {
   const [search, setSearch] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
-  const toggleCategory = (cat: string) => {
-    setSelectedCategories(prev =>
-      prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
-    );
-  };
 
   // Filter by search only — used to compute category counts
   const searchFiltered = useMemo(() => {
@@ -188,32 +183,6 @@ export default function Commercial() {
         ))
       )}
     </div>
-  );
-}
-
-function CategoryChip({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
-        active
-          ? 'bg-[#1A56A0] text-white border-[#1A56A0] shadow-sm'
-          : 'bg-card text-muted-foreground border-border hover:border-[#1A56A0]/40'
-      )}
-    >
-      {active && <Check className="h-3 w-3" />}
-      {label}
-    </button>
   );
 }
 
