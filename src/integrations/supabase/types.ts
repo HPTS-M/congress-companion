@@ -537,6 +537,7 @@ export type Database = {
           conversation_id: string
           created_at: string | null
           deleted_at: string | null
+          delivered_at: string | null
           id: string
           message_type: string | null
           metadata: Json | null
@@ -548,6 +549,7 @@ export type Database = {
           conversation_id: string
           created_at?: string | null
           deleted_at?: string | null
+          delivered_at?: string | null
           id?: string
           message_type?: string | null
           metadata?: Json | null
@@ -559,6 +561,7 @@ export type Database = {
           conversation_id?: string
           created_at?: string | null
           deleted_at?: string | null
+          delivered_at?: string | null
           id?: string
           message_type?: string | null
           metadata?: Json | null
@@ -2175,6 +2178,10 @@ export type Database = {
       mark_messages_as_read: {
         Args: { _conversation_id: string; _user_id: string }
         Returns: undefined
+      }
+      mark_messages_delivered: {
+        Args: { _attendee_id: string; _conversation_id: string }
+        Returns: number
       }
       process_checkin: {
         Args: {
