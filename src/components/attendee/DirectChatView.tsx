@@ -337,6 +337,14 @@ export default function DirectChatView({ conversation, onBack }: Props) {
   const markDelivered = useMarkDelivered();
   const { pending, enqueue, retry, remove: removePending } = usePendingMessages(conversation.id);
 
+  // Stable reference: keeps Realtime subscription effect from re-mounting
+  // every render (which would lose UPDATE events during the reconnect window).
+  const markDeliveredMutate = markDelivered.mutate;
+  const triggerMarkDelivered = useCallback(() => {
+    if (!conversation.id || !attendeeId) return;
+    markDeliveredMutate({ conversationId: conversation.id, attendeeId });
+  }, [conversation.id, attendeeId, markDeliveredMutate]);
+
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [replyTo, setReplyTo] = useState<DisplayMessage | null>(null);
