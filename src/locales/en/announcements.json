@@ -5,5 +5,16 @@
   "official": "Official",
   "readMore": "Read more",
   "readLess": "Read less",
-  "yesterday": "Yesterday"
+  "yesterday": "Yesterday",
+  "toast": {
+    "view": "View"
+  },
+  "notifications": {
+    "title": "Enable notifications",
+    "description": "Get congress alerts even when the app is closed.",
+    "enableButton": "Enable",
+    "notNow": "Not now",
+    "enabled": "Notifications enabled",
+    "blocked": "Notifications are blocked. Enable them in your browser settings."
+  }
 }

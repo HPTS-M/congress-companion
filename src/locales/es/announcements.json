@@ -5,5 +5,16 @@
   "official": "Oficial",
   "readMore": "Ver más",
   "readLess": "Ver menos",
-  "yesterday": "Ayer"
+  "yesterday": "Ayer",
+  "toast": {
+    "view": "Ver"
+  },
+  "notifications": {
+    "title": "Activa las notificaciones",
+    "description": "Recibe avisos del congreso aunque tengas la app cerrada.",
+    "enableButton": "Activar",
+    "notNow": "Ahora no",
+    "enabled": "Notificaciones activadas",
+    "blocked": "Las notificaciones están bloqueadas. Habilítalas desde los ajustes de tu navegador."
+  }
 }
