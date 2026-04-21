@@ -184,11 +184,7 @@ Deno.serve(async (req) => {
     }
 
     // === INVITE: nuevo proveedor ===
-    const { data: eventData } = await adminClient
-      .from("events")
-      .select("organization_id")
-      .eq("id", event_id)
-      .single();
+    const eventData = eventInfo;
 
     const linkExistingUser = async (userId: string) => {
       await adminClient.from("profiles").upsert({ id: userId, email, full_name: `Provider: ${email}` });
@@ -205,7 +201,7 @@ Deno.serve(async (req) => {
       });
 
       if (!magicError && magicData?.properties?.action_link) {
-        await sendInviteEmail(email, magicData.properties.action_link, resendApiKey, accessCode);
+        await sendInviteEmail(email, magicData.properties.action_link, resendApiKey, accessCode, eventName);
       }
     };
 
@@ -261,7 +257,7 @@ Deno.serve(async (req) => {
     });
     await adminClient.from("providers").update({ user_id: userId }).eq("id", provider_id);
 
-    await sendInviteEmail(email, inviteLink, resendApiKey, accessCode);
+    await sendInviteEmail(email, inviteLink, resendApiKey, accessCode, eventName);
 
     return new Response(
       JSON.stringify({ success: true, user_id: userId, action: "invited" }),
