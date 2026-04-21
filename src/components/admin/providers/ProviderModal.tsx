@@ -38,6 +38,7 @@ const CATEGORIES = ['transport', 'food', 'tour', 'special'] as const;
 export function ProviderModal({ open, onClose, onSave, provider, isSaving }: Props) {
   const { t } = useTranslation('admin');
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
 
   const { register, handleSubmit, setValue, watch, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -53,6 +54,7 @@ export function ProviderModal({ open, onClose, onSave, provider, isSaving }: Pro
 
   useEffect(() => {
     setEmailError(null);
+    setNameError(null);
     if (provider) {
       reset({
         company_name: provider.company_name,
@@ -76,9 +78,10 @@ export function ProviderModal({ open, onClose, onSave, provider, isSaving }: Pro
 
   const onSubmit = async (data: FormData) => {
     setEmailError(null);
+    setNameError(null);
     try {
       await onSave({
-        company_name: data.company_name,
+        company_name: data.company_name.trim(),
         category: data.category,
         contact_name: data.contact_name,
         contact_email: data.contact_email,
@@ -89,6 +92,8 @@ export function ProviderModal({ open, onClose, onSave, provider, isSaving }: Pro
     } catch (err: any) {
       if (err?.message === 'DUPLICATE_EMAIL') {
         setEmailError(t('providers.duplicateEmail'));
+      } else if (err?.message === 'DUPLICATE_NAME') {
+        setNameError(t('providers.duplicateName', { defaultValue: 'Ya existe un proveedor con este nombre en el evento' }));
       }
       // keep modal open
     }
@@ -105,8 +110,17 @@ export function ProviderModal({ open, onClose, onSave, provider, isSaving }: Pro
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
             <Label>{t('providers.fieldCompany')} *</Label>
-            <Input {...register('company_name')} placeholder={t('providers.fieldCompanyPlaceholder')} />
-            {errors.company_name && <p className="text-xs text-destructive mt-1">{t('providers.companyRequired')}</p>}
+            <Input
+              {...register('company_name')}
+              placeholder={t('providers.fieldCompanyPlaceholder')}
+              className={nameError ? 'border-destructive' : ''}
+              onChange={(e) => {
+                setNameError(null);
+                register('company_name').onChange(e);
+              }}
+            />
+            {nameError && <p className="text-xs text-destructive mt-1">{nameError}</p>}
+            {errors.company_name && !nameError && <p className="text-xs text-destructive mt-1">{t('providers.companyRequired')}</p>}
           </div>
 
           <div>
