@@ -398,6 +398,7 @@ export default function StaffPage() {
           endIndex={pagination.endIndex}
           onPageChange={pagination.setPage}
         />
+        </TooltipProvider>
         </>
       )}
 
