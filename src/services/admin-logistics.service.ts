@@ -10,6 +10,8 @@ export interface ServiceCatalogRow {
   valid_from: string | null;
   valid_until: string | null;
   valid_day: number | null;
+  starts_at: string | null;
+  ends_at: string | null;
   created_at: string | null;
   status: string | null; // 'scheduled' | 'cancelled'
   effective_status: string | null; // 'scheduled' | 'completed' | 'cancelled'
@@ -26,6 +28,9 @@ export interface ServiceCatalogForm {
   service_type: string;
   description?: string;
   location?: string;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  // legacy fields (kept for backwards-compat with provider portal / older code)
   valid_from?: string;
   valid_until?: string;
   valid_day?: number | null;
@@ -95,6 +100,8 @@ export const adminLogisticsService = {
       const isCompleted = c.effective_status === 'completed';
       return {
         ...c,
+        starts_at: c.starts_at ?? null,
+        ends_at: c.ends_at ?? null,
         total_tickets: counts.total,
         used_tickets: counts.used,
         cancelled_tickets: counts.cancelled,
@@ -121,7 +128,7 @@ export const adminLogisticsService = {
   },
 
   async create(eventId: string, form: ServiceCatalogForm): Promise<void> {
-    const { error } = await supabase.from('service_catalog').insert({ event_id: eventId, ...form });
+    const { error } = await supabase.from('service_catalog').insert({ event_id: eventId, ...form } as any);
     if (error) {
       if (error.code === '23505') throw new Error('DUPLICATE_NAME');
       throw new Error(error.message);
@@ -129,7 +136,7 @@ export const adminLogisticsService = {
   },
 
   async update(id: string, form: Partial<ServiceCatalogForm>): Promise<void> {
-    const { error } = await supabase.from('service_catalog').update(form).eq('id', id);
+    const { error } = await supabase.from('service_catalog').update(form as any).eq('id', id);
     if (error) {
       if (error.code === '23505') throw new Error('DUPLICATE_NAME');
       throw new Error(error.message);

@@ -193,8 +193,10 @@ export const adminProvidersService = {
       },
     });
 
-    if (error) throw new Error(error.message);
+    // Prefer the structured error from the function payload over the generic
+    // "non-2xx status code" message produced by the SDK.
     if (data?.error) throw new Error(data.error);
+    if (error) throw new Error((data as any)?.message ?? error.message);
 
     return { action: data?.action ?? 'invited' };
   },
@@ -212,8 +214,8 @@ export const adminProvidersService = {
       },
     });
 
-    if (error) throw new Error(error.message);
     if (data?.error) throw new Error(data.error);
+    if (error) throw new Error((data as any)?.message ?? error.message);
   },
 
   async reinviteProvider(providerId: string, newEmail: string, eventId: string, eventSlug: string): Promise<{ action: string }> {
@@ -229,8 +231,8 @@ export const adminProvidersService = {
       },
     });
 
-    if (error) throw new Error(error.message);
     if (data?.error) throw new Error(data.error);
+    if (error) throw new Error((data as any)?.message ?? error.message);
 
     return { action: data?.action ?? 'reinvited' };
   },
