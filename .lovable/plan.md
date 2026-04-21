@@ -1,114 +1,79 @@
 
 
-# Plan: Sincronización de iconos "enviado" / "entregado" en mensajería
+## Plan de ajustes — Asistentes, Staff, Reportes, Logística, Proveedores
 
-## Diagnóstico — por qué hay desincronización
+### 1. Asistentes — Inconsistencia "Reintentar pendientes"
 
-He revisado el flujo completo y encontré **tres problemas técnicos concretos** que explican por qué el ✓ verde (entregado) no aparece en tiempo real aunque ambos usuarios estén con la app abierta:
+**Causa raíz:** la tarjeta "Pendientes" cuenta `registration_status='pending'`, pero el botón cuenta asistentes con `invitation_sent_at IS NULL` (independiente del estado). Por eso vemos `0` en la tarjeta y `585` en el botón: hay 585 asistentes ya confirmados/importados que nunca recibieron correo.
 
-### Problema 1 — Realtime `UPDATE` se filtra por `conversation_id`, pero el payload no lo incluye
+**Fix (según tu elección):** filtrar también por `registration_status='pending'` en `getPendingInvitationIds()`. Así el contador del botón coincidirá con la tarjeta. Los asistentes confirmados sin correo se atenderán mediante "Reintentar fallidos" o el envío manual desde el detalle.
 
-En `DirectChatView.tsx` (línea 429-449) el listener UPDATE usa:
-```ts
-filter: `conversation_id=eq.${conversation.id}`
-```
+- Editar: `src/services/admin-attendees.service.ts` → agregar filtro `.eq('registration_status', 'pending')`.
 
-Esto **funciona en teoría**, pero como la tabla `chat_messages` tiene `REPLICA IDENTITY FULL`, el evento `UPDATE` se dispara correctamente. El problema real está en la lógica de actualización de cache: solo actualiza `delivered_at` pero **no preserva `reply_to`** ni la posición optimista, causando que el icono parpadee/desaparezca.
+### 2. Asistentes — Acciones agrupadas en mobile
 
-### Problema 2 — `markDelivered` solo se ejecuta al ABRIR la conversación o al recibir un mensaje nuevo
+**Bug colateral detectado:** el JSX de `Attendees.tsx` (líneas 364-405) tiene el bloque "Reintentar fallidos" mal anidado dentro de "Reintentar pendientes". Lo arreglamos de paso.
 
-Líneas 458-463 y 423-426: `markDelivered` se llama:
-- ✅ Una vez al montar el componente
-- ✅ Cuando llega un mensaje nuevo del otro lado
+**Implementación mobile:** reemplazar la columna de 3 botones verticales en el listado mobile por un único `DropdownMenu` con icono engranaje (`Settings`) que contenga: Editar, Activar/Desactivar, Eliminar. El desktop conserva los iconos individuales.
 
-**Pero NO se llama** cuando ya tienes la conversación abierta y el otro usuario te envía un mensaje **mientras tú estabas viendo otra cosa y vuelves al tab**. Si la pestaña pierde foco y vuelve, los mensajes recibidos en ese intervalo nunca se marcan como entregados hasta que llegue uno nuevo.
+- Editar: `src/components/admin/attendees/AttendeesTable.tsx` (sección `md:hidden`).
+- Editar: `src/pages/admin/Attendees.tsx` (corregir anidación JSX).
 
-### Problema 3 — Falta listener de `visibilitychange` y `focus`
+### 3. Staff y Reportes — Tooltips descriptivos
 
-Cuando el usuario A envía un mensaje y el usuario B tiene la conversación abierta pero el navegador estaba en background, el evento UPDATE puede llegar pero el RPC `mark_messages_delivered` no se vuelve a llamar al regresar a la pestaña, dejando mensajes como "solo enviado" indefinidamente.
+Envolver los botones de acción clave (invitar/reenviar/editar/eliminar/activar en Staff; exportar/refrescar/cambiar tab en Reportes) con el componente `Tooltip` de shadcn (ya disponible en `src/components/ui/tooltip.tsx`). Reemplazar los `title=` HTML actuales por tooltips accesibles con `TooltipProvider` a nivel de página.
 
-### Problema 4 (menor) — `markDelivered` está en deps del useEffect realtime
+- Editar: `src/pages/admin/Staff.tsx`, `src/pages/admin/Reports.tsx`.
+- Agregar claves i18n en `es/admin.json` y `en/admin.json` bajo `staff.tooltips.*` y `reports.tooltips.*`.
 
-Línea 455: `markDelivered` (objeto mutation) es nueva referencia en cada render → el canal Realtime se reabre constantemente, perdiendo eventos durante la reconexión (~200-500ms ventana ciega).
+### 4. Logística — Tooltips de fecha en columna Estado
 
----
+En la tabla de servicios, envolver el badge de estado con un `Tooltip`:
+- **Programado** → tooltip muestra `valid_from` (fecha programada).
+- **Finalizado** → tooltip muestra `completed_at`.
+- **Cancelado** → tooltip muestra solo el texto "Servicio cancelado" (sin fecha).
+- **Activo/sin estado** → sin tooltip (o "Servicio activo").
 
-## Solución
+Quitar el texto inline de fecha que hoy se muestra al lado del badge "Finalizado" para limpiar la columna.
 
-### Cambio 1 — Estabilizar referencia de `markDelivered`
+- Editar: `src/pages/admin/Logistics.tsx` (sección de la tabla, líneas ~280-295).
+- Agregar claves i18n: `logistics.statusTooltipScheduled`, `logistics.statusTooltipCompleted`, `logistics.statusTooltipCancelled`.
 
-Usar `useCallback` para envolver el trigger del RPC, o sacar `markDelivered.mutate` del objeto y referenciar solo la función estable. Resultado: el canal Realtime se monta UNA vez por conversación, no en cada render.
+### 5. Proveedores — Validación de nombre duplicado
 
-### Cambio 2 — Listener `visibilitychange` para re-marcar al recuperar foco
+**Backend (migración):**
+- Crear índice único parcial: `CREATE UNIQUE INDEX providers_event_company_name_unique ON providers (event_id, lower(company_name)) WHERE company_name IS NOT NULL;`
 
-Añadir efecto que escuche `document.visibilitychange` y `window.focus`:
-```
-cuando la pestaña vuelve a estar visible
-  → llamar markDelivered({ conversationId, attendeeId })
-```
+**Servicio:**
+- Editar `src/services/admin-providers.service.ts` → en `create()` y `update()`, mapear el código `23505` con detalle del índice `providers_event_company_name_unique` a un error `DUPLICATE_NAME`.
+- Pre-validación opcional client-side: consultar antes de insertar para mostrar error inmediato en el form.
 
-Esto cubre el caso "tenía la conversación abierta pero el navegador estaba en otra app/tab".
+**UI:**
+- Editar `src/components/admin/providers/ProviderModal.tsx` → manejar `DUPLICATE_NAME` igual que se maneja hoy `DUPLICATE_EMAIL`, mostrando error bajo el campo "Razón social".
+- Claves i18n: `providers.duplicateName`.
 
-### Cambio 3 — Preservar `reply_to` en el handler UPDATE
+### 6. Proveedores — Error en invitación / reinvitación
 
-En lugar de:
-```ts
-m.id === updated.id ? { ...m, delivered_at: updated.delivered_at } : m
-```
+**Causa raíz:** la edge function `create-provider-user` cuando recibe el error de Supabase Auth `"A user with this email address has already been registered"` intenta recuperar al usuario con `users.find(u => u.email === email)`. Esto falla cuando:
+- El email tiene diferencias de mayúsculas/minúsculas, o
+- `listUsers()` no devuelve al usuario en la primera página (por defecto pagina a 50), o
+- El usuario existe pero no se encontró → cae en el `return 400` final propagando el mensaje crudo al cliente.
 
-Hacer un merge defensivo que preserve TODOS los campos previos y solo sobrescriba `delivered_at`:
-```ts
-m.id === updated.id 
-  ? { ...m, delivered_at: updated.delivered_at ?? m.delivered_at } 
-  : m
-```
+**Fix edge function (`supabase/functions/create-provider-user/index.ts`):**
+1. Comparar emails normalizados a `lower()` en el `find`.
+2. Usar `adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })` o iterar páginas hasta encontrarlo.
+3. Si tras la búsqueda el usuario sigue sin aparecer, devolver mensaje claro: `"USER_EXISTS_NOT_FOUND — contacta soporte"` con status 409 (no 400 con stack genérico).
+4. En `action === "reinvite"`: si el `provider.user_id` es `null` pero el email ya existe en Auth, ejecutar el mismo flujo "linked_existing" (vincular al provider sin crear usuario nuevo).
+5. Validar que el `inviteLink` se construya correctamente concatenando `redirectTo` (ya se sanea con `replace(/\/+$/, '')`, mantener).
 
-Y agregar log de debug temporal para validar que los UPDATE eventos están llegando.
+**Frontend (`src/services/admin-providers.service.ts`):**
+- Mapear el nuevo código `USER_EXISTS_NOT_FOUND` a un mensaje i18n claro en `Providers.tsx` (toast destructivo con instrucción de usar "Cambiar email y reinvitar").
 
-### Cambio 4 — Marcar como entregado también cuando el remitente recibe el UPDATE
-
-Cuando llega un `UPDATE` con `delivered_at` no nulo, y soy el SENDER, ya debería verse el doble check. Si el listener no se está disparando, es porque el canal se está re-suscribiendo (Cambio 1 lo arregla). Como red de seguridad: hacer `invalidateQueries(['direct-messages', conversation.id])` al recibir UPDATE para garantizar refetch.
-
-### Cambio 5 — Heartbeat de "delivered" cada 15s mientras la conversación está abierta
-
-Como mecanismo de respaldo si Realtime falla por completo (caso PWA con conexión intermitente):
-```
-setInterval cada 15s mientras tab visible y online
-  → llamar markDelivered (idempotente, costo casi cero)
-```
-
-El RPC ya solo actualiza filas con `delivered_at IS NULL`, así que llamarlo cada 15s no genera escrituras inútiles.
-
----
-
-## Archivos afectados
-
-```
-EDIT  src/components/attendee/DirectChatView.tsx
-        - Estabilizar referencia de markDelivered en useEffect realtime
-        - Añadir listener visibilitychange + focus → trigger markDelivered
-        - Preservar reply_to en el UPDATE handler
-        - Heartbeat 15s de markDelivered mientras tab visible
-        - Invalidar query al recibir UPDATE como red de seguridad
-```
-
-**1 archivo. ~20 minutos. Cero cambios de DB.**
-
----
-
-## Plan de prueba (validar la sincronía)
-
-1. **Setup:** dos navegadores con ambos usuarios (A y B) en la misma conversación abierta, ambos en foreground
-2. **Test 1 — envío en vivo:** A envía mensaje → B lo recibe → A debe ver doble check ✓✓ verde **en menos de 1 segundo**
-3. **Test 2 — tab de B en background:** B cambia a otra app → A envía 3 mensajes → B vuelve al tab → los 3 mensajes deben pasar a doble check ✓✓ en A en menos de 2s
-4. **Test 3 — conexión intermitente:** B activa modo avión 5s → reactiva → mensajes pendientes de A se marcan como entregados al volver
-5. **Test 4 — conversación cerrada en B:** B sale de la conversación → A envía mensaje → A solo ve check simple ✓ (correcto, B no la abrió). B abre → A debe ver doble check inmediato
-
----
-
-## Lo que NO incluye
-
-- Indicador de "leído" (azul) — solo "enviado/entregado". Implementarlo requeriría columna `read_at` adicional + RPC nuevo. Lo dejo para iteración separada si lo pides.
-- Indicador "escribiendo..." (typing) — no estaba en el alcance original
-- Cambios en push notifications — siguen funcionando como ya están
+### Orden de ejecución (Backend-First)
+1. Migración DB: índice único `providers_event_company_name_unique`.
+2. Edge function `create-provider-user`: arreglar lookup case-insensitive + paginación + reinvite con email existente.
+3. Servicios: `admin-attendees.service.ts` (filter status), `admin-providers.service.ts` (DUPLICATE_NAME).
+4. Componentes UI: `AttendeesTable` (dropdown mobile), `Attendees.tsx` (fix JSX), `ProviderModal` (error nombre), `Logistics.tsx` (tooltips fecha), `Staff.tsx` + `Reports.tsx` (tooltips).
+5. i18n: nuevas claves en `es/admin.json` y `en/admin.json`.
+6. QA: probar en preview el flujo de retry pendientes, invitación a proveedor con email existente, y vista mobile de asistentes.
 
