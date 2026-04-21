@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Megaphone, Plus, Eye, Trash2, Users, CalendarClock, Pencil, Send, Clock } from 'lucide-react';
+import { Megaphone, Plus, Eye, Trash2, Users, CalendarClock, Pencil, Send, Clock, BellRing } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -329,6 +329,7 @@ export default function AdminCommunications() {
         announcement={editing}
         duplicateError={duplicateError}
         onClearDuplicate={() => setDuplicateError(false)}
+        pushReachCount={pushReach.data?.activeCount}
       />
 
       <Dialog open={!!viewAnnouncement} onOpenChange={() => setViewAnnouncement(null)}>
