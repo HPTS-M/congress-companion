@@ -693,7 +693,13 @@ export default function DirectChatView({ conversation, onBack }: Props) {
     [toast, t]
   );
 
-  // Pending msgs converted to ChatMessage shape (with kind tag) for unified rendering.
+  const handleDiscard = useCallback(
+    (pendingId: string) => {
+      removePending(pendingId);
+      toast({ title: t('messageDiscarded') });
+    },
+    [removePending, toast, t]
+  );
   const pendingAsMessages: DisplayMessage[] = pending.map(p => ({
     id: p.id,
     conversation_id: p.conversationId,
