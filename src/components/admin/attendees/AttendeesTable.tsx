@@ -1,6 +1,6 @@
 import { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Eye, Pencil, Trash2, Copy, RefreshCw, Ban, RotateCcw, Mail } from 'lucide-react';
+import { Eye, Pencil, Trash2, Copy, RefreshCw, Ban, RotateCcw, Mail, Settings } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -8,6 +8,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useEvent } from '@/hooks/useEvent';
@@ -282,27 +285,35 @@ export function AttendeesTable({
                     </span>
                   </div>
                 </div>
-                <div className="flex flex-col gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(a)}>
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className={cn('h-7 w-7', isCancelled ? 'text-accent' : 'text-amber-600')}
-                    onClick={() => onToggleActive(a)}
-                    title={isCancelled ? t('attendees.reactivate') : t('attendees.deactivate')}
-                  >
-                    {isCancelled ? <RotateCcw className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-destructive"
-                    onClick={() => onDelete(a.id, a.full_name)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t('attendees.columnActions')}>
+                        <Settings className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
+                      <DropdownMenuItem onClick={() => onEdit(a)}>
+                        <Pencil className="mr-2 h-4 w-4" />
+                        {t('attendees.edit')}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => onToggleActive(a)}
+                        className={isCancelled ? 'text-accent' : 'text-amber-600'}
+                      >
+                        {isCancelled ? <RotateCcw className="mr-2 h-4 w-4" /> : <Ban className="mr-2 h-4 w-4" />}
+                        {isCancelled ? t('attendees.reactivate') : t('attendees.deactivate')}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => onDelete(a.id, a.full_name)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        {t('attendees.delete')}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
             );

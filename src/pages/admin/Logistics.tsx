@@ -16,6 +16,9 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
   Plus, Search, Pencil, Trash2, Users, Ticket, Clock, CheckCircle2, XCircle,
   Bus, UtensilsCrossed, Map, Sparkles, Ban, RotateCcw,
 } from 'lucide-react';
@@ -267,33 +270,46 @@ export default function AdminLogistics() {
                       : '—'}
                   </TableCell>
                   <TableCell>
-                    {isCancelled ? (
-                      <div className="flex flex-col gap-0.5">
-                        <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 w-fit">
-                          {t('logistics.serviceStatusCancelled')}
-                        </Badge>
-                        {s.cancelled_at && (
-                          <span className="text-xs text-muted-foreground">
-                            {t('logistics.cancelledOn', { date: formatStatusDate(s.cancelled_at) })}
-                          </span>
-                        )}
-                      </div>
-                    ) : isCompleted ? (
-                      <div className="flex flex-col gap-0.5">
-                        <Badge className="bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 w-fit">
-                          {t('logistics.serviceStatusCompleted')}
-                        </Badge>
-                        {s.completed_at && (
-                          <span className="text-xs text-muted-foreground">
-                            {t('logistics.completedOn', { date: formatStatusDate(s.completed_at) })}
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <Badge className="bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">
-                        {t('logistics.serviceStatusScheduled')}
-                      </Badge>
-                    )}
+                    <TooltipProvider delayDuration={150}>
+                      {isCancelled ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 w-fit cursor-help">
+                              {t('logistics.serviceStatusCancelled')}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {t('logistics.statusTooltipCancelled', { defaultValue: 'Servicio cancelado' })}
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : isCompleted ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge className="bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 w-fit cursor-help">
+                              {t('logistics.serviceStatusCompleted')}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {s.completed_at
+                              ? t('logistics.statusTooltipCompleted', { date: formatStatusDate(s.completed_at), defaultValue: 'Finalizado el {{date}}' })
+                              : t('logistics.serviceStatusCompleted')}
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge className="bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 cursor-help">
+                              {t('logistics.serviceStatusScheduled')}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {s.valid_from
+                              ? t('logistics.statusTooltipScheduled', { date: formatStatusDate(s.valid_from), defaultValue: 'Programado para {{date}}' })
+                              : t('logistics.serviceStatusScheduled')}
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </TooltipProvider>
                   </TableCell>
                   <TableCell>
                     <span className="text-sm font-medium text-foreground">

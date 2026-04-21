@@ -938,18 +938,14 @@ export const adminAttendeesService = {
       .from('attendees')
       .select('id, email, registration_status')
       .eq('event_id', eventId)
+      .eq('registration_status', 'pending')
       .is('deleted_at', null)
       .is('invitation_sent_at', null);
 
     if (error) throw new Error(error.message);
     const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return (data ?? [])
-      .filter(
-        (a) =>
-          a.registration_status !== 'cancelled' &&
-          a.email &&
-          EMAIL_RE.test(a.email.trim()),
-      )
+      .filter((a) => a.email && EMAIL_RE.test(a.email.trim()))
       .map((a) => a.id);
   },
 };

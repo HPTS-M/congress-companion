@@ -11,6 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Users, Calendar, Star, Ticket, Download, FileSpreadsheet, Eye, ClipboardCheck, BarChart3 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
+import {
+  Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { toast } from '@/hooks/use-toast';
 import type { AttendanceReport, RatingsReport, LogisticsReport, SponsorEngagementReport, PollResponseReport } from '@/services/admin-reports.service';
 import { usePagination } from '@/hooks/usePagination';
@@ -411,6 +414,7 @@ export default function Reports() {
   ) ?? false;
 
   return (
+    <TooltipProvider delayDuration={150}>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -418,10 +422,17 @@ export default function Reports() {
           <h1 className="text-2xl font-bold">{t('reports.title')}</h1>
           <p className="text-sm text-muted-foreground">{t('reports.subtitle')}</p>
         </div>
-        <Button variant="outline" onClick={handleExportAll} disabled={!attendance.data}>
-          <Download className="mr-2 h-4 w-4" />
-          {t('reports.exportAll')}
-        </Button>
+        <UiTooltip>
+          <TooltipTrigger asChild>
+            <Button variant="outline" onClick={handleExportAll} disabled={!attendance.data}>
+              <Download className="mr-2 h-4 w-4" />
+              {t('reports.exportAll')}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {t('reports.tooltips.exportAll', { defaultValue: 'Descarga un único archivo Excel con todos los reportes del evento' })}
+          </TooltipContent>
+        </UiTooltip>
       </div>
 
       {/* Summary Stats */}
@@ -456,9 +467,16 @@ export default function Reports() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base font-semibold">{t('reports.attendance.title')}</CardTitle>
-            <Button size="sm" variant="ghost" onClick={() => attendance.data && exportAttendanceExcel(attendance.data, t)}>
-              <FileSpreadsheet className="mr-1 h-4 w-4" /> Excel
-            </Button>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <Button size="sm" variant="ghost" onClick={() => attendance.data && exportAttendanceExcel(attendance.data, t)}>
+                  <FileSpreadsheet className="mr-1 h-4 w-4" /> Excel
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {t('reports.tooltips.exportAttendance', { defaultValue: 'Exportar reporte de asistencia a Excel' })}
+              </TooltipContent>
+            </UiTooltip>
           </CardHeader>
           <CardContent>
             <AttendanceCard data={attendance.data} totalSessions={summary.data?.totalSessions ?? 0} loading={attendance.isLoading} t={t} />
@@ -469,9 +487,16 @@ export default function Reports() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base font-semibold">{t('reports.ratings.title')}</CardTitle>
-            <Button size="sm" variant="ghost" onClick={() => ratings.data && exportRatingsExcel(ratings.data, t)}>
-              <FileSpreadsheet className="mr-1 h-4 w-4" /> Excel
-            </Button>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <Button size="sm" variant="ghost" onClick={() => ratings.data && exportRatingsExcel(ratings.data, t)}>
+                  <FileSpreadsheet className="mr-1 h-4 w-4" /> Excel
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {t('reports.tooltips.exportRatings', { defaultValue: 'Exportar evaluaciones de sesiones a Excel' })}
+              </TooltipContent>
+            </UiTooltip>
           </CardHeader>
           <CardContent>
             {ratings.isLoading ? (
@@ -517,9 +542,16 @@ export default function Reports() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base font-semibold">{t('reports.logistics.title')}</CardTitle>
-            <Button size="sm" variant="ghost" onClick={() => logistics.data && exportLogisticsExcel(logistics.data, t)}>
-              <FileSpreadsheet className="mr-1 h-4 w-4" /> Excel
-            </Button>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <Button size="sm" variant="ghost" onClick={() => logistics.data && exportLogisticsExcel(logistics.data, t)}>
+                  <FileSpreadsheet className="mr-1 h-4 w-4" /> Excel
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {t('reports.tooltips.exportLogistics', { defaultValue: 'Exportar reporte de logística y servicios a Excel' })}
+              </TooltipContent>
+            </UiTooltip>
           </CardHeader>
           <CardContent>
             {logistics.isLoading ? (
@@ -573,9 +605,16 @@ export default function Reports() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base font-semibold">{t('reports.sponsors.title')}</CardTitle>
-            <Button size="sm" variant="ghost" onClick={() => sponsorEngagement.data && exportSponsorsExcel(sponsorEngagement.data, t)}>
-              <FileSpreadsheet className="mr-1 h-4 w-4" /> Excel
-            </Button>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <Button size="sm" variant="ghost" onClick={() => sponsorEngagement.data && exportSponsorsExcel(sponsorEngagement.data, t)}>
+                  <FileSpreadsheet className="mr-1 h-4 w-4" /> Excel
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {t('reports.tooltips.exportSponsors', { defaultValue: 'Exportar engagement de patrocinadores a Excel' })}
+              </TooltipContent>
+            </UiTooltip>
           </CardHeader>
           <CardContent>
             {sponsorEngagement.isLoading ? (
@@ -634,9 +673,16 @@ export default function Reports() {
                 </SelectContent>
               </Select>
             )}
-            <Button size="sm" variant="ghost" onClick={() => pollResponses.data && exportPollsExcel(pollResponses.data, t)} disabled={!pollResponses.data?.length}>
-              <FileSpreadsheet className="mr-1 h-4 w-4" /> Excel
-            </Button>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <Button size="sm" variant="ghost" onClick={() => pollResponses.data && exportPollsExcel(pollResponses.data, t)} disabled={!pollResponses.data?.length}>
+                  <FileSpreadsheet className="mr-1 h-4 w-4" /> Excel
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {t('reports.tooltips.exportPolls', { defaultValue: 'Exportar respuestas de encuestas a Excel' })}
+              </TooltipContent>
+            </UiTooltip>
           </div>
         </CardHeader>
         <CardContent>
@@ -688,5 +734,6 @@ export default function Reports() {
         </CardContent>
       </Card>
     </div>
+    </TooltipProvider>
   );
 }

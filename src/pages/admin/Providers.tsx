@@ -197,7 +197,14 @@ export default function AdminProviders() {
       }
       refetch();
     } catch (err: any) {
-      toast.error(t('providers.inviteError') + ': ' + (err.message ?? ''));
+      const msg = err?.message ?? '';
+      if (msg.includes('USER_EXISTS_NOT_FOUND')) {
+        toast.error(t('providers.userExistsNotFound', {
+          defaultValue: 'El correo ya está registrado pero no se pudo vincular. Cambia el email del proveedor y vuelve a invitar.',
+        }));
+      } else {
+        toast.error(t('providers.inviteError') + ': ' + msg);
+      }
     } finally {
       setInvitingId(null);
     }
@@ -218,7 +225,14 @@ export default function AdminProviders() {
       toast.success(t('providers.inviteResent', { email: p.contact_email }));
       refetch();
     } catch (err: any) {
-      toast.error(t('providers.inviteError') + ': ' + (err.message ?? ''));
+      const msg = err?.message ?? '';
+      if (msg.includes('USER_EXISTS_NOT_FOUND')) {
+        toast.error(t('providers.userExistsNotFound', {
+          defaultValue: 'El correo ya está registrado pero no se pudo vincular. Cambia el email del proveedor y vuelve a invitar.',
+        }));
+      } else {
+        toast.error(t('providers.inviteError') + ': ' + msg);
+      }
     } finally {
       setInvitingId(null);
     }
@@ -235,7 +249,14 @@ export default function AdminProviders() {
       toast.success(t('providers.reinviteSent', { email: newEmail }));
       refetch();
     } catch (err: any) {
-      toast.error(t('providers.inviteError') + ': ' + (err.message ?? ''));
+      const msg = err?.message ?? '';
+      if (msg.includes('USER_EXISTS_NOT_FOUND')) {
+        toast.error(t('providers.userExistsNotFound', {
+          defaultValue: 'El correo ya está registrado pero no se pudo vincular. Cambia el email del proveedor y vuelve a invitar.',
+        }));
+      } else {
+        toast.error(t('providers.inviteError') + ': ' + msg);
+      }
     } finally {
       setInvitingId(null);
     }

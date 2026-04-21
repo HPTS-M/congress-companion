@@ -946,7 +946,10 @@
       "assigning": "Asignando...",
       "bulkResult": "{{assigned}} asignados, {{errors}} errores",
       "bulkError": "Error en asignación masiva"
-    }
+    },
+    "statusTooltipScheduled": "Programado para {{date}}",
+    "statusTooltipCompleted": "Finalizado el {{date}}",
+    "statusTooltipCancelled": "Servicio cancelado"
   },
   "providers": {
     "title": "Proveedores",
@@ -1022,7 +1025,9 @@
     "activity_login": "Inicio de sesión",
     "activity_invitation_sent": "Invitación enviada",
     "activity_invitation_resent": "Invitación reenviada",
-    "activity_ticket_validated": "Ticket validado"
+    "activity_ticket_validated": "Ticket validado",
+    "duplicateName": "Ya existe un proveedor con este nombre en el evento",
+    "userExistsNotFound": "El correo ya está registrado pero no se pudo vincular automáticamente. Cambia el email del proveedor y vuelve a invitar, o contacta soporte."
   },
   "communications": {
     "title": "Comunicaciones",
@@ -1171,7 +1176,13 @@
     "activateSuccess": "{{name}} activado correctamente. Recibirá un email con sus credenciales.",
     "toggleAccess": "Activar o suspender acceso",
     "accessRestored": "Acceso restaurado",
-    "accessSuspended": "Acceso suspendido"
+    "accessSuspended": "Acceso suspendido",
+    "tooltips": {
+      "activate": "Activar cuenta del miembro de personal",
+      "resend": "Reenviar correo de invitación al staff",
+      "edit": "Editar datos del miembro de personal",
+      "delete": "Eliminar miembro de personal"
+    }
   },
   "staffPortal": {
     "title": "Portal Staff",
@@ -1262,6 +1273,14 @@
       "colAnswer": "Respuesta",
       "colDate": "Fecha",
       "emptyTitle": "Aún no hay respuestas a encuestas"
+    },
+    "tooltips": {
+      "exportAll": "Descarga un único archivo Excel con todos los reportes del evento",
+      "exportAttendance": "Exportar reporte de asistencia a Excel",
+      "exportRatings": "Exportar evaluaciones de sesiones a Excel",
+      "exportLogistics": "Exportar reporte de logística y servicios a Excel",
+      "exportSponsors": "Exportar engagement de patrocinadores a Excel",
+      "exportPolls": "Exportar respuestas de encuestas a Excel"
     }
   },
   "polls": {

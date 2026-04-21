@@ -90,7 +90,11 @@ export const adminProvidersService = {
       is_active: form.is_active ?? true,
     });
     if (error) {
-      if (error.code === '23505') throw new Error('DUPLICATE_EMAIL');
+      if (error.code === '23505') {
+        const detail = `${(error as any).details ?? ''} ${error.message ?? ''}`.toLowerCase();
+        if (detail.includes('company_name')) throw new Error('DUPLICATE_NAME');
+        throw new Error('DUPLICATE_EMAIL');
+      }
       throw new Error(error.message);
     }
   },
@@ -98,7 +102,11 @@ export const adminProvidersService = {
   async update(id: string, form: Partial<ProviderForm>): Promise<void> {
     const { error } = await supabase.from('providers').update(form).eq('id', id);
     if (error) {
-      if (error.code === '23505') throw new Error('DUPLICATE_EMAIL');
+      if (error.code === '23505') {
+        const detail = `${(error as any).details ?? ''} ${error.message ?? ''}`.toLowerCase();
+        if (detail.includes('company_name')) throw new Error('DUPLICATE_NAME');
+        throw new Error('DUPLICATE_EMAIL');
+      }
       throw new Error(error.message);
     }
   },

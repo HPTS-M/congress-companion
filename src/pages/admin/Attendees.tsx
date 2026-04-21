@@ -375,6 +375,12 @@ export default function AdminAttendees() {
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <Mail className="mr-2 h-4 w-4" />
+              )}
+              {t('attendees.retryPendingInvitations', {
+                count: pendingInvitationIds.length,
+                defaultValue: 'Retry pending ({{count}})',
+              })}
+            </Button>
           )}
           {failedInvitationIds.length > 0 && (
             <Button
@@ -394,12 +400,6 @@ export default function AdminAttendees() {
               {t('attendees.invitations.retryFailed', {
                 count: failedInvitationIds.length,
                 defaultValue: 'Retry failed ({{count}})',
-              })}
-            </Button>
-          )}
-              {t('attendees.retryPendingInvitations', {
-                count: pendingInvitationIds.length,
-                defaultValue: 'Retry pending ({{count}})',
               })}
             </Button>
           )}
