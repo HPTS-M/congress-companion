@@ -1,137 +1,68 @@
 
 
-## Plan: Pantalla de error amigable con auto-recuperación
+## Plan: Arreglar visibilidad de los checks ✓ y ✓✓
 
-### Qué resuelve
-Cuando algo falla y se rompe la app, hoy el usuario ve solo *"Something went wrong"* sobre fondo oscuro, sin idioma, sin acción. Queda atrapado. Vamos a reemplazar esa pantalla por una experiencia amigable, en su idioma, que se auto-recupera sola en la mayoría de casos.
+### Diagnóstico
 
----
+Confirmé en la base de datos que el sistema **funciona correctamente**:
 
-### Cómo se verá
+- La columna `delivered_at` existe ✓
+- La RPC `mark_messages_delivered` está desplegada ✓
+- Realtime `UPDATE` activo en `chat_messages` ✓
+- Hay mensajes con `delivered_at` poblado correctamente ✓
 
-```text
-┌──────────────────────────────────────┐
-│                                      │
-│        [Logo CONGRÉSSAPP]            │
-│                                      │
-│              ⚠ (icono)               │
-│                                      │
-│   Algo no salió como esperábamos     │
-│                                      │
-│   No te preocupes, esto suele        │
-│   resolverse al refrescar.           │
-│   Tu sesión y tus datos están        │
-│   seguros.                           │
-│                                      │
-│   Reintentando en 5 s…               │
-│                                      │
-│   [  Refrescar ahora  ]              │
-│   [  Volver al inicio ]              │
-│                                      │
-│   ID del error: a1b2c3 · Copiar      │
-└──────────────────────────────────────┘
-```
+**El bug es puramente visual**: los iconos `Check`/`CheckCheck` se renderizan con `text-white/70`, pero **NO están dentro de la burbuja azul** del mensaje — están en la línea inferior con la hora, sobre el fondo oscuro del chat. Por eso son invisibles.
 
----
+Adicionalmente, en tu caso particular como David Sanguino, los mensajes que enviaste a "PRUEBA ENVIO" están con `delivered_at = NULL` porque esa cuenta no ha vuelto a abrir el chat — comportamiento correcto, solo hace falta que la otra persona entre a la conversación.
 
-### Cambios
+### Cambio
 
-#### 1. Nuevo componente `src/components/ErrorFallback.tsx`
-Pantalla full-screen con:
-- Logo CONGRÉSSAPP arriba (consistencia de marca).
-- Icono `AlertTriangle` en círculo `bg-accent/10` color teal `#00B89F`.
-- Título empático y mensaje tranquilizador (ver textos en sección i18n).
-- **Cuenta regresiva visible** de 5 s para auto-reintento.
-- Botón primario **"Refrescar ahora"** (`window.location.reload()`).
-- Botón secundario **"Volver al inicio"** (`window.location.href = '/'`).
-- ID técnico de Sentry al pie, copiable, para soporte.
+Un único archivo: `src/components/attendee/DirectChatView.tsx` (líneas 388-398).
 
-#### 2. Auto-recuperación inteligente
-- Auto-reload tras **5 segundos** la primera vez que se monta el fallback.
-- Si `navigator.onLine === false` → no recarga, muestra *"Esperando conexión a internet…"* y espera al evento `online` del navegador.
-- `sessionStorage.errorReloadAttempts`:
-  - Tras **2 intentos en menos de 60 s** → cancela auto-reload, deja solo botones manuales (evita loop infinito).
-  - Se limpia si la app vive >60 s sin error.
-
-#### 3. Diseño (alineado al design system)
-- Fondo `bg-background` (respeta light/dark automático).
-- Card centrado, max-width 400 px, `rounded-2xl`, `shadow-lg`, padding 24.
-- Botón primario `bg-primary` (#1A56A0) blanco · secundario `variant="outline"`.
-- Mobile-first 360 px en adelante.
-
-#### 4. i18n — claves nuevas en `common.json`
-
-```json
-"errorFallback": {
-  "title": "Algo no salió como esperábamos",
-  "message": "No te preocupes, esto suele resolverse al refrescar. Tu sesión y tus datos están seguros.",
-  "autoRetry": "Reintentando automáticamente en {{seconds}} s…",
-  "offlineWaiting": "Esperando conexión a internet…",
-  "maxAttemptsReached": "Si el problema continúa, intenta más tarde o contacta al organizador.",
-  "refreshNow": "Refrescar ahora",
-  "goHome": "Volver al inicio",
-  "errorId": "ID del error: {{id}}",
-  "copyId": "Copiar ID",
-  "idCopied": "ID copiado"
-}
-```
-
-Versión EN equivalente.
-
-#### 5. Integración en `src/main.tsx`
-Reemplazar el fallback inline:
+Reemplazar `text-white/70` por una clase que respete el color del texto contenedor (la hora ya está en `text-muted-foreground`, perfectamente visible en light/dark):
 
 ```tsx
-<Sentry.ErrorBoundary
-  fallback={({ resetError, eventId }) => (
-    <ErrorFallback resetError={resetError} eventId={eventId} />
-  )}
->
-  <App />
-</Sentry.ErrorBoundary>
+{isOwn && !pendingInfo && (
+  msg.delivered_at ? (
+    <CheckCheck
+      className="h-3.5 w-3.5 text-[hsl(170,100%,36%)]"  // teal #00B89F → entregado
+      aria-label={t('statusDelivered')}
+    />
+  ) : (
+    <Check
+      className="h-3.5 w-3.5 text-muted-foreground"  // gris → enviado
+      aria-label={t('statusSent')}
+    />
+  )
+)}
 ```
 
-#### 6. Edge case — fallback de emergencia
-Si `i18n.isInitialized === false` (error muy temprano antes de cargar traducciones), el componente usa textos hardcoded en español como último recurso. Caso raro pero cubierto.
+### Por qué estos colores
 
----
+| Estado | Color | Razón |
+|---|---|---|
+| ✓ enviado | `text-muted-foreground` (gris) | Mismo color que la hora — discreto, neutro |
+| ✓✓ entregado | `text-[hsl(170,100%,36%)]` (teal #00B89F) | Color accent del proyecto — confirma visualmente el éxito de entrega, igual que WhatsApp usa azul para "leído" |
 
-### Best practices aplicadas
+Ambos colores tienen contraste correcto sobre el fondo del chat tanto en light como dark mode (el teal #00B89F es el color accent oficial del proyecto y se usa para indicadores de éxito/confirmación).
 
-1. **Tono empático** — sin lenguaje técnico ni alarmante.
-2. **Acción clara** — botón primario destacado.
-3. **Auto-recuperación con límite** — evita loops infinitos.
-4. **Respeta estado offline** — no recarga sin red.
-5. **Trazabilidad** — `eventId` de Sentry copiable para soporte.
-6. **i18n estricto + fallback de emergencia**.
-7. **Dark mode automático** vía Tailwind.
-8. **Mobile-first** 360 px.
-9. **Accesibilidad** — `role="alert"`, `aria-live="assertive"`, foco automático en botón primario.
-10. **Sin dependencias nuevas** — solo `lucide-react` ya instalado.
+### Verificación
 
----
+1. Abre la conversación con PRUEBA ENVIO desde tu cuenta (David).
+2. Envía un mensaje nuevo → debe aparecer **✓ gris** al lado de la hora, claramente visible.
+3. Pídele a la otra persona que abra el chat → en pocos segundos el ✓ debe transformarse en **✓✓ teal** sin recargar la página.
+4. Los mensajes recibidos no muestran ningún icono, solo hora.
+5. Mensajes pendientes/fallidos siguen mostrando ⏰/⟳/⚠ como antes.
+
+### Nota importante
+
+Los mensajes históricos que enviaste antes de que la otra persona vuelva al chat **seguirán con ✓ gris** hasta que ella abra la conversación. Esto es el comportamiento esperado y correcto — no es un bug, es exactamente cómo funciona WhatsApp.
 
 ### Archivos afectados
 
 ```text
-NUEVO  src/components/ErrorFallback.tsx
-EDIT   src/main.tsx                   — usar ErrorFallback
-EDIT   src/locales/es/common.json     — claves errorFallback.*
-EDIT   src/locales/en/common.json     — claves errorFallback.*
+EDIT  src/components/attendee/DirectChatView.tsx   (5 líneas, solo classNames)
 ```
 
-Sin migraciones SQL, sin nuevas dependencias.
-
----
-
-### Verificación
-
-1. Forzar un error temporal (`throw new Error('test')` en algún componente).
-2. Aparece pantalla amigable con logo, mensaje y cuenta regresiva.
-3. A los 5 s recarga sola.
-4. Disparar el error 2 veces seguidas → la cuenta regresiva desaparece, solo quedan botones manuales y mensaje de "intenta más tarde".
-5. Modo avión → forzar error → muestra *"Esperando conexión a internet…"* en lugar de la cuenta regresiva. Al volver el internet, recarga.
-6. Cambiar idioma a EN → forzar error → todo en inglés.
-7. Cambiar tema del SO a dark → colores correctos.
-8. Probar el botón "Copiar ID" → toast de confirmación.
+Sin migraciones, sin nuevas dependencias, sin cambios en lógica.
 
