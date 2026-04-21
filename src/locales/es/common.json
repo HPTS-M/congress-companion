@@ -118,6 +118,18 @@
     "badge": "{{count}} nuevas",
     "markAsSeen": "Marcar como visto"
   },
+  "errorFallback": {
+    "title": "Algo no salió como esperábamos",
+    "message": "No te preocupes, esto suele resolverse al refrescar. Tu sesión y tus datos están seguros.",
+    "autoRetry": "Reintentando automáticamente en {{seconds}} s…",
+    "offlineWaiting": "Esperando conexión a internet…",
+    "maxAttemptsReached": "Si el problema continúa, intenta más tarde o contacta al organizador.",
+    "refreshNow": "Refrescar ahora",
+    "goHome": "Volver al inicio",
+    "errorId": "ID del error: {{id}}",
+    "copyId": "Copiar ID",
+    "idCopied": "ID copiado"
+  },
   "polls": {
     "title": "Encuestas",
     "subtitle": "Participa en las preguntas en vivo",

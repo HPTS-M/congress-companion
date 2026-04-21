@@ -118,6 +118,18 @@
     "badge": "{{count}} new",
     "markAsSeen": "Mark as seen"
   },
+  "errorFallback": {
+    "title": "Something didn't go as expected",
+    "message": "Don't worry, this usually clears up with a refresh. Your session and data are safe.",
+    "autoRetry": "Retrying automatically in {{seconds}} s…",
+    "offlineWaiting": "Waiting for internet connection…",
+    "maxAttemptsReached": "If the issue persists, please try later or contact the organizer.",
+    "refreshNow": "Refresh now",
+    "goHome": "Back to home",
+    "errorId": "Error ID: {{id}}",
+    "copyId": "Copy ID",
+    "idCopied": "ID copied"
+  },
   "polls": {
     "title": "Polls",
     "subtitle": "Participate in live questions",
