@@ -734,5 +734,6 @@ export default function Reports() {
         </CardContent>
       </Card>
     </div>
+    </TooltipProvider>
   );
 }
