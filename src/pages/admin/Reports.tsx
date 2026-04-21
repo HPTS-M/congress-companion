@@ -11,6 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Users, Calendar, Star, Ticket, Download, FileSpreadsheet, Eye, ClipboardCheck, BarChart3 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
+import {
+  Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { toast } from '@/hooks/use-toast';
 import type { AttendanceReport, RatingsReport, LogisticsReport, SponsorEngagementReport, PollResponseReport } from '@/services/admin-reports.service';
 import { usePagination } from '@/hooks/usePagination';
