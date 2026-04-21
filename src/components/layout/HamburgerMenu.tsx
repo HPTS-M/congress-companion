@@ -1,4 +1,4 @@
-import { FileText, Edit, MessageCircle, Bell, Star, LogOut, Users, Map } from 'lucide-react';
+import { FileText, Edit, MessageCircle, Bell, Star, LogOut, Users, Map, BarChart3 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -15,7 +15,7 @@ interface HamburgerMenuProps {
   onOpenChange: (open: boolean) => void;
 }
 
-type SettingsKey = 'contactsEnabled' | 'documentsEnabled' | 'notesEnabled' | 'messagingEnabled' | 'announcementsEnabled' | 'ratingsEnabled' | 'venueMapEnabled';
+type SettingsKey = 'contactsEnabled' | 'documentsEnabled' | 'notesEnabled' | 'messagingEnabled' | 'announcementsEnabled' | 'ratingsEnabled' | 'venueMapEnabled' | 'pollsEnabled';
 
 const menuItems: Array<{ key: string; icon: typeof Users; path: string; settingsKey: SettingsKey }> = [
   { key: 'contacts', icon: Users, path: '/contacts', settingsKey: 'contactsEnabled' },
@@ -25,6 +25,7 @@ const menuItems: Array<{ key: string; icon: typeof Users; path: string; settings
   { key: 'announcements', icon: Bell, path: '/announcements', settingsKey: 'announcementsEnabled' },
   { key: 'ratings', icon: Star, path: '/ratings', settingsKey: 'ratingsEnabled' },
   { key: 'venueMap', icon: Map, path: '/venue-map', settingsKey: 'venueMapEnabled' },
+  { key: 'polls', icon: BarChart3, path: '/polls', settingsKey: 'pollsEnabled' },
 ];
 
 export function HamburgerMenu({ open, onOpenChange }: HamburgerMenuProps) {
