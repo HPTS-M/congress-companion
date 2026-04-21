@@ -30,5 +30,7 @@
   "messageError": "Error al enviar",
   "tapToRetry": "Tocar para reintentar",
   "pendingCount_one": "{{count}} pendiente",
-  "pendingCount_other": "{{count}} pendientes"
+  "pendingCount_other": "{{count}} pendientes",
+  "statusSent": "Enviado",
+  "statusDelivered": "Entregado"
 }

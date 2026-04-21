@@ -72,6 +72,13 @@ export function useRejectConversation() {
   });
 }
 
+export function useMarkDelivered() {
+  return useMutation({
+    mutationFn: (params: { conversationId: string; attendeeId: string }) =>
+      messagingService.markDelivered(params.conversationId, params.attendeeId),
+  });
+}
+
 export function useDeleteConversation() {
   const queryClient = useQueryClient();
   const { toast } = useToast();

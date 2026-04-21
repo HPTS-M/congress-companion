@@ -30,5 +30,7 @@
   "messageError": "Send error",
   "tapToRetry": "Tap to retry",
   "pendingCount_one": "{{count}} pending",
-  "pendingCount_other": "{{count}} pending"
+  "pendingCount_other": "{{count}} pending",
+  "statusSent": "Sent",
+  "statusDelivered": "Delivered"
 }
