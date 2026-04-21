@@ -32,5 +32,15 @@
   "pendingCount_one": "{{count}} pending",
   "pendingCount_other": "{{count}} pending",
   "statusSent": "Sent",
-  "statusDelivered": "Delivered"
+  "statusDelivered": "Delivered",
+  "reply": "Reply",
+  "copy": "Copy",
+  "copied": "Copied",
+  "replying": "Replying to {{name}}",
+  "cancelReply": "Cancel reply",
+  "messageDeleted": "Message deleted",
+  "messageNotInView": "Message out of view",
+  "replyAriaLabel": "Reply to this message",
+  "messageActions": "Message options",
+  "you": "You"
 }

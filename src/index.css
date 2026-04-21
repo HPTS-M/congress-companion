@@ -180,3 +180,21 @@ input[type="time"]::-webkit-inner-spin-button {
   display: none;
 }
 
+/* Chat: flash highlight when scrolling to a quoted message */
+@keyframes flash-highlight {
+  0%   { background-color: hsl(45 93% 47% / 0.45); }
+  60%  { background-color: hsl(45 93% 47% / 0.25); }
+  100% { background-color: transparent; }
+}
+[data-flash="true"] {
+  animation: flash-highlight 1.5s ease-out;
+  border-radius: 0.75rem;
+}
+
+/* Chat: prevent native long-press menu on message bubbles (mobile) */
+.chat-bubble-press {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+

@@ -4,8 +4,10 @@
  * Messages typed by the attendee while offline (or that fail to send) are
  * stored in localStorage so they survive reload and are retried on reconnect.
  *
- * Data lives under `pending_messages_v1` and is shared across tabs of the
- * same browser. Re-renders are signaled via a custom event:
+ * Data lives under `pending_messages_v2` and is shared across tabs of the
+ * same browser. v1 entries are migrated forward on first read.
+ *
+ * Re-renders are signaled via a custom event:
  *   window.dispatchEvent(new Event('pending-messages:changed'))
  */
 
@@ -16,20 +18,54 @@ export interface PendingMessage {
   conversationId: string;
   senderId: string;
   content: string;
+  replyToId?: string | null; // optional: message being replied to
   createdAt: string;         // ISO
   status: PendingStatus;
   attempts: number;
   lastError?: string;
 }
 
-const STORAGE_KEY = 'pending_messages_v1';
+const STORAGE_KEY = 'pending_messages_v2';
+const LEGACY_STORAGE_KEY = 'pending_messages_v1';
 const CHANGE_EVENT = 'pending-messages:changed';
+
+function migrateLegacy(): PendingMessage[] | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const legacy = window.localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (!legacy) return null;
+    const parsed = JSON.parse(legacy);
+    if (!Array.isArray(parsed)) {
+      window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+      return null;
+    }
+    const migrated: PendingMessage[] = parsed.map((m: Partial<PendingMessage>) => ({
+      id: m.id ?? `pending-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      conversationId: m.conversationId ?? '',
+      senderId: m.senderId ?? '',
+      content: m.content ?? '',
+      replyToId: null,
+      createdAt: m.createdAt ?? new Date().toISOString(),
+      status: (m.status as PendingStatus) ?? 'pending',
+      attempts: m.attempts ?? 0,
+      lastError: m.lastError,
+    }));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+    return migrated;
+  } catch {
+    return null;
+  }
+}
 
 function read(): PendingMessage[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
+    if (!raw) {
+      const migrated = migrateLegacy();
+      return migrated ?? [];
+    }
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
   } catch {
@@ -74,12 +110,18 @@ export const pendingMessages = {
     return map;
   },
 
-  enqueue(input: { conversationId: string; senderId: string; content: string }): PendingMessage {
+  enqueue(input: {
+    conversationId: string;
+    senderId: string;
+    content: string;
+    replyToId?: string | null;
+  }): PendingMessage {
     const msg: PendingMessage = {
       id: genId(),
       conversationId: input.conversationId,
       senderId: input.senderId,
       content: input.content,
+      replyToId: input.replyToId ?? null,
       createdAt: new Date().toISOString(),
       status: 'pending',
       attempts: 0,

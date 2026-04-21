@@ -32,5 +32,15 @@
   "pendingCount_one": "{{count}} pendiente",
   "pendingCount_other": "{{count}} pendientes",
   "statusSent": "Enviado",
-  "statusDelivered": "Entregado"
+  "statusDelivered": "Entregado",
+  "reply": "Responder",
+  "copy": "Copiar",
+  "copied": "Copiado",
+  "replying": "Respondiendo a {{name}}",
+  "cancelReply": "Cancelar respuesta",
+  "messageDeleted": "Mensaje eliminado",
+  "messageNotInView": "Mensaje fuera de vista",
+  "replyAriaLabel": "Responder a este mensaje",
+  "messageActions": "Opciones del mensaje",
+  "you": "Tú"
 }

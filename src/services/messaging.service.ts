@@ -1,5 +1,13 @@
 import { supabase } from '@/integrations/supabase/client';
 import { measure } from '@/lib/perf';
+import { z } from 'zod';
+
+export interface ReplyToPreview {
+  id: string;
+  sender_id: string;
+  content: string;
+  was_deleted: boolean;
+}
 
 export interface ChatMessage {
   id: string;
@@ -8,6 +16,8 @@ export interface ChatMessage {
   content: string;
   created_at: string | null;
   delivered_at: string | null;
+  reply_to_id: string | null;
+  reply_to: ReplyToPreview | null;
   sender_name?: string;
 }
 
@@ -48,17 +58,67 @@ type RpcCaller = (
   args: Record<string, unknown>
 ) => Promise<{ data: unknown; error: { message: string } | null }>;
 
+// Defense-in-depth: cap quoted preview to 120 chars even though we trim server-side too.
+const QUOTE_MAX = 120;
+
+const sendMessageSchema = z.object({
+  conversationId: z.string().uuid(),
+  senderId: z.string().uuid(),
+  content: z.string().trim().min(1).max(2000),
+  replyToId: z.string().uuid().optional().nullable(),
+});
+
+interface RawMessageRow {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  content: string;
+  created_at: string | null;
+  delivered_at: string | null;
+  reply_to_id: string | null;
+  reply_to:
+    | {
+        id: string;
+        sender_id: string;
+        content: string;
+        deleted_at: string | null;
+      }
+    | null;
+}
+
 export const messagingService = {
   async getMessages(conversationId: string): Promise<ChatMessage[]> {
+    // Embed the quoted message via FK relation. Supabase resolves this as a
+    // nested object; we then normalize it to ReplyToPreview.
     const { data, error } = await supabase
       .from('chat_messages')
-      .select('id, conversation_id, sender_id, content, created_at, delivered_at')
+      .select(
+        'id, conversation_id, sender_id, content, created_at, delivered_at, reply_to_id, reply_to:reply_to_id(id, sender_id, content, deleted_at)'
+      )
       .eq('conversation_id', conversationId)
       .is('deleted_at', null)
       .order('created_at', { ascending: true });
 
     if (error) throw new Error(error.message);
-    return (data ?? []) as ChatMessage[];
+
+    const rows = (data ?? []) as unknown as RawMessageRow[];
+    return rows.map((r) => ({
+      id: r.id,
+      conversation_id: r.conversation_id,
+      sender_id: r.sender_id,
+      content: r.content,
+      created_at: r.created_at,
+      delivered_at: r.delivered_at,
+      reply_to_id: r.reply_to_id,
+      reply_to: r.reply_to
+        ? {
+            id: r.reply_to.id,
+            sender_id: r.reply_to.sender_id,
+            content: (r.reply_to.content ?? '').slice(0, QUOTE_MAX),
+            was_deleted: r.reply_to.deleted_at !== null,
+          }
+        : null,
+    }));
   },
 
   async markDelivered(conversationId: string, attendeeId: string): Promise<number> {
@@ -70,15 +130,32 @@ export const messagingService = {
     return (data as number | null) ?? 0;
   },
 
-  async sendMessage(conversationId: string, senderId: string, content: string): Promise<void> {
-    const { error } = await supabase
-      .from('chat_messages')
-      .insert({
-        conversation_id: conversationId,
-        sender_id: senderId,
-        content,
-      });
+  async sendMessage(
+    conversationId: string,
+    senderId: string,
+    content: string,
+    replyToId?: string | null
+  ): Promise<void> {
+    const parsed = sendMessageSchema.safeParse({
+      conversationId,
+      senderId,
+      content,
+      replyToId: replyToId ?? null,
+    });
+    if (!parsed.success) {
+      throw new Error(parsed.error.errors[0]?.message ?? 'Invalid message');
+    }
 
+    const payload: Record<string, unknown> = {
+      conversation_id: parsed.data.conversationId,
+      sender_id: parsed.data.senderId,
+      content: parsed.data.content,
+    };
+    if (parsed.data.replyToId) {
+      payload.reply_to_id = parsed.data.replyToId;
+    }
+
+    const { error } = await supabase.from('chat_messages').insert(payload);
     if (error) throw new Error(error.message);
   },
 

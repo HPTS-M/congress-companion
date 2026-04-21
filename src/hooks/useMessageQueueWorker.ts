@@ -79,7 +79,12 @@ async function sendOne(
   pendingMessages.markSending(msg.id);
 
   try {
-    await messagingService.sendMessage(msg.conversationId, msg.senderId, msg.content);
+    await messagingService.sendMessage(
+      msg.conversationId,
+      msg.senderId,
+      msg.content,
+      msg.replyToId ?? null
+    );
     // Success: drop it; realtime will deliver the real row.
     pendingMessages.remove(msg.id);
     qc.invalidateQueries({ queryKey: ['direct-messages', msg.conversationId] });
