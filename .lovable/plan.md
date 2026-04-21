@@ -1,130 +1,101 @@
 
 
-# Plan: Filtros mobile estilo Agenda en Comercial + Admin Providers
+# Plan: Tarjetas de Sponsor estilo Agenda
 
-Aplicar el patrón de **chips horizontales scrollables** (modelo Agenda) en ambas páginas, con regla clara para escalar a dropdown si crecen las categorías.
+## Mi opinión honesta primero
 
----
+**Replicar 1:1 el diseño de Agenda en Comercial es buena idea, pero con un matiz importante.**
 
-## Decisión de diseño
+✅ **Lo que SÍ vale la pena copiar:**
+- Tamaño de tarjeta (full-width, padding generoso `p-4 pl-5`)
+- Layout vertical con info apilada (no horizontal compacto como ahora)
+- **Border-left de 4px coloreado por nivel** (gold/silver/bronze/exhibitor) — equivale al border-left por tipo de sesión
+- Tipografía: título `text-base font-semibold`, metadatos `text-xs text-muted-foreground` con íconos pequeños
+- Botón de acción abajo a la derecha con `Button size="sm"`
+- Espaciado interno (`space-y-1.5` entre líneas de metadata)
 
-**Regla de escalado por cantidad de filtros:**
+⚠️ **Lo que NO conviene copiar literal:**
+- El **círculo de "Pendiente/Confirmado"** a la derecha — los sponsors no tienen estado de check-in. En su lugar usaremos ese espacio para el **logo del sponsor** (que es la identidad visual más importante de un sponsor — más que el nombre).
+- El **contador de estrellas ⭐** — los sponsors no tienen "interesados públicos". Lo reemplazamos por el **chevron "›"** indicando que es navegable al detalle.
 
-| Cantidad de chips | Patrón recomendado |
-|---|---|
-| 2–8 chips | **Chips horizontales** (scroll suave + fade right) ✅ Caso actual |
-| 9–15 chips | Chips + botón "Más filtros" → bottom sheet con multi-select |
-| 16+ chips | **Dropdown / bottom sheet** con buscador interno |
+🎯 **Resultado final:** Misma silueta visual y "peso" que Agenda (consistencia entre módulos), pero adaptada a la semántica de un sponsor (logo prominente + nivel + categoría + stand + CTA).
 
-**Razón:** Con ≤8 categorías, el costo cognitivo de abrir un dropdown (2 taps + lectura de lista) supera al simple swipe horizontal (1 gesto, todo visible). Con 16+ chips, el swipe se vuelve tedioso y el dropdown gana.
-
-**Caso actual:**
-- **Comercial (attendee):** 6 categorías → chips ✅
-- **Admin Providers:** 4 tipos (transport, food, tour, special) → chips ✅
-
-Ambos casos están en el rango óptimo para chips. Si en el futuro Comercial pasa de 8 categorías → migrar a bottom sheet. Lo dejamos documentado en código como TODO con la regla.
-
----
-
-## Cambios — Página Comercial (attendee)
-
-`src/pages/attendee/Commercial.tsx` ya tiene la estructura correcta (chips horizontales en `flex gap-2 overflow-x-auto`). Mejoras necesarias:
-
-1. **Fade indicator a la derecha** cuando hay más chips fuera de viewport (gradiente blanco → transparente, 24px ancho)
-2. **Scroll snap** para alinear chips al hacer swipe (`snap-x snap-mandatory` en contenedor, `snap-start` en cada chip)
-3. **Padding inferior** del scroll container (`pb-2 -mb-2`) para que el fondo activo del chip no se corte
-4. **Auto-scroll al chip activo** cuando se selecciona uno fuera de viewport (`scrollIntoView({ inline: 'center', behavior: 'smooth' })`)
-5. **Touch momentum** en iOS (`-webkit-overflow-scrolling: touch` ya cubierto por `overflow-x-auto`)
+Esto resuelve dos problemas actuales que veo en tu screenshot:
+1. Las tarjetas actuales se sienten "apretadas" comparadas con Agenda → ahora respiran igual
+2. La inconsistencia visual entre Comercial y Agenda → ahora son visualmente hermanas
 
 ---
 
-## Cambios — Admin Providers
+## Cambios concretos
 
-`src/pages/admin/Providers.tsx` actualmente solo tiene buscador, sin filtros por tipo. Añadir:
+### `SponsorCard` (en `Commercial.tsx`)
 
-1. **Fila de chips** debajo del buscador con los 4 tipos (`transport`, `food`, `tour`, `special`) + chip "Todos (N)"
-2. Cada chip muestra ícono del tipo (de `TYPE_ICONS`) + label traducido + contador
-3. Mismo patrón visual que Comercial (scrollable, fade, snap)
-4. Filtro adicional: chip "Solo activos" (toggle separado a la derecha) para filtrar `is_active = true`
-5. Estado controlado: `selectedTypes: string[]` y `onlyActive: boolean`
-6. Filtrado client-side sobre el array ya cargado (`providers.filter(...)`)
+**Estructura nueva — espejo de `SessionCard`:**
 
----
-
-## Componente compartido nuevo
-
-Crear **`src/components/ui/filter-chips.tsx`** reutilizable:
-
-```ts
-interface FilterChipsProps {
-  options: Array<{ value: string; label: string; icon?: LucideIcon; count?: number }>;
-  selected: string[];
-  onChange: (selected: string[]) => void;
-  allLabel?: string;          // chip "Todos"
-  allCount?: number;
-  multiSelect?: boolean;      // default true
-  className?: string;
-}
+```
+┌─────────────────────────────────────────────┐
+│ 🟨 [LOGO]  Laboratorios ABC            ›    │  ← border-left 4px color nivel
+│  60×60     📍 Stand A-15                    │
+│           👤 Farmacéutica                   │
+│           [Badge: ORO] [Badge: Stand]       │
+│                                             │
+│                          [♥ Me interesa]   │  ← botón abajo derecha
+└─────────────────────────────────────────────┘
 ```
 
-Encapsula: scroll horizontal, fade derecha, snap, auto-scroll al activo, accesibilidad (`role="radiogroup"` o `"group"`, navegación por teclado con flechas).
+**Spec exacta:**
+- Container: `rounded-lg border-t border-r border-b border-border bg-card shadow-sm p-4 pl-5` + `borderLeft: 4px solid {LEVEL_COLOR}`
+- Mapeo de colores border-left por nivel:
+  - `gold` → `#F59E0B`
+  - `silver` → `#94A3B8`
+  - `bronze` → `#B45309`
+  - `exhibitor` → `#1A56A0`
+- Layout: `flex items-start justify-between gap-2`
+- **Izquierda (logo)**: `h-14 w-14 sm:h-16 sm:w-16 rounded object-contain bg-white shrink-0` (o avatar con iniciales si no hay logo)
+- **Centro (info)**: `flex-1 min-w-0 space-y-1.5`
+  - Título: `text-base font-semibold text-card-foreground leading-tight` + chevron derecho
+  - Stand: `flex items-center gap-1.5 text-xs text-muted-foreground` con `MapPin h-3.5 w-3.5`
+  - Categoría: misma fila pattern con `Building2 h-3.5 w-3.5`
+  - Badges en `flex flex-wrap gap-1.5 pt-1`: Badge nivel (con ícono Crown/Award/Medal) + Badge "Stand X" si aplica
+- **Botón "Me interesa"**: `mt-3 flex justify-end` con `Button size="sm" variant="default"` — mismo color que Agenda (`bg-amber-500` cuando ya está marcado como interés)
 
-Usar este componente en:
-- `Commercial.tsx` (categorías)
-- `Providers.tsx` (tipos)
-- Disponible para futuras páginas (Documents, Tickets, Sponsors admin)
+### Grid responsivo
 
----
+**Eliminar `sm:grid sm:grid-cols-2`** — Agenda usa una columna en todos los tamaños y se ve excelente. Sponsors igual: `flex flex-col gap-3` sin breakpoint a 2 columnas.
 
-## i18n
+Ventaja: en desktop/tablet las tarjetas ocupan todo el ancho como en Agenda → consistencia total.
 
-Añadir en `src/locales/{es,en}/admin.json`:
-- `providers.filters.allTypes` → "Todos los tipos" / "All types"
-- `providers.filters.onlyActive` → "Solo activos" / "Active only"
+### Componente extraído
 
-(Los nombres de tipo ya existen en `provider:type.transport/food/tour/special` o equivalente; verificar y reutilizar.)
-
----
-
-## Accesibilidad
-
-- Chips son `<button>` con `aria-pressed={active}`
-- Contenedor con `role="group"` y `aria-label="Filtros"`
-- Foco visible (`focus-visible:ring-2 ring-primary`)
-- Navegación por teclado: Tab entre chips, Enter/Space para activar
-- Fade derecho oculto a screen readers (`aria-hidden`)
-
----
-
-## Plan de prueba
-
-1. **Comercial mobile (375px):** ver fade derecho, swipe natural, snap al soltar
-2. **Seleccionar chip oculto** (ej. "Otros") → auto-scroll lo trae a vista
-3. **Comercial desktop:** comportamiento idéntico, sin scroll si caben todos
-4. **Admin Providers:** chips funcionan, contadores correctos, "Solo activos" filtra bien
-5. **Multi-select:** elegir 2 categorías → ambas con check, lista filtrada por OR
-6. **Teclado:** Tab + Enter activa chips correctamente
-7. **Dark mode:** fade adapta color de fondo
+Mover `SponsorCard` a archivo propio `src/components/attendee/SponsorCard.tsx` (espejo de `SessionCard.tsx`). `Commercial.tsx` queda más limpio y el componente reutilizable.
 
 ---
 
 ## Archivos afectados
 
 ```
-NEW   src/components/ui/filter-chips.tsx
-EDIT  src/pages/attendee/Commercial.tsx           (usar FilterChips)
-EDIT  src/pages/admin/Providers.tsx               (añadir FilterChips + onlyActive)
-EDIT  src/locales/es/admin.json                   (2 keys)
-EDIT  src/locales/en/admin.json                   (2 keys)
+NEW   src/components/attendee/SponsorCard.tsx   (extraído + rediseñado estilo Agenda)
+EDIT  src/pages/attendee/Commercial.tsx         (importa nuevo SponsorCard, elimina grid 2-col)
 ```
 
-**Total: 1 nuevo + 4 editados.** ~30 minutos.
+**2 archivos. ~15 minutos.**
+
+---
+
+## Plan de prueba
+
+1. Mobile 375px: tarjeta sponsor tiene exactamente el mismo "peso" visual que session card en Agenda
+2. Border-left dorado se ve en sponsors gold, gris en silver, naranja en bronze
+3. Logo se muestra cuadrado a la izquierda (60px), iniciales si no hay logo
+4. Tap en tarjeta navega a detalle; tap en "Me interesa" no propaga
+5. Desktop: tarjetas full-width (no más grid 2-col), idéntico a Agenda
+6. Dark mode: colores y borders adaptan correctamente
 
 ---
 
 ## Lo que NO incluye
 
-- Bottom sheet de filtros (se justificará cuando alguna página supere 8 chips)
-- Filtros guardados/persistidos en URL (iteración futura si se pide)
-- Cambios en filtros existentes de `AttendeesFilters` (ya tiene su propio patrón con multi-select de specialty/institution que SÍ necesita dropdown por volumen — ese caso queda como referencia de cuándo usar dropdown)
+- Cambios en la página de detalle del sponsor (`SponsorDetail.tsx`) — mantenemos como está
+- Cambios en filtros chips o búsqueda — quedaron perfectos en la iteración anterior
+- Cambios en el badge del nivel (sigue usando los íconos Crown/Award/Medal actuales)
 
