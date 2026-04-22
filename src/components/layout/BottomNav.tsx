@@ -5,7 +5,7 @@ import { useEvent, useEventSlug, useEventSettings } from '@/hooks/useEvent';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 import { useUnreadAnnouncements } from '@/hooks/useUnreadAnnouncements';
 import { useAuth } from '@/hooks/useAuth';
-import { usePrefetch, type PrefetchKey } from '@/hooks/usePrefetch';
+import { usePrefetch } from '@/hooks/usePrefetch';
 import { usePrefetchHandlers } from '@/hooks/usePrefetchHandlers';
 import { useMemo } from 'react';
 
