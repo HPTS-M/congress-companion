@@ -1,139 +1,159 @@
 
 
-## Plan — Fix limpio: Eliminación de encuestas con respuestas
+## Plan — Fix: Cambios del modal "Editar patrocinador" no se reflejan
 
-### Diagnóstico confirmado
+### Diagnóstico
 
-**Síntoma:** Toast rojo "Error al eliminar encuesta" al borrar polls que tienen respuestas registradas.
+Inspeccioné el flujo completo (modal → hook → service → BD) y verifiqué el estado real de la tabla `sponsors`. Hallazgos:
 
-**Causa raíz (ya identificada):**
-1. La tabla `poll_responses` no tiene política `DELETE` para admins de organización (solo SELECT, INSERT y ALL para superusers).
-2. La tabla `poll_options` tampoco tiene política `DELETE` para admins.
-3. Cuando un admin ejecuta `DELETE FROM poll_responses WHERE poll_id = X`, RLS filtra a 0 filas silenciosamente — no es error, simplemente no borra nada.
-4. Las respuestas siguen en BD → `DELETE FROM polls` revienta con violación de FK `poll_responses_poll_id_fkey`.
-5. Adicionalmente el código actual (`adminPollsService.deletePoll`) ignora el error de las dos primeras llamadas, ocultando el problema.
+**Estado en BD (verificado):**
+- El patrocinador "Al Pharma" SÍ tiene `whatsapp_message: "prueba"` y `whatsapp: "3136985667"` persistidos.
+- Otros patrocinadores tienen `whatsapp` en formato E.164 correcto (`+573009876543`), confirmando que el modal sí escribe al menos algunos campos.
+- **Conclusión:** los cambios SÍ llegan a la BD, pero el usuario percibe que "no se toman" por dos problemas combinados.
 
-Las encuestas sin respuestas sí se borran porque no hay nada protegiendo la FK.
+**Problema 1 — Cache no se actualiza optimísticamente tras `update`**
+
+`src/hooks/useAdminSponsors.ts` líneas 57-61:
+```ts
+const updateMutation = useMutation({
+  mutationFn: ({ id, form }) => adminSponsorsService.update(id, form),
+  onSuccess: () => qc.invalidateQueries({ queryKey: key }),  // ← solo invalida
+});
+```
+
+Comparado con `createMutation` que SÍ tiene `onMutate` con actualización optimista y `onSuccess` que reemplaza la fila optimista por la real:
+- Tras `update`, `invalidateQueries` dispara un refetch async.
+- Mientras el refetch viaja, la lista de la página y el `editingSponsor` (que se pasa al modal en la próxima edición) usan datos stale.
+- Si el usuario reabre el modal antes de que el refetch llegue, ve los valores viejos.
+
+**Problema 2 — `.single()` post-UPDATE puede lanzar error si RLS filtra**
+
+`src/services/admin-sponsors.service.ts` línea 79-87:
+```ts
+const { data, error } = await supabase
+  .from('sponsors')
+  .update(form)
+  .eq('id', id)
+  .select()
+  .single();
+```
+
+La política `Admins manage org sponsors` permite UPDATE, pero el `.select()` post-UPDATE evalúa políticas SELECT independientemente. Aunque las políticas vigentes deberían cubrir al admin, cualquier glitch (rol expirado, organization_id null momentáneamente) hace que `.single()` lance `PGRST116: No rows returned` aunque el UPDATE haya tenido éxito → el modal muestra toast rojo "Error al editar" y el usuario asume que nada se guardó.
+
+**Problema 3 — `editingSponsor` no se refresca tras invalidar**
+
+`src/pages/admin/Sponsors.tsx` líneas 47, 88-91:
+- `editingSponsor` es state local con la fila clicada.
+- `handleCloseModal` lo resetea, pero entre mientras la lista refresca y el usuario hace clic en "Editar" de nuevo, recibe la fila NUEVA del cache. OK.
+- El verdadero issue: cuando guarda y cierra, la tabla muestra valores viejos durante 100-500ms hasta que el refetch resuelve.
 
 ---
 
-### Solución limpia (DB + servicio)
+### Solución (3 capas, buenas prácticas)
 
-#### Capa 1 — Migración SQL
+#### Capa 1 — `useAdminSponsors`: actualización optimista en `update`
 
-Agregar políticas `DELETE` para admins de organización en `poll_responses` y `poll_options`. Sigue el patrón existente del módulo (`get_user_organization(auth.uid())`).
-
-```sql
--- Admins eliminan respuestas de encuestas de su organización
-CREATE POLICY "Admins delete org poll responses"
-ON public.poll_responses
-FOR DELETE
-TO authenticated
-USING (
-  EXISTS (
-    SELECT 1
-    FROM polls p
-    JOIN events e ON e.id = p.event_id
-    WHERE p.id = poll_responses.poll_id
-      AND e.organization_id = get_user_organization(auth.uid())
-  )
-);
-
--- Admins eliminan opciones de encuestas de su organización
-CREATE POLICY "Admins delete org poll options"
-ON public.poll_options
-FOR DELETE
-TO authenticated
-USING (
-  EXISTS (
-    SELECT 1
-    FROM polls p
-    JOIN events e ON e.id = p.event_id
-    WHERE p.id = poll_options.poll_id
-      AND e.organization_id = get_user_organization(auth.uid())
-  )
-);
-```
-
-**Por qué políticas explícitas y no `ON DELETE CASCADE`:**
-- Modificar la FK requiere DROP + ADD CONSTRAINT y puede romper otras validaciones.
-- Las políticas explícitas son trazables y consistentes con el patrón ya usado en `Admins manage poll options` (que cubre INSERT/UPDATE pero no DELETE — completamos la matriz).
-- Cumple regla LL-001/LL-002 del knowledge base: cada operación necesita política explícita.
-
-#### Capa 2 — Refactor `deletePoll` con buenas prácticas
-
-`src/services/admin-polls.service.ts`:
+Replicar el patrón del `createMutation` para `updateMutation`:
 
 ```ts
-async deletePoll(pollId: string): Promise<void> {
-  // Orden de borrado: dependencias primero (respuestas → opciones → poll)
-  // Cada paso captura su error para diagnóstico claro.
-  
-  const { error: responsesError } = await supabase
-    .from('poll_responses')
-    .delete()
-    .eq('poll_id', pollId);
-  if (responsesError) {
-    throw new Error(`Failed to delete poll responses: ${responsesError.message}`);
-  }
+const updateMutation = useMutation({
+  mutationFn: ({ id, form }: { id: string; form: ... }) =>
+    adminSponsorsService.update(id, form),
+  onMutate: async ({ id, form }) => {
+    await qc.cancelQueries({ queryKey: key });
+    const previous = qc.getQueryData<SponsorRow[]>(key);
+    qc.setQueryData<SponsorRow[]>(key, (old) =>
+      (old ?? []).map((s) =>
+        s.id === id
+          ? { ...s, ...form } as SponsorRow
+          : s
+      )
+    );
+    return { previous };
+  },
+  onError: (_err, _vars, ctx) => {
+    if (ctx?.previous) qc.setQueryData(key, ctx.previous);
+  },
+  onSuccess: (updated) => {
+    if (updated) {
+      qc.setQueryData<SponsorRow[]>(key, (old) =>
+        (old ?? []).map((s) => (s.id === updated.id ? updated : s))
+      );
+    }
+    qc.invalidateQueries({ queryKey: key });
+  },
+});
+```
 
-  const { error: optionsError } = await supabase
-    .from('poll_options')
-    .delete()
-    .eq('poll_id', pollId);
-  if (optionsError) {
-    throw new Error(`Failed to delete poll options: ${optionsError.message}`);
-  }
+Beneficios:
+- ✅ La lista refleja el cambio inmediatamente (sin esperar refetch).
+- ✅ Si el server falla, `onError` revierte al estado previo.
+- ✅ Cuando el server responde, se sincroniza con datos canónicos.
+- ✅ Patrón consistente con `createMutation` ya existente.
 
-  const { error: pollError } = await supabase
-    .from('polls')
-    .delete()
-    .eq('id', pollId);
-  if (pollError) {
-    throw new Error(`Failed to delete poll: ${pollError.message}`);
-  }
+#### Capa 2 — Service `update`: tolerar respuesta vacía sin lanzar
+
+`src/services/admin-sponsors.service.ts`:
+
+```ts
+async update(
+  id: string,
+  form: Partial<SponsorFormData> & { logo_url?: string | null; materials_url?: string | null }
+): Promise<SponsorRow | null> {
+  const { data, error } = await supabase
+    .from('sponsors')
+    .update(form)
+    .eq('id', id)
+    .select()
+    .maybeSingle();  // ← cambia .single() → .maybeSingle()
+  if (error) throw new Error(error.message);
+  return data as SponsorRow | null;
 },
 ```
 
-**Buenas prácticas aplicadas:**
-- ✅ Cada error capturado y propagado con contexto descriptivo (antes el primer DELETE ignoraba errores → enmascaraba RLS).
-- ✅ Orden explícito de dependencias (responses → options → poll), no asumimos cascade.
-- ✅ Sin try/catch global que oculte stack — `useAdminPolls.deletePoll.onError` ya muestra toast al usuario.
-- ✅ Nombres descriptivos (`responsesError`, `optionsError`, `pollError`) en lugar de `error` reutilizado.
-- ✅ Sin cambios a la firma pública — consumidores (`useAdminPolls`, `Polls.tsx`) intactos.
+Cambios:
+- `.single()` → `.maybeSingle()`: si RLS filtra el SELECT post-UPDATE, devuelve `null` sin lanzar (el UPDATE ya se ejecutó).
+- Tipo retorno `SponsorRow | null` para reflejar el contrato real.
+- El `onSuccess` del hook ya maneja `if (updated) { ... }`.
 
----
+Trade-off documentado: si el UPDATE falla por RLS (USING denegado), el cliente lo verá porque `error` sí se propaga. Solo cubrimos el caso "UPDATE OK + SELECT denegado".
 
-### Archivos modificados
+#### Capa 3 — Modal: indicar éxito incluso si server no devuelve fila
 
-| Archivo | Cambio | Líneas aprox |
-|---|---|---|
-| Nueva migración SQL | 2 políticas DELETE para `poll_responses` y `poll_options` | ~25 |
-| `src/services/admin-polls.service.ts` | Refactor de `deletePoll` con error handling explícito | ~25 |
+`src/components/admin/sponsors/SponsorModal.tsx` líneas 245-261: el flujo actual (toast + `onSaved + onClose`) ya funciona bien con la corrección anterior. No requiere cambios.
 
 ---
 
 ### Verificación
 
-1. **Encuesta vacía:** eliminar → OK (sin regresión).
-2. **Encuesta con respuestas:** "Tuviste acceso a los servicios toda la tarde" (3 respuestas) → toast verde, desaparece de la lista, no aparece más en BD.
-3. **Logs Postgres:** ya no aparece `poll_responses_poll_id_fkey` violation.
-4. **Asistente intentando borrar respuesta ajena:** sigue bloqueado (políticas existentes intactas — solo agregamos DELETE para admins, no tocamos políticas de attendees).
-5. **Admin de otra organización intentando borrar encuesta ajena:** bloqueado por la condición `e.organization_id = get_user_organization(auth.uid())`.
+1. **Editar "Al Pharma": cambiar mensaje de WhatsApp de "prueba" a "Hola, soy admin"** → guardar → toast verde → reabrir modal → ver "Hola, soy admin" sin parpadeo ni delay.
+2. **Editar logo + texto en una sola operación** → ambos cambios persisten.
+3. **Editar y cancelar (sin guardar)** → cache no se contamina, valores quedan como estaban.
+4. **Simular fallo de red durante update** → DevTools throttle offline → toast rojo + lista vuelve al estado anterior (rollback).
+5. **Verificar query directa en BD** post-edit → datos coinciden con lo guardado.
+
+---
+
+### Archivos a modificar
+
+| Archivo | Cambio | Líneas aprox |
+|---|---|---|
+| `src/hooks/useAdminSponsors.ts` | `updateMutation`: añadir `onMutate` (optimista) + `onError` (rollback) + `onSuccess` con sync de fila | ~25 |
+| `src/services/admin-sponsors.service.ts` | `update`: `.single()` → `.maybeSingle()`, retorno `SponsorRow \| null` | ~3 |
 
 ---
 
 ### Lo que NO se toca
 
-- Lógica de envío/respuesta de polls del lado attendee (`pollsService`, `usePolls`).
-- Políticas SELECT/INSERT/UPDATE existentes en `poll_responses` y `poll_options`.
-- RLS de `polls` (ya tiene políticas DELETE correctas).
-- UI de `Polls.tsx`, `useAdminPolls`, modales.
-- i18n, realtime, Edge Functions.
+- RLS de `sponsors` (las políticas actuales son correctas; el admin SÍ tiene UPDATE+SELECT permitidos).
+- UI del modal `SponsorModal.tsx` (el flujo es correcto).
+- `Sponsors.tsx` (la página padre solo consume el hook, sin lógica propia de cache).
+- `createMutation` (ya tiene patrón optimista correcto).
+- Tabla `sponsors` schema, triggers, ni storage.
 
 ---
 
 ### Esfuerzo
 
-~5 minutos. 1 migración SQL + 1 archivo TypeScript. Cero riesgo de regresión.
+~10 minutos. 2 archivos. Cero riesgo de regresión: el patrón optimista es idéntico al ya probado en `createMutation`.
 
