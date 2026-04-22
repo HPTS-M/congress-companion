@@ -8,16 +8,17 @@ import { z } from 'zod';
  */
 
 // --- Regex ---
-// Letters (with accents and ñ), spaces, dots, apostrophes, hyphens.
+// Letters (Latin extended: includes all accents — agudas, graves, diéresis, Ç, ñ),
+// spaces, dots, apostrophes (straight + curly), hyphens.
 // No digits, no other special characters.
-export const NAME_REGEX = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s.''\-]+$/;
+export const NAME_REGEX = /^[A-Za-zÀ-ÿÑñ\s.''’\-]+$/;
 
 // Strict email
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 // Free-text fields without atypical special characters (allows letters, numbers,
-// spaces, accents, ñ, common punctuation: . , & ' - ( ) /)
-export const TEXT_NO_SPECIAL_REGEX = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9\s.,&''\-()/]+$/;
+// spaces, Latin extended accents, ñ, common punctuation: . , & ' " – — - ( ) / +)
+export const TEXT_NO_SPECIAL_REGEX = /^[A-Za-zÀ-ÿÑñ0-9\s.,&''’""“”–—\-()/+]+$/;
 
 // External credential code: alphanumeric + dash + underscore, 3-50 chars
 export const EXTERNAL_CODE_REGEX = /^[A-Za-z0-9_\-]{3,50}$/;
