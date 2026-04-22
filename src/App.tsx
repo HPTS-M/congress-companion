@@ -98,11 +98,13 @@ const App = () => (
               <Route path="/:eventSlug" element={<EventProvider />}>
                 <Route index element={<AttendeeLogin />} />
                 <Route path="admin/login" element={<AdminLogin />} />
+                <Route path="admin/2fa/verify" element={<AdminMfaVerify />} />
 
                 {/* Protected admin routes */}
                 <Route path="admin" element={<AdminLayout />}>
                   <Route path="dashboard" element={<AdminDashboard />} />
                   <Route path="config" element={<AdminEventConfig />} />
+                  <Route path="profile" element={<AdminProfile />} />
                   <Route path="users" element={<AdminAttendees />} />
                   <Route path="agenda" element={<AdminAgenda />} />
                   <Route path="documents" element={<AdminDocuments />} />
