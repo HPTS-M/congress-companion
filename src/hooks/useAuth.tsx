@@ -127,6 +127,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
 
       if (data) {
+        const newAttendeeId = (data as AttendeeProfile).id;
+        // If we just switched attendees on this device, purge the persisted
+        // cache BEFORE the rest of the app starts hydrating queries.
+        if (
+          lastAttendeeIdRef.current &&
+          lastAttendeeIdRef.current !== newAttendeeId
+        ) {
+          queryClient.clear();
+          await purgePersistedCache();
+        }
+        lastAttendeeIdRef.current = newAttendeeId;
+
         setState(prev => ({
           ...prev,
           attendee: data as AttendeeProfile,
@@ -179,6 +191,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('id', state.attendee.id);
     }
     await authService.logout();
+    // Wipe in-memory + persisted query cache so the next attendee can't see
+    // any of the previous attendee's data on a shared device.
+    queryClient.clear();
+    await purgePersistedCache();
+    lastAttendeeIdRef.current = null;
     setState({
       session: null,
       user: null,
@@ -192,7 +209,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mfaLevel: null,
       mfaFactorId: null,
     });
-  }, [state.attendee?.id]);
+  }, [state.attendee?.id, queryClient]);
 
   return (
     <AuthContext.Provider value={{ ...state, loginWithCode, loginAdmin, logout, refreshMfaState }}>

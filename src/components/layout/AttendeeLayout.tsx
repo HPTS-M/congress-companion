@@ -10,6 +10,7 @@ import { useMessageQueueWorker } from '@/hooks/useMessageQueueWorker';
 import { usePushSubscription } from '@/hooks/usePushSubscription';
 import { useAnnouncementToasts } from '@/hooks/useAnnouncementToasts';
 import { useDirectMessageToasts } from '@/hooks/useDirectMessageToasts';
+import { usePrefetchOfflineBundle } from '@/hooks/usePrefetchOfflineBundle';
 
 export function AttendeeLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -21,6 +22,8 @@ export function AttendeeLayout() {
   useAnnouncementToasts();
   // Show in-app toasts for new direct messages (any screen except the open chat)
   useDirectMessageToasts();
+  // Warm IndexedDB-persisted query cache so reopening offline shows real data.
+  usePrefetchOfflineBundle();
 
   return (
     <SidebarProvider>
