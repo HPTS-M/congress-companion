@@ -92,22 +92,52 @@ export function BottomNav() {
             ariaLabel={badge ? `${badge.label} (${badge.count})` : undefined}
             display={display}
             prefetch={prefetch}
-          >
-            <span className="relative">
-              <Icon className="h-6 w-6" />
-              {display && (
-                <span
-                  className="absolute -right-2 -top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground ring-2 ring-background"
-                  aria-hidden="true"
-                >
-                  {display}
-                </span>
-              )}
-            </span>
-            <span className="text-[11px] font-medium leading-tight">{t(`nav.${key}`)}</span>
-          </NavLink>
+          />
         );
       })}
     </nav>
   );
 }
+
+interface NavTabProps {
+  tabKey: string;
+  to: string;
+  Icon: typeof Home;
+  label: string;
+  ariaLabel?: string;
+  display: string | null;
+  prefetch: ReturnType<typeof usePrefetch>;
+}
+
+/**
+ * Inner tab component — required so we can call `usePrefetchHandlers` (a hook)
+ * once per tab instead of inside the `tabs.map(...)` loop in the parent.
+ */
+function NavTab({ tabKey, to, Icon, label, ariaLabel, display, prefetch }: NavTabProps) {
+  const prefetchFn = (prefetch as Record<string, (() => Promise<unknown>) | undefined>)[tabKey];
+  const handlers = usePrefetchHandlers(prefetchFn ?? (() => {}));
+
+  return (
+    <NavLink
+      to={to}
+      className="relative flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 px-1 py-1.5 text-muted-foreground"
+      activeClassName="text-primary"
+      aria-label={ariaLabel}
+      {...(prefetchFn ? handlers : {})}
+    >
+      <span className="relative">
+        <Icon className="h-6 w-6" />
+        {display && (
+          <span
+            className="absolute -right-2 -top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground ring-2 ring-background"
+            aria-hidden="true"
+          >
+            {display}
+          </span>
+        )}
+      </span>
+      <span className="text-[11px] font-medium leading-tight">{label}</span>
+    </NavLink>
+  );
+}
+
