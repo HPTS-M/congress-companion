@@ -1,116 +1,92 @@
 
 
-## Plan — Eliminar servicios con tickets asignados sin error
+## Plan — 2FA TOTP configurable para administradores
 
-### Diagnóstico (verificado en BD)
+### Resumen
 
-Al intentar eliminar un servicio (`service_catalog`) que tiene asignados (`attendee_services`), Postgres lanza **foreign key violation (23503)** porque la FK `fk_service_catalog` **NO tiene `ON DELETE CASCADE`**.
+Implemento 2FA TOTP (Google Authenticator y compatibles) para administradores **con un toggle de activación/desactivación** en cada cuenta admin. Cada admin decide individualmente si activa su 2FA desde una nueva sección "Seguridad" en su perfil. No es obligatorio globalmente — es opt-in por usuario.
 
-```
-attendee_services.service_catalog_id  → service_catalog(id)   [NO CASCADE] ❌
-provider_services.service_catalog_id  → service_catalog(id)   [CASCADE] ✅
-service_tickets.attendee_service_id   → attendee_services(id) [CASCADE] ✅
-```
+### Cómo será la experiencia
 
-**Estado real verificado:**
-- "Almuerzo Día 1": 2 asignados → DELETE falla con 23503.
-- "desayuno 3", "Prueba", "Tour Comuna 13": 0 asignados → DELETE debería funcionar; el toast "Error al eliminar servicio" visible probablemente proviene de un intento previo sobre un servicio con asignados (Sonner mantiene el toast unos segundos).
+#### Admin activa 2FA (opt-in)
+1. Admin entra a "Mi Perfil → Seguridad" (nueva sección).
+2. Ve un toggle "Autenticación de dos factores" en OFF.
+3. Al activar el toggle → modal con QR code para escanear con Google Authenticator + código manual de respaldo.
+4. Introduce el código de 6 dígitos de la app → 2FA queda activo.
+5. Toast confirma activación.
 
-Además, el código actual:
-- `Logistics.tsx:124` usa `catch {}` sin diferenciar el tipo de error → siempre muestra el mismo mensaje genérico.
-- `admin-logistics.service.ts:remove()` no detecta el caso 23503 ni explica al usuario qué hacer.
+#### Login con 2FA activo
+1. Admin entra email + password.
+2. Sistema detecta MFA activo → redirige a `/admin/2fa/verify`.
+3. Introduce código de 6 dígitos → entra al dashboard (sesión `aal2`).
 
----
+#### Admin desactiva 2FA
+1. En "Mi Perfil → Seguridad" toggle ON → click → confirma con código actual.
+2. 2FA queda desactivado, próximos logins son normales.
 
-### Solución (3 capas coordinadas)
+#### Recuperación (pérdida de dispositivo)
+- Superuser puede ejecutar acción "Resetear 2FA" desde el panel de gestión de admins.
+- Internamente llama a edge function `reset-admin-mfa` que elimina el factor MFA.
+- El admin afectado entra en su próximo login sin 2FA y puede reconfigurarlo.
 
-#### Capa 1 — Migración de BD: añadir `ON DELETE CASCADE` a la FK faltante
+### Arquitectura técnica
 
-`supabase/migrations/<timestamp>_cascade_attendee_services_on_catalog_delete.sql`
+**API nativa de Supabase** — sin librerías externas, sin custom crypto:
+- `supabase.auth.mfa.enroll({ factorType: 'totp' })` → devuelve QR + secret
+- `supabase.auth.mfa.challenge({ factorId })` + `verify({ factorId, challengeId, code })`
+- `supabase.auth.mfa.listFactors()` → detecta si tiene MFA activo
+- `supabase.auth.mfa.getAuthenticatorAssuranceLevel()` → detecta `aal1` vs `aal2`
+- `supabase.auth.mfa.unenroll({ factorId })` → desactiva
 
-```sql
-ALTER TABLE public.attendee_services
-  DROP CONSTRAINT fk_service_catalog;
+**Sin migración de BD** — Supabase guarda factores en `auth.mfa_factors` (gestionado nativamente).
 
-ALTER TABLE public.attendee_services
-  ADD CONSTRAINT fk_service_catalog
-  FOREIGN KEY (service_catalog_id)
-  REFERENCES public.service_catalog(id)
-  ON DELETE CASCADE;
-```
+**Configuración previa requerida (1 click manual del usuario):**
+Activar TOTP en Supabase Dashboard → Authentication → Providers → Multi-Factor Authentication. Le pasaré el link directo.
 
-**Efecto:** al borrar un servicio del catálogo, sus `attendee_services` se borran automáticamente, y por el cascade existente en `service_tickets.attendee_service_id` los tickets también se eliminan en la misma transacción. Nada queda huérfano.
+### Cambios en el código
 
-#### Capa 2 — Servicio: detectar 23503 y lanzar error tipado
+| Archivo | Tipo | Descripción |
+|---|---|---|
+| `src/services/auth.service.ts` | Modificar | Añadir bloque `mfa` con wrappers de las APIs de Supabase |
+| `src/hooks/useAuth.tsx` | Modificar | Estado adicional: `mfaEnrolled`, `mfaLevel`, `mfaRequired` |
+| `src/components/guards/AdminRoute.tsx` | Modificar | Si `mfaEnrolled && mfaLevel === 'aal1'` → redirige a `/admin/2fa/verify` |
+| `src/pages/admin/MfaVerify.tsx` | Crear | Pantalla de verificación post-login (input OTP 6 dígitos) |
+| `src/components/admin/profile/SecuritySettingsCard.tsx` | Crear | Card en perfil admin con toggle 2FA + modal de setup |
+| `src/components/admin/profile/MfaSetupModal.tsx` | Crear | Modal con QR + verificación de código para enrolar |
+| `src/components/admin/profile/MfaDisableModal.tsx` | Crear | Modal para desactivar (requiere código actual) |
+| `src/pages/admin/Profile.tsx` | Crear/Modificar | Página de perfil admin que incluye `SecuritySettingsCard` |
+| `src/components/admin/staff/ResetMfaButton.tsx` | Crear | Botón en gestión de staff (solo superuser) para reset MFA de otro admin |
+| `supabase/functions/reset-admin-mfa/index.ts` | Crear | Edge function que valida superuser y elimina factor MFA del target |
+| `src/App.tsx` | Modificar | Añadir rutas `/admin/2fa/verify` y `/admin/profile` |
+| `src/locales/es/admin.json` | Modificar | ~20 claves nuevas para sección MFA |
+| `src/locales/en/admin.json` | Modificar | Mismas claves traducidas |
 
-`src/services/admin-logistics.service.ts` — método `remove()`:
+### Configurabilidad — confirmación
 
-```ts
-async remove(id: string): Promise<void> {
-  const { error } = await supabase.from('service_catalog').delete().eq('id', id);
-  if (error) {
-    if (error.code === '23503') throw new Error('SERVICE_HAS_DEPENDENCIES');
-    throw new Error(error.message);
-  }
-},
-```
-
-(Defensa en profundidad por si en algún entorno el cascade aún no se aplicó.)
-
-#### Capa 3 — UI: confirmación contextual + manejo de error específico
-
-`src/pages/admin/Logistics.tsx`:
-
-1. **Diálogo de confirmación de borrado**: cuando el servicio tiene `total_tickets > 0`, mostrar texto adicional advirtiendo que se eliminarán también los tickets de los X asignados. Para esto, cambiar `deletingId: string | null` por `deleting: ServiceCatalogRow | null` para tener acceso al servicio completo.
-
-2. **Manejar error específico** en `handleDelete`:
-```ts
-} catch (err: any) {
-  if (err?.message === 'SERVICE_HAS_DEPENDENCIES') {
-    toast.error(t('logistics.deleteHasDependenciesError'));
-  } else {
-    toast.error(t('logistics.deleteError'));
-  }
-}
-```
-
-3. **Nuevas claves i18n** en `src/locales/es/admin.json` y `src/locales/en/admin.json`:
-```json
-"logistics": {
-  "deleteConfirmWithAssignees": "Este servicio tiene {{count}} asignación(es). Al eliminarlo se borrarán también todas sus asignaciones y tickets. ¿Continuar?",
-  "deleteHasDependenciesError": "No se pudo eliminar el servicio por dependencias. Intenta nuevamente.",
-}
-```
-
----
-
-### Verificación post-fix
-
-1. Eliminar "Almuerzo Día 1" (2 asignados) → diálogo advierte de los 2 asignados → confirmar → toast verde, tabla actualiza, BD: servicio + 2 attendee_services + sus tickets eliminados.
-2. Eliminar "desayuno 3" (0 asignados) → diálogo simple → confirmar → toast verde.
-3. Cancelar diálogo → no pasa nada.
-4. Si por algún motivo la migración no corrió (caso defensivo): toast rojo específico "No se pudo eliminar por dependencias".
-
----
+El "configurable" se implementa así:
+- **Por usuario**: cada admin decide activar/desactivar su propio 2FA desde su perfil. No hay enforcement obligatorio.
+- **Recuperación administrativa**: superusers pueden resetear el MFA de otro admin si pierde acceso.
+- **Compatibilidad con apps**: Google Authenticator, Microsoft Authenticator, Authy, 1Password, Bitwarden, Apple Passwords (todas las compatibles con TOTP estándar).
 
 ### Lo que NO se toca
 
-- `useAdminLogistics.ts` — patrón de mutation actual es correcto.
-- RLS policies de `service_catalog` — ya permiten admin DELETE vía `Admins manage org service catalog`.
-- `cancelService` / `reactivateService` — sin cambios.
-- `provider_services` — ya tiene cascade correcto.
+- Login de asistentes (código de acceso) — sin cambios.
+- Portales provider/staff — sin cambios.
+- RLS policies / schema BD — sin migración.
+- Componentes UI existentes — `input-otp.tsx` ya está disponible para el código de 6 dígitos.
 
----
+### Pasos de verificación post-implementación
 
-### Archivos modificados
+1. Admin entra a perfil → activa 2FA → escanea QR → introduce código → toast verde.
+2. Logout y login → redirige a `/admin/2fa/verify` → introduce código → entra al dashboard.
+3. Admin desactiva 2FA → próximo login es directo (sin 2FA).
+4. Superuser resetea 2FA de otro admin → ese admin entra sin 2FA en su próximo login.
 
-| Archivo | Cambio |
-|---|---|
-| `supabase/migrations/<new>.sql` | DROP + ADD constraint con `ON DELETE CASCADE` |
-| `src/services/admin-logistics.service.ts` | `remove()` detecta error 23503 y lanza `SERVICE_HAS_DEPENDENCIES` |
-| `src/pages/admin/Logistics.tsx` | `deletingId` → `deleting: ServiceCatalogRow \| null`; diálogo con advertencia contextual; toast diferenciado |
-| `src/locales/es/admin.json` | 2 claves nuevas (`deleteConfirmWithAssignees`, `deleteHasDependenciesError`) |
-| `src/locales/en/admin.json` | mismas 2 claves traducidas |
+### Esfuerzo
 
-**Total: 5 archivos, ~25 líneas. Resuelve la causa raíz (FK sin cascade) y mejora la experiencia de usuario.**
+~13 archivos, ~500 líneas. Sin nuevas dependencias npm. Sin migración de BD. ~40 minutos de implementación.
+
+### Acción manual requerida antes de codificar
+
+Activar TOTP en Supabase Dashboard. Te pasaré el link directo después de aprobar el plan.
 
