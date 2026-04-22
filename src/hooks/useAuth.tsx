@@ -1,7 +1,9 @@
-import { useState, useEffect, useCallback, createContext, useContext, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, createContext, useContext, useRef, type ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { authService } from '@/services/auth.service';
+import { purgePersistedCache } from '@/lib/query-persist';
+import { useQueryClient } from '@tanstack/react-query';
 import type { AttendeeProfile } from '@/types';
 
 interface AuthState {
