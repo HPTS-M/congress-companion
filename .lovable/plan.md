@@ -1,92 +1,149 @@
 
 
-## Plan — 2FA TOTP configurable para administradores
+## Plan — Borrado total de datos de asistentes para ACQFH-2026
 
-### Resumen
+### Objetivo
 
-Implemento 2FA TOTP (Google Authenticator y compatibles) para administradores **con un toggle de activación/desactivación** en cada cuenta admin. Cada admin decide individualmente si activa su 2FA desde una nueva sección "Seguridad" en su perfil. No es obligatorio globalmente — es opt-in por usuario.
+Eliminar **todos los datos relacionados con asistentes** del congreso XIII Congreso Nacional de Farmacia Hospitalaria (event_code: `ACQFH-2026`, id: `5efca36a-deef-489b-be85-3dc9d1501ed7`) dejando intacto el resto de la configuración del evento (agenda, sponsors, servicios del catálogo, polls, documentos, staff, providers, organización).
 
-### Cómo será la experiencia
+### Alcance — qué SÍ se borra
 
-#### Admin activa 2FA (opt-in)
-1. Admin entra a "Mi Perfil → Seguridad" (nueva sección).
-2. Ve un toggle "Autenticación de dos factores" en OFF.
-3. Al activar el toggle → modal con QR code para escanear con Google Authenticator + código manual de respaldo.
-4. Introduce el código de 6 dígitos de la app → 2FA queda activo.
-5. Toast confirma activación.
+Datos generados por o asociados a asistentes:
 
-#### Login con 2FA activo
-1. Admin entra email + password.
-2. Sistema detecta MFA activo → redirige a `/admin/2fa/verify`.
-3. Introduce código de 6 dígitos → entra al dashboard (sesión `aal2`).
+| Tabla | Filtro |
+|---|---|
+| `attendees` | `event_id = ACQFH` |
+| `attendee_services` | asistentes del evento |
+| `service_tickets` | tickets de esos `attendee_services` |
+| `attendee_checkins` | check-ins de esos asistentes |
+| `attendee_notes` | notas de usuarios asistentes en este evento |
+| `contacts` | `event_id = ACQFH` |
+| `session_interests` | `event_id = ACQFH` |
+| `ratings` | `event_id = ACQFH` |
+| `poll_responses` | respuestas de asistentes del evento |
+| `sponsor_leads` | `event_id = ACQFH` |
+| `invitation_send_log` | logs de invitaciones de esos asistentes |
+| `attendee_announcement_views` | `event_id = ACQFH` |
+| `attendee_message_views` | `event_id = ACQFH` |
+| `chat_messages` | mensajes de conversaciones del evento |
+| `chat_participants` | participaciones en conversaciones del evento |
+| `chat_attachments` | adjuntos de mensajes borrados |
+| `chat_conversations` | `event_id = ACQFH` |
+| `push_subscriptions` | `event_id = ACQFH` |
+| `notifications` | `event_id = ACQFH` |
+| `access_attempts` | `event_code = 'ACQFH-2026'` |
 
-#### Admin desactiva 2FA
-1. En "Mi Perfil → Seguridad" toggle ON → click → confirma con código actual.
-2. 2FA queda desactivado, próximos logins son normales.
+Adicionalmente, eliminar los **usuarios de Supabase Auth (`auth.users`)** vinculados a los asistentes borrados, vía `supabase.auth.admin.deleteUser()` desde una Edge Function (no se puede hacer desde SQL directo). Esto libera los emails/credenciales para futuras importaciones limpias.
 
-#### Recuperación (pérdida de dispositivo)
-- Superuser puede ejecutar acción "Resetear 2FA" desde el panel de gestión de admins.
-- Internamente llama a edge function `reset-admin-mfa` que elimina el factor MFA.
-- El admin afectado entra en su próximo login sin 2FA y puede reconfigurarlo.
+### Alcance — qué NO se toca
 
-### Arquitectura técnica
+- `events` — el evento sigue existiendo, solo se vacía de asistentes.
+- `event_packages`, `event_activities` (agenda), `service_catalog` — la configuración del evento permanece.
+- `sponsors`, `providers`, `provider_services`, `staff_members`, `event_staff` — actores del evento intactos.
+- `polls`, `poll_options` — preguntas se mantienen, solo se borran las respuestas.
+- `documents`, `announcements` — contenido editorial intacto.
+- `organizations`, `profiles` (admins/staff/providers), `user_roles` (admins) — usuarios administrativos intactos.
+- `auth.users` de admins/staff/providers — solo se borran los de attendees confirmados.
 
-**API nativa de Supabase** — sin librerías externas, sin custom crypto:
-- `supabase.auth.mfa.enroll({ factorType: 'totp' })` → devuelve QR + secret
-- `supabase.auth.mfa.challenge({ factorId })` + `verify({ factorId, challengeId, code })`
-- `supabase.auth.mfa.listFactors()` → detecta si tiene MFA activo
-- `supabase.auth.mfa.getAuthenticatorAssuranceLevel()` → detecta `aal1` vs `aal2`
-- `supabase.auth.mfa.unenroll({ factorId })` → desactiva
+### Estrategia de ejecución
 
-**Sin migración de BD** — Supabase guarda factores en `auth.mfa_factors` (gestionado nativamente).
+Como esto es un borrado masivo y destructivo en un evento real, se ejecutará con respaldo de seguridad y orden estricto:
 
-**Configuración previa requerida (1 click manual del usuario):**
-Activar TOTP en Supabase Dashboard → Authentication → Providers → Multi-Factor Authentication. Le pasaré el link directo.
+#### Paso 1 — Snapshot de seguridad (lectura previa)
+Ejecutar conteo total de filas que serán afectadas en cada tabla y mostrarlo en pantalla antes de borrar. Si alguna cifra es inesperada, abortamos.
 
-### Cambios en el código
+#### Paso 2 — Edge Function `purge-event-attendees`
+Crear una nueva Edge Function porque:
+1. Necesitamos `service_role_key` para borrar de `auth.users` (no hay forma desde SQL).
+2. Centraliza la lógica en una sola transacción auditada.
+3. Permite dry-run vs ejecución real con un parámetro `confirm: true`.
+4. Solo invocable por superusers (validación de rol vía JWT).
 
-| Archivo | Tipo | Descripción |
+La función:
+1. Valida que el caller tiene rol `superuser`.
+2. Recibe `event_id` y `confirm: boolean` en el body.
+3. Si `confirm = false` → devuelve solo el conteo de lo que se borraría (dry-run).
+4. Si `confirm = true`:
+   - Lista `user_id` de todos los attendees del evento (los que no son null).
+   - Borra en orden inverso de dependencias usando el `service_role_key`:
+     ```
+     chat_attachments → chat_messages → chat_participants → chat_conversations
+     poll_responses
+     sponsor_leads
+     ratings
+     session_interests
+     contacts
+     attendee_notes (filtradas por user_id de attendees)
+     attendee_checkins
+     invitation_send_log
+     attendee_announcement_views
+     attendee_message_views
+     push_subscriptions (event_id)
+     notifications (event_id)
+     service_tickets → attendee_services
+     attendees
+     access_attempts (event_code)
+     ```
+   - Para cada `user_id` recolectado: `supabase.auth.admin.deleteUser(user_id)`.
+   - Devuelve resumen con conteos finales.
+
+#### Paso 3 — Botón de UI en panel admin (opcional, recomendado)
+Agregar un botón **"Purgar todos los asistentes"** en una sección "Zona Peligrosa" de `EventConfig.tsx`, visible solo para superusers, que:
+1. Abre un `AlertDialog` con advertencia roja.
+2. Pide escribir el `event_code` exacto (`ACQFH-2026`) para confirmar.
+3. Llama primero a `purge-event-attendees` con `confirm: false` → muestra conteo de lo que se borrará.
+4. Pide confirmación final → llama con `confirm: true`.
+5. Muestra resultado con conteos por tabla y refresca queries de TanStack.
+
+Si prefieres ejecución one-shot sin UI (sólo esta vez), saltamos el Paso 3 y ejecutamos la edge function directamente desde una llamada manual.
+
+### Consideraciones técnicas
+
+- **FKs sin CASCADE**: la mayoría de FKs hacia `attendees` no tienen `ON DELETE CASCADE`, por eso el orden de borrado es crítico. La edge function ejecuta los DELETE en orden correcto desde las hojas hacia la raíz.
+- **Triggers**: `cascade_service_cancellation` y `set_service_cancelled_at` solo actúan en UPDATE (no en DELETE), no interfieren.
+- **RLS**: la edge function usa `service_role_key` que bypassa RLS, evitando bloqueos por políticas.
+- **Idempotencia**: si una corrida falla a mitad, se puede re-ejecutar sin problema (los DELETE ya aplicados quedan, los pendientes se completan).
+- **Auth users**: se borran al final porque algunas FKs apuntan a `auth.users(id)` (`profiles`, `chat_messages.sender_id`, etc). Borrar primero los datos de las tablas públicas evita constraint violations.
+
+### Decisión que necesito de ti
+
+Antes de implementar, dime:
+
+1. **¿Solo este evento (ACQFH-2026) o todos los eventos?** Asumo solo ACQFH-2026 según contexto, pero confirma.
+2. **¿Quieres el botón en UI (Paso 3) o ejecución one-shot directa?** El botón es más seguro para el futuro pero requiere ~80 líneas extra. Si es purga única, podemos saltarlo.
+3. **¿Borrar también los `auth.users` de los asistentes?** Recomiendo SÍ para limpieza total, pero si quieres conservar las cuentas de auth (por si acaso), lo skipeamos.
+
+### Archivos que se crearán/modificarán
+
+| Archivo | Tipo | Líneas |
 |---|---|---|
-| `src/services/auth.service.ts` | Modificar | Añadir bloque `mfa` con wrappers de las APIs de Supabase |
-| `src/hooks/useAuth.tsx` | Modificar | Estado adicional: `mfaEnrolled`, `mfaLevel`, `mfaRequired` |
-| `src/components/guards/AdminRoute.tsx` | Modificar | Si `mfaEnrolled && mfaLevel === 'aal1'` → redirige a `/admin/2fa/verify` |
-| `src/pages/admin/MfaVerify.tsx` | Crear | Pantalla de verificación post-login (input OTP 6 dígitos) |
-| `src/components/admin/profile/SecuritySettingsCard.tsx` | Crear | Card en perfil admin con toggle 2FA + modal de setup |
-| `src/components/admin/profile/MfaSetupModal.tsx` | Crear | Modal con QR + verificación de código para enrolar |
-| `src/components/admin/profile/MfaDisableModal.tsx` | Crear | Modal para desactivar (requiere código actual) |
-| `src/pages/admin/Profile.tsx` | Crear/Modificar | Página de perfil admin que incluye `SecuritySettingsCard` |
-| `src/components/admin/staff/ResetMfaButton.tsx` | Crear | Botón en gestión de staff (solo superuser) para reset MFA de otro admin |
-| `supabase/functions/reset-admin-mfa/index.ts` | Crear | Edge function que valida superuser y elimina factor MFA del target |
-| `src/App.tsx` | Modificar | Añadir rutas `/admin/2fa/verify` y `/admin/profile` |
-| `src/locales/es/admin.json` | Modificar | ~20 claves nuevas para sección MFA |
-| `src/locales/en/admin.json` | Modificar | Mismas claves traducidas |
+| `supabase/functions/purge-event-attendees/index.ts` | Crear | ~150 |
+| `src/pages/admin/EventConfig.tsx` (si Paso 3) | Modificar — añadir Danger Zone | ~80 |
+| `src/locales/es/admin.json` y `en/admin.json` (si Paso 3) | Modificar — claves de purga | ~10 |
 
-### Configurabilidad — confirmación
+**Sin migración de schema. Sin cambios en RLS. Operación reversible solo desde backup de Supabase (Point-in-Time Recovery).**
 
-El "configurable" se implementa así:
-- **Por usuario**: cada admin decide activar/desactivar su propio 2FA desde su perfil. No hay enforcement obligatorio.
-- **Recuperación administrativa**: superusers pueden resetear el MFA de otro admin si pierde acceso.
-- **Compatibilidad con apps**: Google Authenticator, Microsoft Authenticator, Authy, 1Password, Bitwarden, Apple Passwords (todas las compatibles con TOTP estándar).
+### Verificación post-purga
 
-### Lo que NO se toca
+Edge function devolverá un payload tipo:
+```json
+{
+  "deleted": {
+    "attendees": 152,
+    "attendee_services": 308,
+    "service_tickets": 308,
+    "chat_messages": 1240,
+    "auth_users": 152,
+    ...
+  },
+  "remaining": {
+    "events": 1,
+    "agenda_sessions": 24,
+    "sponsors": 8,
+    "service_catalog": 12
+  }
+}
+```
 
-- Login de asistentes (código de acceso) — sin cambios.
-- Portales provider/staff — sin cambios.
-- RLS policies / schema BD — sin migración.
-- Componentes UI existentes — `input-otp.tsx` ya está disponible para el código de 6 dígitos.
-
-### Pasos de verificación post-implementación
-
-1. Admin entra a perfil → activa 2FA → escanea QR → introduce código → toast verde.
-2. Logout y login → redirige a `/admin/2fa/verify` → introduce código → entra al dashboard.
-3. Admin desactiva 2FA → próximo login es directo (sin 2FA).
-4. Superuser resetea 2FA de otro admin → ese admin entra sin 2FA en su próximo login.
-
-### Esfuerzo
-
-~13 archivos, ~500 líneas. Sin nuevas dependencias npm. Sin migración de BD. ~40 minutos de implementación.
-
-### Acción manual requerida antes de codificar
-
-Activar TOTP en Supabase Dashboard. Te pasaré el link directo después de aprobar el plan.
+Esto te permite validar de un vistazo que el evento sigue configurado y que todos los datos de asistentes desaparecieron.
 
