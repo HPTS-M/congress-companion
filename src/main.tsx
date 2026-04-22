@@ -65,3 +65,16 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </Sentry.ErrorBoundary>
 );
+
+// Hide splash screen once React has painted the first frame.
+// Two RAFs guarantee we wait for paint, not just commit.
+requestAnimationFrame(() => {
+  requestAnimationFrame(() => {
+    const splash = document.getElementById('app-splash');
+    if (!splash) return;
+    splash.classList.add('is-hiding');
+    splash.addEventListener('transitionend', () => splash.remove(), { once: true });
+    // Safety net in case transitionend never fires (e.g. reduced motion)
+    setTimeout(() => splash.remove(), 600);
+  });
+});
