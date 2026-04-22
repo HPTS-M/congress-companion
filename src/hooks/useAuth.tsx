@@ -182,11 +182,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated: false,
       isAttendee: false,
       isAdmin: false,
+      mfaEnrolled: false,
+      mfaLevel: null,
+      mfaFactorId: null,
     });
   }, [state.attendee?.id]);
 
   return (
-    <AuthContext.Provider value={{ ...state, loginWithCode, loginAdmin, logout }}>
+    <AuthContext.Provider value={{ ...state, loginWithCode, loginAdmin, logout, refreshMfaState }}>
       {children}
     </AuthContext.Provider>
   );
