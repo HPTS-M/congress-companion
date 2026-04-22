@@ -1,60 +1,75 @@
 
-## Plan — Corregir el import para que reconozca “Código del congreso” sin cambiar el Excel
 
-### Causa raíz confirmada
-El bloqueo no viene de que el dato esté vacío en tu archivo, sino de que el importador **no está leyendo esa columna**.
+## Plan — Opción B: Backfill perezoso para escalar el login a 814+ asistentes
 
-Hoy hay una inconsistencia interna:
+### Objetivo
+Resolver el error `CPU Time exceeded` en `verify-access-code` sin reenviar credenciales a nadie. La solución agrega un índice ligero sobre los primeros 4 caracteres del access code; los asistentes existentes se "auto-curan" al primer login exitoso.
 
-- La plantilla descargable del modal exporta la columna como:
-  `Código del congreso`
-- Pero el validador (`src/lib/import-validators.ts`) solo reconoce aliases como:
-  `Código credencial`, `Codigo credencial`, `codigo_credencial`, `credential_code`, `external_credential_code`
+### Cambios
 
-Como `Código del congreso` no está en `HEADER_ALIASES.external_credential_code`, el sistema la ignora, deja `external_credential_code = ''`, y luego dispara el error:
-`Campo obligatorio`
+#### 1) Migración de base de datos
+Agregar columna + índice en `attendees`:
 
-Por eso te bloquea los 814 registros aunque la columna sí esté diligenciada.
+```sql
+ALTER TABLE public.attendees
+  ADD COLUMN access_code_lookup TEXT;
 
-### Qué voy a cambiar
+CREATE INDEX idx_attendees_event_lookup
+  ON public.attendees (event_id, access_code_lookup)
+  WHERE access_code_lookup IS NOT NULL AND deleted_at IS NULL;
+```
 
-#### 1) Alinear el alias del encabezado con la plantilla real
-Archivo: `src/lib/import-validators.ts`
+- Columna nullable → no rompe asistentes existentes.
+- Índice parcial → solo indexa los que ya tienen lookup, ahorra espacio.
+- No expuesta al cliente (RLS actual ya filtra columnas vía `select()` explícito en el backend).
 
-Actualizar `HEADER_ALIASES.external_credential_code` para aceptar explícitamente:
+#### 2) `supabase/functions/verify-access-code/index.ts`
+Cambiar el path de búsqueda con fallback automático:
 
-- `Código del congreso`
-- `Codigo del congreso`
-- `código del congreso`
-- `codigo del congreso`
+- **Path rápido (nuevo)**: filtrar por `event_id + access_code_lookup = code.substring(0,4).toUpperCase()` → 1-3 candidatos → bcrypt rápido.
+- **Path fallback (existente)**: si el path rápido no encuentra match Y el asistente aún no tiene `access_code_lookup`, hacer scan en lotes paginados de 100 asistentes por iteración (sin RPC), comparando bcrypt sobre cada lote hasta encontrar match o agotar.
+- **Auto-curación**: cuando el fallback encuentra match, popular `access_code_lookup` para ese asistente → próximos logins van por path rápido.
+- **Escalado**: con 814 asistentes el primer login de cada uno cuesta ~2-4 lotes de bcrypt, dentro del límite de CPU. A medida que se loguean, el universo de "no curados" se reduce.
 
-Y mantener los aliases anteriores por compatibilidad.
+#### 3) `supabase/functions/send-invitation-email/index.ts`
+Al generar nuevo access code, guardar también:
+```typescript
+access_code_lookup: code.substring(0, 4).toUpperCase()
+```
+Junto con el `access_code_hash` existente.
 
-#### 2) Mantener el comportamiento actual del campo
-No voy a volver a poner validación de formato sobre el valor.
-El campo seguirá:
-- leyéndose tal cual viene del Excel
-- convirtiendo números a string cuando aplique
-- exigiéndose solo si el toggle está activo
+#### 4) `supabase/functions/regenerate-access-code/index.ts`
+Mismo cambio: popular `access_code_lookup` al regenerar.
 
-#### 3) Cubrir el caso con tests
-Archivo: `src/lib/import-validators.test.ts`
+### Lo que NO cambia
+- Frontend (Login, useAuth, services) — sin tocar.
+- Esquema de respuesta de `verify-access-code` — mismo payload.
+- Hashing bcrypt — sigue igual (sigue siendo el mecanismo de validación).
+- RLS — sin tocar.
+- `regenerate-access-code` para asistentes individuales — sigue funcionando.
 
-Agregar pruebas para confirmar que:
-- `Código del congreso` se mapea correctamente a `external_credential_code`
-- un valor como `10851` se reconoce como presente
-- `validateRow(..., { externalCredentialsRequired: true })` ya no marque `required` cuando el archivo usa ese encabezado
+### Comportamiento esperado tras desplegar
 
-### Resultado esperado
-Con tu mismo archivo actual, sin editar el Excel:
+| Escenario | Antes | Después |
+|---|---|---|
+| Asistente que YA se logueó alguna vez | OK (~1s) | OK (<300ms) — path rápido |
+| Asistente que NUNCA se ha logueado (entre los 814) | Timeout | OK (~1s) — path fallback, queda curado |
+| Asistente nuevo (post-deploy) | N/A | OK (<300ms) — lookup poblado al crear |
+| Asistente con código regenerado | OK | OK — lookup actualizado en regen |
 
-- el import dejará de marcar `Código del congreso: Campo obligatorio`
-- las filas pasarán a validarse con el valor real de esa columna
-- solo quedarán bloqueadas filas con problemas reales en otros campos, si existieran
+### Plan B si algún caso del fallback aún supera CPU
+Si hay un asistente cuyo bcrypt cae siempre al final del scan y excede CPU, el admin puede regenerar su código desde el drawer (un click) → genera código nuevo con `access_code_lookup` poblado → próximo login instantáneo.
 
-### Archivos involucrados
-- `src/lib/import-validators.ts`
-- `src/lib/import-validators.test.ts`
+### Verificación post-deploy
 
-### Verificación
-Después del cambio, la validación debe aceptar archivos generados por la plantilla oficial del sistema y el contador ya no debería mostrar `814 bloqueado` por ese motivo.
+1. Login del usuario `WRTLH3DT` (o cualquier asistente bloqueado) → debe funcionar en <2s.
+2. Consultar en DB que su `access_code_lookup` ya tiene los primeros 4 chars.
+3. Logout + login del mismo usuario → debe funcionar en <500ms (path rápido).
+4. Revisar logs de `verify-access-code` → no más `CPU Time exceeded`.
+
+### Archivos modificados
+- Migración SQL (nueva).
+- `supabase/functions/verify-access-code/index.ts`.
+- `supabase/functions/send-invitation-email/index.ts`.
+- `supabase/functions/regenerate-access-code/index.ts`.
+
