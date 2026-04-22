@@ -146,7 +146,7 @@ describe('import-validators · validateRow', () => {
     expect(r.registration_status).toBe('confirmed');
   });
 
-  it('accumulates multiple errors', () => {
+  it('accumulates multiple errors (external code format no longer validated)', () => {
     const r = validateRow(
       normalizeRow({
         'Nombre completo': '',
@@ -161,9 +161,26 @@ describe('import-validators · validateRow', () => {
     const fields = r.errors.map((e) => e.field);
     expect(fields).toContain('full_name');
     expect(fields).toContain('email');
-    expect(fields).toContain('external_credential_code');
     expect(fields).toContain('specialty');
     expect(fields).toContain('registration_status_id');
+    // external_credential_code 'AB' is now accepted (no format validation)
+    expect(fields).not.toContain('external_credential_code');
+  });
+
+  it('accepts any external_credential_code format when present', () => {
+    const cases = ['CMP 12345', 'NIT-900.123.456', '12', 'código-ñ-001', 'with spaces!@#'];
+    for (const code of cases) {
+      const r = validateRow(
+        normalizeRow({
+          'Nombre completo': 'Juan Pérez',
+          Email: 'juan@x.co',
+          'Código credencial': code,
+          Estado: '1',
+        }),
+        { externalCredentialsRequired: true },
+      );
+      expect(r.errors.filter((e) => e.field === 'external_credential_code')).toHaveLength(0);
+    }
   });
 
   it('skips external_credential_code when toggle OFF', () => {
