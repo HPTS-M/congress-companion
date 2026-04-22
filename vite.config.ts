@@ -20,12 +20,27 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === "development" && componentTagger(),
     VitePWA({
+      // Custom SW (Workbox + Push) — see src/sw.ts
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
       registerType: "autoUpdate",
+      // We register manually in src/main.tsx (with iframe/preview guard).
       injectRegister: false,
+      injectManifest: {
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        // Skip very large precache entries — runtime cache will handle them.
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+      },
       devOptions: {
         enabled: false,
       },
-      includeAssets: ["favicon.ico", "apple-touch-icon.png", "favicon-32x32.png", "favicon-16x16.png"],
+      includeAssets: [
+        "favicon.ico",
+        "apple-touch-icon.png",
+        "favicon-32x32.png",
+        "favicon-16x16.png",
+      ],
       manifest: {
         name: "CONGRESSAPP — Health Plus Travels",
         short_name: "CONGRESSAPP",
@@ -37,72 +52,6 @@ export default defineConfig(({ mode }) => ({
           { src: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
           { src: "/icon-192x192.png", sizes: "192x192", type: "image/png", purpose: "any maskable" },
           { src: "/icon-512x512.png", sizes: "512x512", type: "image/png", purpose: "any maskable" },
-        ],
-      },
-      workbox: {
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
-        navigateFallbackDenylist: [/^\/~oauth/],
-        runtimeCaching: [
-          {
-            urlPattern: ({ url }) =>
-              url.hostname.includes("supabase.co") &&
-              url.pathname.includes("/rest/v1/") &&
-              url.pathname.includes("attendees"),
-            handler: "NetworkFirst",
-            options: {
-              cacheName: "supabase-attendees-cache",
-              networkTimeoutSeconds: 3,
-              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            urlPattern: ({ url }) =>
-              url.hostname.includes("supabase.co") &&
-              url.pathname.includes("/rest/v1/") &&
-              (url.pathname.includes("event_activities") ||
-                url.pathname.includes("sponsors") ||
-                url.pathname.includes("documents")),
-            handler: "StaleWhileRevalidate",
-            options: {
-              cacheName: "supabase-data-cache",
-              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            urlPattern: ({ url }) =>
-              url.hostname.includes("supabase.co") &&
-              url.pathname.includes("announcements"),
-            handler: "NetworkFirst",
-            options: {
-              cacheName: "announcements-cache",
-              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 2 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            urlPattern: ({ url }) =>
-              /\.(?:png|jpg|jpeg|svg|gif|webp)$/.test(url.pathname) &&
-              !url.pathname.includes('venue-map'),
-            handler: "CacheFirst",
-            options: {
-              cacheName: "images-cache",
-              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 7 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            urlPattern: ({ url }) =>
-              url.hostname.includes("supabase.co") &&
-              url.pathname.includes("/storage/"),
-            handler: "CacheFirst",
-            options: {
-              cacheName: "documents-cache",
-              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 * 3 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
         ],
       },
     }),
