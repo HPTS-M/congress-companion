@@ -1,123 +1,182 @@
 
 
-## Plan — Mejoras de auditoría: bulk regenerate
+## Plan — Backfill SQL atómico de `access_code_lookup` y validación post-update
 
-### Objetivo
-Corregir el bug que impide enviar correos, separar correctamente los contadores de éxito/error, y agregar resiliencia para que un cierre accidental de la pestaña no obligue a empezar desde cero.
+### Diagnóstico confirmado por la BD
+- **812 asistentes** con `access_code_hash` válido.
+- **0 con `access_code_lookup`** poblado, a pesar de 1.097 envíos exitosos en las últimas 24h.
+- Los `UPDATE` desde la Edge Function escriben hash + `invitation_sent_at` + `updated_at` correctamente, pero **omiten silenciosamente** `access_code_lookup`.
+- Solo 8 attendees tienen sesión iniciada; los 804 restantes están bloqueados con `CPU Time exceeded` en `verify-access-code` porque el lookup index no existe.
+- No hay triggers responsables — el bug es del lado de PostgREST/cliente Supabase JS (probablemente cache de schema desactualizado o transformación de columna).
+
+### Estrategia
+Bypasear completamente la Edge Function y PostgREST con un **RPC SQL atómico** que use bcrypt nativo (`extensions.crypt + gen_salt('bf', 8)`) y haga UPDATE directo dentro de Postgres. Esto elimina toda la cadena de transformaciones que está descartando el campo.
 
 ---
 
 ### Cambios
 
-#### 1) Fix crítico: regex de email (Edge Function)
-**Archivo**: `supabase/functions/bulk-regenerate-access-codes/index.ts`, línea 197
+#### 1) Migración SQL: nuevo RPC `backfill_access_codes_for_event`
+```sql
+CREATE OR REPLACE FUNCTION public.backfill_access_codes_for_event(
+  p_event_id uuid,
+  p_only_missing_lookup boolean DEFAULT true
+)
+RETURNS TABLE(attendee_id uuid, full_name text, email text, new_code text)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+DECLARE
+  rec RECORD;
+  v_code text;
+  v_chars text := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  i int;
+BEGIN
+  -- Solo superuser o admin de la org del evento
+  IF NOT (
+    has_role(auth.uid(), 'superuser') OR
+    EXISTS (
+      SELECT 1 FROM events e
+      WHERE e.id = p_event_id
+      AND has_org_role(auth.uid(), 'admin', e.organization_id)
+    )
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
 
-Cambiar:
-```typescript
-const EMAIL_RE = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;  // ❌ rompe todos los emails
+  FOR rec IN
+    SELECT a.id, a.full_name, a.email
+    FROM attendees a
+    WHERE a.event_id = p_event_id
+      AND a.deleted_at IS NULL
+      AND a.registration_status <> 'cancelled'
+      AND (NOT p_only_missing_lookup OR a.access_code_lookup IS NULL)
+  LOOP
+    -- Generar código de 8 chars
+    v_code := '';
+    FOR i IN 1..8 LOOP
+      v_code := v_code || substr(v_chars, floor(random() * length(v_chars))::int + 1, 1);
+    END LOOP;
+
+    UPDATE attendees
+    SET
+      access_code_hash    = extensions.crypt(v_code, extensions.gen_salt('bf', 8)),
+      access_code_lookup  = upper(substring(v_code, 1, 4)),
+      invitation_sent_at  = now(),
+      last_session_id     = NULL,
+      updated_at          = now()
+    WHERE id = rec.id;
+
+    attendee_id := rec.id;
+    full_name   := rec.full_name;
+    email       := rec.email;
+    new_code    := v_code;
+    RETURN NEXT;
+  END LOOP;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.backfill_access_codes_for_event TO authenticated;
 ```
-por:
+
+#### 2) Edge Function `bulk-regenerate-access-codes` — validación post-UPDATE
+Agregar tras cada `UPDATE`:
 ```typescript
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;     // ✅ válido
+// Verifica que access_code_lookup quedó realmente guardado
+const { data: check } = await supabaseAdmin
+  .from('attendees')
+  .select('access_code_lookup')
+  .eq('id', a.id)
+  .single();
+
+if (!check?.access_code_lookup) {
+  db_failed++;
+  errors.push({ attendee_id: a.id, reason: 'lookup_not_persisted' });
+  continue;
+}
+codes_regenerated++;
 ```
+Esto evita que el bug silencioso vuelva sin ser detectado.
 
-**Impacto**: actualmente 100% de los correos se están saltando con `reason: 'invalid_email'`. Tras el fix, los correos se enviarán normalmente.
-
-#### 2) Separar contadores: códigos vs correos
-**Archivo**: `supabase/functions/bulk-regenerate-access-codes/index.ts`, líneas 199-330
-
-Reemplazar los contadores `processed` / `failed` por una estructura más clara:
-
+#### 3) Servicio frontend: `backfillAccessCodesViaRpc`
+Archivo: `src/services/admin-attendees.service.ts`
 ```typescript
-{
-  codes_regenerated: number,   // updates DB exitosos
-  emails_sent: number,         // 200 OK de Resend
-  emails_skipped: number,      // sin email / email inválido / send_email=false
-  emails_failed: number,       // 4xx/5xx de Resend
-  db_failed: number,           // error de update en attendees
-  total: number,
-  next_offset: number,
-  remaining: number,
-  errors: Array<{ attendee_id, reason }>
+async backfillAccessCodesViaRpc(eventId: string, onlyMissing = true) {
+  const { data, error } = await supabase.rpc('backfill_access_codes_for_event', {
+    p_event_id: eventId,
+    p_only_missing_lookup: onlyMissing,
+  });
+  if (error) throw error;
+  return data; // Array<{ attendee_id, full_name, email, new_code }>
 }
 ```
 
-Lógica corregida:
-- Update DB exitoso → `codes_regenerated++`
-- Resend 200 → `emails_sent++`
-- Resend 4xx/5xx → `emails_failed++` (ya no `processed++`)
-- Email inválido / sin email → `emails_skipped++`
-- Update DB falla → `db_failed++` (no se cuenta como código regenerado)
+#### 4) Modal `BulkRegenerateModal`: nueva opción "Backfill rápido (recomendado)"
+Archivo: `src/components/admin/attendees/BulkRegenerateModal.tsx`
 
-#### 3) Frontend: mostrar el resumen detallado
-**Archivos**:
-- `src/services/admin-attendees.service.ts` — agregar nuevos campos al tipo de retorno y agregar contadores entre lotes.
-- `src/components/admin/attendees/BulkRegenerateModal.tsx` — actualizar el bloque `summary` para mostrar las 4 métricas (códigos regenerados, correos enviados, correos fallidos, omitidos) con iconos y colores apropiados.
+- Agregar 4ª opción al RadioGroup: **"⚡ Backfill rápido — solo a quienes les falta el lookup (recomendado)"** con conteo dinámico (~812 hoy).
+- Flujo en dos pasos:
+  1. **Paso 1 — Backfill atómico** (RPC, ~5s): regenera hash + lookup para los 812.
+  2. **Paso 2 — Envío de correos** (en lotes throttled a 200ms): itera la lista devuelta por el RPC enviando correos con `send-invitation-email` para cada `(attendee_id, new_code)`.
+- Progreso UI: "✅ 812 lookups poblados — Enviando correos: 245/812".
+- Resumen final reusa el mismo bloque de métricas granulares ya implementado.
 
-Ejemplo del nuevo resumen en UI:
-```
-✅ 810 códigos regenerados
-📧 808 correos enviados
-⚠️  2 correos fallidos (descargar CSV)
-⏭️  0 omitidos
-```
+#### 5) Traducciones nuevas
+`src/locales/es/admin.json` y `en/admin.json`:
+- `attendees.bulkRegenerate.filterFastBackfill` — "⚡ Backfill rápido (solo lookup faltante)"
+- `attendees.bulkRegenerate.fastBackfillHint` — "Regenera código y lookup en BD en segundos, luego envía correos."
+- `attendees.bulkRegenerate.step1Backfilling` — "Poblando lookup en base de datos..."
+- `attendees.bulkRegenerate.step2SendingEmails` — "Enviando correos: {{sent}} de {{total}}"
 
-Compatibilidad hacia atrás: mantener `processed` y `failed` como campos derivados para no romper otros consumidores.
+---
 
-#### 4) Persistencia del progreso en localStorage
-**Archivo**: `src/components/admin/attendees/BulkRegenerateModal.tsx`
+### Verificación post-implementación
 
-- Al iniciar un run: guardar en `localStorage` la clave `bulk-regen-state-{eventId}` con `{ filter, offset, totals, startedAt }`.
-- Actualizar tras cada lote.
-- Al abrir el modal: si existe un state con `startedAt < 24h` y `remaining > 0`, mostrar banner azul con CTA "Reanudar desde X de Y" o "Empezar de nuevo".
-- Limpiar el state al completar exitosamente o al cancelar explícitamente.
+1. **Backfill exitoso**:
+   ```sql
+   SELECT COUNT(*) FROM attendees
+   WHERE event_id = (SELECT id FROM events WHERE event_code = 'ACQFH-2026')
+     AND access_code_lookup IS NOT NULL
+     AND deleted_at IS NULL;
+   ```
+   Esperado: **812** (actual: 0).
 
-#### 5) Throttling configurable + más rápido por defecto
-**Archivo**: `supabase/functions/bulk-regenerate-access-codes/index.ts`
+2. **Login de prueba** con un código nuevo → debe completar en **<500ms** (vs. actual `CPU Time exceeded`).
 
-Bajar `EMAIL_DELAY_MS` de 500ms a 200ms (5/seg, dentro de los límites estándar de Resend). Para 812 asistentes pasamos de ~7 min a ~3 min. Si el plan no lo soporta, el código ya maneja `429 rate_limited` en el log.
+3. **Logs Edge Function `verify-access-code`** → 0 timeouts en las próximas horas.
 
-#### 6) Traducciones
-**Archivos**: `src/locales/es/admin.json` y `src/locales/en/admin.json`
+4. **Validación post-update activa**: si la Edge Function `bulk-regenerate-access-codes` se vuelve a usar, `db_failed` se incrementará si el lookup no persiste, alertando al admin.
 
-Agregar nuevas keys bajo `attendees.bulkRegenerate.*`:
-- `summaryCodesRegenerated`, `summaryEmailsSent`, `summaryEmailsFailed`, `summaryEmailsSkipped`
-- `resumeBanner`, `resumeButton`, `startOverButton`
+---
+
+### Plan de rollout para los 812 asistentes bloqueados
+
+1. Aplicar migración con el RPC.
+2. Admin entra a Asistentes → "Regenerar códigos" → selecciona **"⚡ Backfill rápido"**.
+3. Paso 1 termina en ~5 segundos → 812 lookups poblados.
+4. Paso 2 envía 812 correos en ~3 minutos (throttle 200ms).
+5. Asistentes pueden loguearse instantáneamente con el nuevo código.
 
 ---
 
 ### Lo que NO se cambia
-- Esquema de DB (no requerido).
-- Auth, validación Zod, throttling fundamental, CORS — ya correctos.
-- Plantilla de correo.
-- Función `verify-access-code`.
-- Función `regenerate-access-code` (single attendee).
+- Esquema de columnas (ya existen `access_code_hash`, `access_code_lookup`).
+- Índice parcial sobre `(event_id, access_code_lookup)` (ya existe).
+- Función `verify-access-code` (ya optimizada — solo necesita los lookups poblados).
+- `regenerate-access-code` (single attendee).
+- Plantilla de correo (`send-invitation-email`).
 
 ---
 
-### Verificación post-fix
+### Archivos a crear/modificar
 
-1. **Regex fix**: SQL antes/después del próximo run:
-   ```sql
-   SELECT status, reason, COUNT(*) 
-   FROM invitation_send_log 
-   WHERE attempted_at > now() - interval '1 hour'
-   GROUP BY status, reason;
-   ```
-   Esperado tras fix: `status='sent'` debe ser >0, no todo `skipped/invalid_email`.
+**Nuevos:**
+- Migración SQL con `backfill_access_codes_for_event`.
 
-2. **Resumen UI**: tras un run, el modal debe mostrar 4 métricas separadas, no solo "procesados/fallidos".
-
-3. **Persistencia**: cerrar pestaña a mitad del run → reabrir modal → debe ofrecer reanudar desde el offset guardado.
-
-4. **Throttling**: 50 correos en ~10s wall-clock (vs ~25s antes).
-
----
-
-### Archivos a modificar
-
-- `supabase/functions/bulk-regenerate-access-codes/index.ts` — regex, contadores, throttle.
-- `src/services/admin-attendees.service.ts` — tipos + agregación de nuevas métricas entre lotes.
-- `src/components/admin/attendees/BulkRegenerateModal.tsx` — resumen detallado + persistencia localStorage + banner reanudar.
-- `src/locales/es/admin.json` y `src/locales/en/admin.json` — nuevas keys.
+**Modificados:**
+- `supabase/functions/bulk-regenerate-access-codes/index.ts` — validación post-UPDATE.
+- `src/services/admin-attendees.service.ts` — método `backfillAccessCodesViaRpc`.
+- `src/components/admin/attendees/BulkRegenerateModal.tsx` — opción "⚡ Backfill rápido" con flujo de 2 pasos.
+- `src/locales/es/admin.json` y `en/admin.json` — strings nuevas.
 
