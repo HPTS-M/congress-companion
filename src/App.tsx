@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { forwardRef, lazy, Suspense } from 'react';
 import { Toaster } from '@/components/ui/toaster';
 import { Toaster as Sonner } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -76,13 +76,12 @@ const queryClient = new QueryClient({
   },
 });
 
-function PageLoader() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="h-8 w-32 animate-pulse rounded-md bg-muted" />
-    </div>
-  );
-}
+const PageLoader = forwardRef<HTMLDivElement>((_, ref) => (
+  <div ref={ref} className="flex min-h-screen items-center justify-center bg-background">
+    <div className="h-8 w-32 animate-pulse rounded-md bg-muted" />
+  </div>
+));
+PageLoader.displayName = 'PageLoader';
 
 const App = () => (
   <PersistQueryClientProvider
