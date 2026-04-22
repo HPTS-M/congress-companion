@@ -1,240 +1,158 @@
 
 
-## Plan — Iteración 2: Skeletons + Prefetch (versión final con simulación de pruebas)
+## Plan — Migración de signed URLs → public URLs (event-sponsors + speaker-photos)
 
-### Resumen ejecutivo
+### Resumen
 
-3 mejoras coordinadas que atacan distintas fases del ciclo de carga:
-1. **Skeleton fantasma** post-splash — reduce ansiedad de espera del primer render.
-2. **Prefetch en navegación** — elimina latencia al cambiar de pestaña.
-3. **Splash funcional** — convierte tiempo de espera en feedback visible.
-
-Cero cambios en DB, RLS, servicios, mensajería ni notificaciones.
+Los buckets `event-sponsors` y `speaker-photos` ya son públicos en Supabase. Reemplazamos `createSignedUrl` por `getPublicUrl` en todo el código, manteniendo signatures `async` para no romper consumidores. Migramos URLs ya guardadas en `events.settings` para que no expiren al año. `event-documents` queda intacto.
 
 ---
 
-### Beneficios cuantificados
+### Beneficios
 
-| Métrica | Hoy | Después | Mejora |
-|---|---|---|---|
-| Pantalla blanca inicial | 200–500ms | ~0ms (splash ya activo) | **Eliminada** |
-| Spinner genérico tras splash | 700–1200ms | Skeleton fantasma desde 100ms | **~85% menos vacío visual** |
-| Cambio de pestaña (Agenda, Tickets, Sponsors, Polls, Contacts) | 250–400ms | 30–80ms | **~75% más rápido** |
-| Ansiedad de espera (FCP→TTI) | Alta — usuario no sabe qué pasa | Baja — splash dice "Verificando sesión…", "Cargando evento…" | **Cualitativo** |
-| Llamadas duplicadas por hover rápido | Hasta 3-4 fetches en cascada | 1 fetch (debounce 100ms) | **~70% menos requests** |
-| Bundle size | Sin cambio | Sin cambio | — |
+| Métrica | Hoy (signed) | Después (public) |
+|---|---|---|
+| Logos sponsors en Commercial (N=20) | ~20 round-trips a Storage API (~600ms total) | 0 round-trips (síncrono local) |
+| Logo sponsor en SponsorDetail | 1 round-trip (~80ms) | 0 round-trips |
+| Foto speaker en SessionModal admin | 1 round-trip por sesión | 0 round-trips |
+| Banner/logo evento (Home, Header) | URL caduca a 1 año (bomba de tiempo) | URL permanente |
+| Cache CDN | Limitado (signed query params rotativos) | Pleno (URLs estables) |
 
-**Beneficios indirectos:**
-- Menor abandono en primer login (usuarios pacientes con feedback visible).
-- Mejor percepción en mobile gama media (donde el parse JS pesa más).
-- Realtime de mensajería/anuncios intacto, no se interfiere con WebSockets.
+**Beneficio cualitativo:** Commercial directory carga instantáneamente; ya no hay 20 spinners de logo en mobile lento.
 
 ---
 
 ### Cambios técnicos
 
-#### 1. Skeleton fantasma en `EventProvider`
+#### 1. `src/services/sponsors.service.ts` — bucket `event-sponsors`
 
-**Archivo:** `src/components/layout/EventProvider.tsx`
-
-Reemplaza el spinner actual (`Skeleton h-12 w-12 rounded-full`) por:
-- Header gradient `#1A56A0 → #00B89F` de 56px
-- Bottom nav fantasma con 5 placeholders circulares animados
-- Tarjeta principal con 3 líneas skeleton
-
-#### 2. Hook `usePrefetch` con guards manuales
-
-**Archivo nuevo:** `src/hooks/usePrefetch.ts`
+Reemplazar la función `resolveStorageUrl` async + signed por una versión síncrona que envuelve `getPublicUrl`:
 
 ```ts
-export function usePrefetch(eventId: string, attendeeId?: string) {
-  const qc = useQueryClient();
-  const STALE = 30_000;
-
-  return useMemo(() => ({
-    agenda: () => {
-      import('@/pages/attendee/Agenda'); // chunk en paralelo (fire-and-forget)
-      return qc.prefetchQuery({
-        queryKey: ['activities', eventId],
-        queryFn: () => agendaService.getActivities(eventId),
-        staleTime: STALE,
-      });
-    },
-    tickets: () => {
-      import('@/pages/attendee/Tickets');
-      return attendeeId
-        ? qc.prefetchQuery({
-            queryKey: ['tickets', eventId, attendeeId],
-            queryFn: () => ticketsService.getByAttendee(eventId, attendeeId),
-            staleTime: STALE,
-          })
-        : Promise.resolve();
-    },
-    sponsors: () => {
-      import('@/pages/attendee/Commercial');
-      return qc.prefetchQuery({ queryKey: ['sponsors', eventId], queryFn: () => sponsorService.getByEvent(eventId), staleTime: STALE });
-    },
-    polls: () => {
-      import('@/pages/attendee/Polls');
-      return attendeeId
-        ? qc.prefetchQuery({ queryKey: ['polls', eventId, attendeeId], queryFn: () => pollsService.getActivePolls(eventId, attendeeId), staleTime: STALE })
-        : Promise.resolve();
-    },
-    contacts: () => {
-      import('@/pages/attendee/Contacts');
-      return qc.prefetchQuery({ queryKey: ['contacts-directory', eventId], queryFn: () => contactsService.getEventAttendees(eventId), staleTime: STALE });
-    },
-  }), [qc, eventId, attendeeId]);
+function resolveStorageUrl(path: string | null): string | null {
+  if (!path) return null;
+  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 }
 ```
 
-**Excluidos:** messaging y announcements (ya tienen realtime activo manteniendo cache caliente).
+En `getByEvent`: eliminar `Promise.all` sobre URLs — el mapeo se vuelve síncrono. La función sigue siendo `async` (firma intacta).
 
-#### 3. Helper `usePrefetchHandlers`
+En `getById`: eliminar `Promise.all([resolveStorageUrl(logo), resolveStorageUrl(materials)])`, llamar directo. Signature sigue `async`.
 
-**Archivo nuevo:** `src/hooks/usePrefetchHandlers.ts`
+#### 2. `src/services/admin-sponsors.service.ts` — bucket `event-sponsors`
+
+`getSignedUrl` se mantiene como método `async` para no romper a `SponsorMaterialPreviewModal`, `SponsorDetailDrawer`, `SponsorModal`, pero internamente usa `getPublicUrl`:
 
 ```ts
-export function usePrefetchHandlers(prefetchFn: () => void) {
-  const timer = useRef<number>();
-  return {
-    onMouseEnter: () => {
-      window.clearTimeout(timer.current);
-      timer.current = window.setTimeout(prefetchFn, 100);
-    },
-    onMouseLeave: () => window.clearTimeout(timer.current),
-    onTouchStart: () => prefetchFn(),
-    onFocus: () => prefetchFn(),
-  };
-}
+getSignedUrl: async (path: string): Promise<string> => {
+  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+},
 ```
 
-#### 4. Aplicar handlers en navegación
+(Opcionalmente renombrable a `getAssetUrl` en el futuro; no lo hacemos ahora para evitar tocar 4 archivos extra.)
 
-**Archivos:** `BottomNav.tsx`, `HamburgerMenu.tsx`, `AttendeeSidebar.tsx`
+#### 3. `src/services/admin-agenda.service.ts` — bucket `speaker-photos`
 
-Cada `NavLink` recibe los handlers del módulo destino.
+`getSpeakerPhotoUrl` mantiene firma `async`, internamente usa `getPublicUrl`:
 
-#### 5. Splash funcional desacoplado vía CustomEvent
+```ts
+getSpeakerPhotoUrl: async (path: string): Promise<string | null> => {
+  if (!path) return null;
+  return supabase.storage.from('speaker-photos').getPublicUrl(path).data.publicUrl;
+},
+```
 
-**Archivos:** `index.html`, `useAuth.tsx`, `EventProvider.tsx`
+`SpeakerPhotoUpload.tsx` no requiere cambios — sigue haciendo `await` sobre la promesa.
 
-- En `index.html`: `<span id="app-splash-status">Cargando…</span>` + listener de `app:init`.
-- En `useAuth.tsx`: `dispatchEvent('app:init', { step: 'Verificando sesión…' })`.
-- En `EventProvider.tsx`: `dispatchEvent('app:init', { step: 'Cargando evento…' })`.
+#### 4. `src/components/admin/EventBrandingCard.tsx` — bucket `event-sponsors`
 
-DOM imperativo desacoplado de React.
+Reemplazar la generación de signed URL de 1 año por `getPublicUrl`. Esto elimina la "bomba de tiempo" de URLs que caducan. Como `getPublicUrl` es síncrono, simplificamos el flujo de upload (sin `await` sobre el URL builder).
 
----
+#### 5. Migración SQL — actualizar URLs ya guardadas
 
-### Simulación de pruebas
+URLs almacenadas hoy en `events.settings.banner_url` y `events.settings.header_logo_url` son signed (caducan al año). Hay que reescribirlas a public URL extrayendo el path de la URL signed.
 
-#### Escenario A — Primer login en mobile 4G real (Moto G7, Chrome)
+**Estructura signed:** `https://<ref>.supabase.co/storage/v1/object/sign/event-sponsors/<path>?token=...`
+**Estructura public:** `https://<ref>.supabase.co/storage/v1/object/public/event-sponsors/<path>`
 
-| Tiempo | Hoy | Con plan |
-|---|---|---|
-| 0ms | Pantalla blanca | Splash visible: "Cargando…" |
-| 200ms | Pantalla blanca | Splash: "Verificando sesión…" |
-| 500ms | Pantalla blanca | Splash: "Cargando evento…" |
-| 800ms | Spinner girando | Skeleton fantasma (header gradient + bottom nav) |
-| 1100ms | Spinner girando | Skeleton fantasma (datos llegando) |
-| 1300ms | Home renderizado | Home renderizado con fade desde skeleton |
+Migración:
 
-**Resultado:** el usuario ve actividad continua desde 0ms. La sensación es "rápida con estado" en vez de "trabada con spinner".
+```sql
+UPDATE events
+SET settings = jsonb_set(
+  settings,
+  '{banner_url}',
+  to_jsonb(
+    regexp_replace(
+      split_part(settings->>'banner_url', '?', 1),
+      '/storage/v1/object/sign/',
+      '/storage/v1/object/public/'
+    )
+  )
+)
+WHERE settings->>'banner_url' LIKE '%/storage/v1/object/sign/event-sponsors/%';
 
-#### Escenario B — Tap en tab "Tickets" desde Home (mobile)
+UPDATE events
+SET settings = jsonb_set(
+  settings,
+  '{header_logo_url}',
+  to_jsonb(
+    regexp_replace(
+      split_part(settings->>'header_logo_url', '?', 1),
+      '/storage/v1/object/sign/',
+      '/storage/v1/object/public/'
+    )
+  )
+)
+WHERE settings->>'header_logo_url' LIKE '%/storage/v1/object/sign/event-sponsors/%';
+```
 
-**Hoy:**
-1. Tap → React Router monta `<Tickets />` lazy → spinner ~150ms (chunk JS)
-2. `useTickets` dispara fetch → spinner ~200ms más
-3. Render con datos → **total ~350ms**
-
-**Con plan:**
-1. Dedo toca el ícono → `onTouchStart` dispara `prefetch.tickets()` → chunk + fetch en paralelo
-2. ~100ms después React Router monta — chunk ya descargado, fetch en vuelo o resuelto
-3. `useTickets` encuentra dato en cache → render inmediato → **total ~80ms**
-
-**Mejora medible:** -270ms (~77% más rápido).
-
-#### Escenario C — Hover rápido sobre 3 tabs en desktop
-
-**Hoy (sin prefetch):** ningún fetch hasta el click.
-
-**Sin debounce:** 3 fetches disparados inmediatamente, 2 desperdiciados.
-
-**Con debounce 100ms (plan):**
-- Dedo pasa por Agenda (50ms) → cancela timer
-- Dedo pasa por Tickets (60ms) → cancela timer
-- Dedo se queda en Sponsors (>100ms) → solo se dispara `prefetch.sponsors()`
-
-**Resultado:** 1 fetch en vez de 3.
-
-#### Escenario D — Login screen (sin attendee)
-
-Usuario hace hover sobre tab Tickets en bottom nav (caso edge: no debería verse pero verifiquemos).
-
-- `prefetch.tickets()` evalúa `attendeeId` → undefined → retorna `Promise.resolve()`
-- Cero requests al backend.
-
-**Resultado:** guard manual funciona, no hay errores 401.
-
-#### Escenario E — Realtime de mensajería durante navegación
-
-Usuario está en Agenda, llega un mensaje nuevo.
-
-- `useDirectMessageToasts` (sin tocar) recibe evento Realtime → muestra toast.
-- Usuario toca tab Messaging → no está en `usePrefetch` → comportamiento actual sin cambios.
-- Mensajería abre con su lógica actual de carga.
-
-**Resultado:** mensajería intacta, prefetch no interfiere con WebSockets.
-
-#### Escenario F — Reconexión tras offline
-
-- Usuario pierde conexión, vuelve online.
-- TanStack Query refetchea queries con `refetchOnReconnect: true` (config existente).
-- Prefetch funciona normal en hover/touch, datos quedan frescos `staleTime: 30s`.
-
-**Resultado:** sin cambios respecto a hoy, solo mejora.
-
----
-
-### Riesgos y mitigaciones
-
-| Riesgo | Mitigación |
-|---|---|
-| Prefetch consume datos móviles | `staleTime: 30s` evita refetches; queries son ligeras (<5KB cada una) |
-| Chunks descargados que no se usan | Vite ya hace tree-shaking; el chunk se cachea por SW para futuras sesiones |
-| CustomEvent del splash no llega si React falla | El splash queda visible con "Cargando…", el ErrorBoundary lo reemplaza |
-| Skeleton diferente al render real causa "salto" | Diseño imita estructura exacta (header 56px + bottom nav + card) |
-| Debounce 100ms se siente lento en desktop | Imperceptible — el ojo humano no detecta <150ms de delay |
-
----
-
-### Archivos a modificar/crear
-
-| Archivo | Acción |
-|---|---|
-| `src/components/layout/EventProvider.tsx` | Skeleton fantasma + dispatch `app:init` |
-| `src/hooks/usePrefetch.ts` | **Nuevo** |
-| `src/hooks/usePrefetchHandlers.ts` | **Nuevo** |
-| `src/components/layout/BottomNav.tsx` | Aplicar handlers |
-| `src/components/layout/HamburgerMenu.tsx` | Aplicar handlers |
-| `src/components/layout/AttendeeSidebar.tsx` | Aplicar handlers |
-| `index.html` | `<span id="app-splash-status">` + listener |
-| `src/hooks/useAuth.tsx` | Dispatch `app:init` en auth check |
+`split_part(..., '?', 1)` elimina el query string del token. `regexp_replace` cambia `sign` → `public`.
 
 ---
 
 ### Lo que NO se toca
 
-- Mensajería, push, service worker, realtime de chat/announcements.
-- Vendor chunk de 226KB (ya cacheado por SW).
-- Reports / Excel / Sponsors admin (ya lazy-loaded).
-- i18n, RLS, servicios, tipos.
+- `event-documents` (sigue privado, sigue con `createSignedUrl` en `adminDocumentsService` y `documentsService`).
+- `useDocuments`, `useAdminDocuments`, `DocumentPreviewModal`, etc.
+- Ninguna RLS, ninguna política de Storage.
+- Logos de logos cargados en `attendees.avatar_url` u otros (no aplica).
 
 ---
 
-### Esfuerzo total
+### Archivos modificados
 
-~30 minutos. 8 archivos. Cero migraciones.
+| Archivo | Cambio |
+|---|---|
+| `src/services/sponsors.service.ts` | `resolveStorageUrl` síncrona con `getPublicUrl` |
+| `src/services/admin-sponsors.service.ts` | `getSignedUrl` async wrapper de `getPublicUrl` |
+| `src/services/admin-agenda.service.ts` | `getSpeakerPhotoUrl` async wrapper de `getPublicUrl` |
+| `src/components/admin/EventBrandingCard.tsx` | Reemplazo de signed por public en upload de banner/logo |
+| Migración SQL | UPDATE de `events.settings.banner_url` y `header_logo_url` |
+
+---
+
+### Verificación
+
+1. **Commercial directory mobile:** abrir `/ACQFH-2026/commercial` con 20 sponsors → todos los logos aparecen sin "parpadeo" inicial.
+2. **Sponsor detail:** abrir un sponsor → logo y PDF de materiales abren al instante.
+3. **Admin EventBranding:** subir un banner nuevo → URL guardada en BD comienza con `/storage/v1/object/public/event-sponsors/`.
+4. **Migración:** después de correr el SQL, query manual `SELECT settings->>'banner_url' FROM events;` confirma que ya no aparece `?token=` ni `/sign/`.
+5. **Speaker photo en SessionModal admin:** crear sesión nueva, subir foto → preview aparece sin retraso.
+6. **Documentos académicos:** abrir cualquier documento desde `/ACQFH-2026/documents` → sigue funcionando con signed URL (no tocado).
+
+---
+
+### Consideración de seguridad
+
+Los buckets ya son públicos en Supabase (decisión confirmada por el usuario). Cualquier persona con la URL puede acceder a logos, fotos de speaker y PDFs de sponsors. Esto es aceptable porque:
+- Logos y fotos son material promocional/branding.
+- PDFs de sponsors son material comercial diseñado para distribución.
+- Las URLs no son adivinables (incluyen UUIDs y timestamps).
+
+---
+
+### Esfuerzo
+
+~15 minutos. 4 archivos + 1 migración SQL. Cero cambios de tipos, RLS o consumidores.
 
