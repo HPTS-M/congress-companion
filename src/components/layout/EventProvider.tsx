@@ -1,16 +1,27 @@
+import { useEffect } from 'react';
 import { Outlet, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useEventLoader, EventContext } from '@/hooks/useEvent';
 import { useAgendaRealtime } from '@/hooks/useAdminAgenda';
 import { useRealtimeInvalidate } from '@/hooks/useRealtimeInvalidate';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
-import { Skeleton } from '@/components/ui/skeleton';
 
 export function EventProvider() {
   const { eventSlug = '' } = useParams<{ eventSlug: string }>();
   const { data: event, isLoading, error } = useEventLoader(eventSlug);
   const { t } = useTranslation();
   const isOnline = useOnlineStatus();
+
+  // Notify the splash screen what we're doing right now.
+  // Decoupled via CustomEvent — the listener lives in index.html and works
+  // even before/without React being mounted.
+  useEffect(() => {
+    if (isLoading) {
+      window.dispatchEvent(
+        new CustomEvent('app:init', { detail: { step: 'Cargando evento…' } }),
+      );
+    }
+  }, [isLoading]);
 
   // Global agenda realtime sync — invalidates every dependent query
   // (admin + attendee views) when sessions change anywhere in the event.
@@ -30,12 +41,39 @@ export function EventProvider() {
   });
 
   if (isLoading) {
+    // Phantom skeleton: imitates the final app shell so the user perceives
+    // structure (header gradient, bottom nav silhouette, content card)
+    // instead of a generic spinner. Matches AppHeader 56px + BottomNav 56px.
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Skeleton className="h-12 w-12 rounded-full" />
-          <Skeleton className="h-4 w-32" />
+      <div className="flex min-h-screen flex-col bg-background">
+        {/* Header silhouette */}
+        <div
+          className="h-14 w-full"
+          style={{ background: 'linear-gradient(135deg, #1A56A0 0%, #00B89F 100%)' }}
+          aria-hidden="true"
+        />
+        {/* Bottom nav silhouette (mobile only) */}
+        <div
+          className="fixed top-14 left-0 right-0 z-40 flex items-center justify-around border-b border-border bg-background md:hidden"
+          style={{ minHeight: '56px' }}
+          aria-hidden="true"
+        >
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex flex-1 flex-col items-center justify-center gap-1 py-2">
+              <div className="h-6 w-6 animate-pulse rounded-full bg-muted" />
+              <div className="h-2 w-10 animate-pulse rounded bg-muted" />
+            </div>
+          ))}
         </div>
+        {/* Content card silhouette */}
+        <main className="flex-1 px-4 pt-20 md:pt-8">
+          <div className="mx-auto max-w-2xl space-y-3 rounded-lg border border-border bg-card p-6 shadow-sm">
+            <div className="h-5 w-2/3 animate-pulse rounded bg-muted" />
+            <div className="h-3 w-full animate-pulse rounded bg-muted" />
+            <div className="h-3 w-5/6 animate-pulse rounded bg-muted" />
+            <div className="h-3 w-3/4 animate-pulse rounded bg-muted" />
+          </div>
+        </main>
       </div>
     );
   }

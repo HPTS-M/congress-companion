@@ -2,7 +2,9 @@ import { FileText, Edit, MessageCircle, Bell, Star, LogOut, Users, Map, BarChart
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { useEventSlug, useEventSettings } from '@/hooks/useEvent';
+import { useEvent, useEventSlug, useEventSettings } from '@/hooks/useEvent';
+import { usePrefetch } from '@/hooks/usePrefetch';
+import { usePrefetchHandlers } from '@/hooks/usePrefetchHandlers';
 import {
   Sheet,
   SheetContent,
@@ -31,9 +33,11 @@ const menuItems: Array<{ key: string; icon: typeof Users; path: string; settings
 export function HamburgerMenu({ open, onOpenChange }: HamburgerMenuProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, attendee } = useAuth();
   const eventSlug = useEventSlug();
   const settings = useEventSettings();
+  const { event } = useEvent();
+  const prefetch = usePrefetch(event?.id ?? '', attendee?.id);
 
   const visibleItems = menuItems.filter((item) => settings[item.settingsKey]);
 
@@ -60,14 +64,15 @@ export function HamburgerMenu({ open, onOpenChange }: HamburgerMenuProps) {
 
         <div className="flex flex-col py-2">
           {visibleItems.map(({ key, icon: Icon, path }) => (
-            <button
+            <MenuItemButton
               key={key}
-              onClick={() => handleNavigate(path)}
-              className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-            >
-              <Icon className="h-5 w-5 text-muted-foreground" />
-              {t(`nav.${key}`)}
-            </button>
+              tabKey={key}
+              path={path}
+              Icon={Icon}
+              label={t(`nav.${key}`)}
+              prefetch={prefetch}
+              onNavigate={handleNavigate}
+            />
           ))}
 
           <div className="mx-4 my-2 border-t border-border" />
@@ -82,5 +87,29 @@ export function HamburgerMenu({ open, onOpenChange }: HamburgerMenuProps) {
         </div>
       </SheetContent>
     </Sheet>
+  );
+}
+
+interface MenuItemButtonProps {
+  tabKey: string;
+  path: string;
+  Icon: typeof Users;
+  label: string;
+  prefetch: ReturnType<typeof usePrefetch>;
+  onNavigate: (path: string) => void;
+}
+
+function MenuItemButton({ tabKey, path, Icon, label, prefetch, onNavigate }: MenuItemButtonProps) {
+  const prefetchFn = (prefetch as Record<string, (() => Promise<unknown>) | undefined>)[tabKey];
+  const handlers = usePrefetchHandlers(prefetchFn ?? (() => {}));
+  return (
+    <button
+      onClick={() => onNavigate(path)}
+      className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+      {...(prefetchFn ? handlers : {})}
+    >
+      <Icon className="h-5 w-5 text-muted-foreground" />
+      {label}
+    </button>
   );
 }

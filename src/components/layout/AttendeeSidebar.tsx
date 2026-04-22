@@ -10,6 +10,8 @@ import { useEvent, useEventSlug, useEventSettings } from '@/hooks/useEvent';
 import { useUnreadAnnouncements } from '@/hooks/useUnreadAnnouncements';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { usePrefetch } from '@/hooks/usePrefetch';
+import { usePrefetchHandlers } from '@/hooks/usePrefetchHandlers';
 import {
   Sidebar,
   SidebarContent,
@@ -48,7 +50,7 @@ const secondaryItems: Array<{ key: string; icon: typeof Home; path: string; sett
 export function AttendeeSidebar() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, attendee } = useAuth();
   const eventSlug = useEventSlug();
   const settings = useEventSettings();
   const { event } = useEvent();
@@ -57,6 +59,7 @@ export function AttendeeSidebar() {
   const announcements = useUnreadAnnouncements(event?.id ?? '');
   const messages = useUnreadMessages(event?.id ?? '');
   const isOnline = useOnlineStatus();
+  const prefetch = usePrefetch(event?.id ?? '', attendee?.id);
 
   const filteredMain = mainItems.filter((item) => !item.settingsKey || settings[item.settingsKey]);
   const filteredSecondary = secondaryItems.filter((item) => !item.settingsKey || settings[item.settingsKey]);
@@ -100,19 +103,16 @@ export function AttendeeSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {filteredMain.map(({ key, icon: Icon, path }) => (
-                <SidebarMenuItem key={key}>
-                  <SidebarMenuButton asChild>
-                    <NavLink
-                      to={`/${eventSlug}${path}`}
-                      end={path === '/home'}
-                      className="flex items-center gap-3 px-3 py-2 text-sm font-medium text-foreground hover:bg-muted/50 rounded-md"
-                      activeClassName="bg-primary/10 text-primary font-semibold"
-                    >
-                      <Icon className="h-5 w-5 shrink-0" />
-                      {!collapsed && <span>{t(`nav.${key}`)}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                <SidebarRow
+                  key={key}
+                  tabKey={key}
+                  to={`/${eventSlug}${path}`}
+                  end={path === '/home'}
+                  Icon={Icon}
+                  label={t(`nav.${key}`)}
+                  collapsed={collapsed}
+                  prefetch={prefetch}
+                />
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
@@ -129,22 +129,25 @@ export function AttendeeSidebar() {
                   if (isAnnouncements) announcements.markAsSeen();
                   if (isMessaging) messages.markAsSeen();
                 };
+                const trailing = isAnnouncements
+                  ? renderBadge(announcements.count)
+                  : isMessaging
+                  ? messages.count > 0
+                    ? renderBadge(messages.count)
+                    : renderOfflineDot()
+                  : null;
                 return (
-                  <SidebarMenuItem key={key}>
-                    <SidebarMenuButton asChild>
-                      <NavLink
-                        to={`/${eventSlug}${path}`}
-                        onClick={handleClick}
-                        className="relative flex items-center gap-3 px-3 py-2 text-sm font-medium text-foreground hover:bg-muted/50 rounded-md"
-                        activeClassName="bg-primary/10 text-primary font-semibold"
-                      >
-                        <Icon className="h-5 w-5 shrink-0" />
-                        {!collapsed && <span>{t(`nav.${key}`)}</span>}
-                        {isAnnouncements && renderBadge(announcements.count)}
-                        {isMessaging && (messages.count > 0 ? renderBadge(messages.count) : renderOfflineDot())}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  <SidebarRow
+                    key={key}
+                    tabKey={key}
+                    to={`/${eventSlug}${path}`}
+                    Icon={Icon}
+                    label={t(`nav.${key}`)}
+                    collapsed={collapsed}
+                    prefetch={prefetch}
+                    onClick={handleClick}
+                    trailing={trailing}
+                  />
                 );
               })}
             </SidebarMenu>
@@ -165,3 +168,39 @@ export function AttendeeSidebar() {
     </Sidebar>
   );
 }
+
+interface SidebarRowProps {
+  tabKey: string;
+  to: string;
+  end?: boolean;
+  Icon: typeof Home;
+  label: string;
+  collapsed: boolean;
+  prefetch: ReturnType<typeof usePrefetch>;
+  onClick?: () => void;
+  trailing?: React.ReactNode;
+}
+
+function SidebarRow({ tabKey, to, end, Icon, label, collapsed, prefetch, onClick, trailing }: SidebarRowProps) {
+  const prefetchFn = (prefetch as Record<string, (() => Promise<unknown>) | undefined>)[tabKey];
+  const handlers = usePrefetchHandlers(prefetchFn ?? (() => {}));
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton asChild>
+        <NavLink
+          to={to}
+          end={end}
+          onClick={onClick}
+          className="relative flex items-center gap-3 px-3 py-2 text-sm font-medium text-foreground hover:bg-muted/50 rounded-md"
+          activeClassName="bg-primary/10 text-primary font-semibold"
+          {...(prefetchFn ? handlers : {})}
+        >
+          <Icon className="h-5 w-5 shrink-0" />
+          {!collapsed && <span>{label}</span>}
+          {trailing}
+        </NavLink>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
+
