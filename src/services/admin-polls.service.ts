@@ -220,10 +220,35 @@ export const adminPollsService = {
     };
   },
 
+  /**
+   * Delete a poll and all its dependencies.
+   * Order matters: responses → options → poll (FK constraints).
+   * Each step propagates its error with context for clear diagnostics.
+   */
   async deletePoll(pollId: string): Promise<void> {
-    await supabase.from('poll_responses').delete().eq('poll_id', pollId);
-    const { error } = await supabase.from('polls').delete().eq('id', pollId);
-    if (error) throw new Error(error.message);
+    const { error: responsesError } = await supabase
+      .from('poll_responses')
+      .delete()
+      .eq('poll_id', pollId);
+    if (responsesError) {
+      throw new Error(`Failed to delete poll responses: ${responsesError.message}`);
+    }
+
+    const { error: optionsError } = await supabase
+      .from('poll_options')
+      .delete()
+      .eq('poll_id', pollId);
+    if (optionsError) {
+      throw new Error(`Failed to delete poll options: ${optionsError.message}`);
+    }
+
+    const { error: pollError } = await supabase
+      .from('polls')
+      .delete()
+      .eq('id', pollId);
+    if (pollError) {
+      throw new Error(`Failed to delete poll: ${pollError.message}`);
+    }
   },
 
   async getPollResults(pollId: string): Promise<PollWithResults> {
