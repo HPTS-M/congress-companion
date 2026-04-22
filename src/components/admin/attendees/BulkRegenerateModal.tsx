@@ -1,7 +1,17 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Loader2, Download, RefreshCw } from 'lucide-react';
+import {
+  AlertTriangle,
+  Loader2,
+  Download,
+  RefreshCw,
+  CheckCircle2,
+  Mail,
+  XCircle,
+  SkipForward,
+  RotateCw,
+} from 'lucide-react';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -21,10 +31,66 @@ interface Counts {
   all: number;
 }
 
+interface Summary {
+  codes_regenerated: number;
+  emails_sent: number;
+  emails_skipped: number;
+  emails_failed: number;
+  db_failed: number;
+  processed: number;
+  failed: number;
+  total: number;
+  errors: { attendee_id: string; reason: string }[];
+}
+
+interface PersistedState {
+  filter: Filter;
+  offset: number;
+  total: number;
+  codes_regenerated: number;
+  emails_sent: number;
+  emails_skipped: number;
+  emails_failed: number;
+  db_failed: number;
+  startedAt: number;
+}
+
 interface BulkRegenerateModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   counts: Counts;
+}
+
+const STATE_KEY_PREFIX = 'bulk-regen-state-';
+const STATE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+
+function loadPersisted(eventId: string): PersistedState | null {
+  try {
+    const raw = localStorage.getItem(STATE_KEY_PREFIX + eventId);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PersistedState;
+    if (!parsed.startedAt || Date.now() - parsed.startedAt > STATE_TTL_MS) {
+      localStorage.removeItem(STATE_KEY_PREFIX + eventId);
+      return null;
+    }
+    if (parsed.offset >= parsed.total) {
+      localStorage.removeItem(STATE_KEY_PREFIX + eventId);
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function savePersisted(eventId: string, state: PersistedState) {
+  try {
+    localStorage.setItem(STATE_KEY_PREFIX + eventId, JSON.stringify(state));
+  } catch { /* quota exceeded — ignore */ }
+}
+
+function clearPersisted(eventId: string) {
+  try { localStorage.removeItem(STATE_KEY_PREFIX + eventId); } catch { /* ignore */ }
 }
 
 export function BulkRegenerateModal({ open, onOpenChange, counts }: BulkRegenerateModalProps) {
@@ -35,18 +101,25 @@ export function BulkRegenerateModal({ open, onOpenChange, counts }: BulkRegenera
   const [filter, setFilter] = useState<Filter>('never_logged_in');
   const [isRunning, setIsRunning] = useState(false);
   const [progress, setProgress] = useState({ processed: 0, total: 0 });
-  const [summary, setSummary] = useState<{
-    processed: number;
-    failed: number;
-    total: number;
-    errors: { attendee_id: string; reason: string }[];
-  } | null>(null);
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [resumeState, setResumeState] = useState<PersistedState | null>(null);
+
+  // Detect interrupted previous run when the modal opens.
+  useEffect(() => {
+    if (!open || !event?.id) return;
+    const persisted = loadPersisted(event.id);
+    if (persisted) {
+      setResumeState(persisted);
+      setFilter(persisted.filter);
+    }
+  }, [open, event?.id]);
 
   const reset = useCallback(() => {
     setFilter('never_logged_in');
     setIsRunning(false);
     setProgress({ processed: 0, total: 0 });
     setSummary(null);
+    setResumeState(null);
   }, []);
 
   const handleClose = useCallback(
@@ -58,50 +131,98 @@ export function BulkRegenerateModal({ open, onOpenChange, counts }: BulkRegenera
     [isRunning, onOpenChange, reset],
   );
 
-  const handleConfirm = async () => {
-    if (!event?.id) return;
-    setIsRunning(true);
-    setSummary(null);
-    setProgress({ processed: 0, total: 0 });
-    try {
-      const result = await adminAttendeesService.bulkRegenerateAccessCodes(event.id, {
-        filter,
-        sendEmail: true,
-        onProgress: (p) => setProgress(p),
-      });
-      setSummary(result);
-      // Refresh attendee data so the UI reflects new invitation_sent_at, etc.
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['admin-attendees'] }),
-        queryClient.invalidateQueries({ queryKey: ['admin-failed-invitations'] }),
-        queryClient.invalidateQueries({ queryKey: ['admin-pending-invitations'] }),
-      ]);
-      if (result.failed === 0) {
-        toast({
-          title: t('attendees.bulkRegenerate.successToast', {
-            count: result.processed,
-            defaultValue: '{{count}} codes regenerated and emails sent',
-          }),
+  const runRegeneration = useCallback(
+    async (selectedFilter: Filter, startOffset: number, seed?: PersistedState) => {
+      if (!event?.id) return;
+      const eventId = event.id;
+      setIsRunning(true);
+      setSummary(null);
+      setProgress({ processed: startOffset, total: seed?.total ?? 0 });
+
+      try {
+        const result = await adminAttendeesService.bulkRegenerateAccessCodes(eventId, {
+          filter: selectedFilter,
+          sendEmail: true,
+          startOffset,
+          onProgress: (p) => {
+            setProgress({ processed: p.processed + startOffset, total: p.total + startOffset });
+            savePersisted(eventId, {
+              filter: selectedFilter,
+              offset: p.offset,
+              total: p.total + startOffset,
+              codes_regenerated: (seed?.codes_regenerated ?? 0) + p.codes_regenerated,
+              emails_sent: (seed?.emails_sent ?? 0) + p.emails_sent,
+              emails_skipped: (seed?.emails_skipped ?? 0) + p.emails_skipped,
+              emails_failed: (seed?.emails_failed ?? 0) + p.emails_failed,
+              db_failed: (seed?.db_failed ?? 0) + p.db_failed,
+              startedAt: seed?.startedAt ?? Date.now(),
+            });
+          },
         });
-      } else {
+
+        // Merge any seeded counts (from a resumed run) into the final summary.
+        const merged: Summary = {
+          codes_regenerated: result.codes_regenerated + (seed?.codes_regenerated ?? 0),
+          emails_sent: result.emails_sent + (seed?.emails_sent ?? 0),
+          emails_skipped: result.emails_skipped + (seed?.emails_skipped ?? 0),
+          emails_failed: result.emails_failed + (seed?.emails_failed ?? 0),
+          db_failed: result.db_failed + (seed?.db_failed ?? 0),
+          processed: result.processed + (seed?.codes_regenerated ?? 0) + (seed?.db_failed ?? 0),
+          failed: result.failed + (seed?.emails_failed ?? 0) + (seed?.db_failed ?? 0),
+          total: result.total + startOffset,
+          errors: result.errors,
+        };
+
+        setSummary(merged);
+        clearPersisted(eventId);
+        setResumeState(null);
+
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['admin-attendees'] }),
+          queryClient.invalidateQueries({ queryKey: ['admin-failed-invitations'] }),
+          queryClient.invalidateQueries({ queryKey: ['admin-pending-invitations'] }),
+        ]);
+
+        if (merged.emails_failed === 0 && merged.db_failed === 0) {
+          toast({
+            title: t('attendees.bulkRegenerate.successToast', {
+              count: merged.codes_regenerated,
+              defaultValue: '{{count}} codes regenerated and emails sent',
+            }),
+          });
+        } else {
+          toast({
+            title: t('attendees.bulkRegenerate.partialToast', {
+              processed: merged.codes_regenerated,
+              failed: merged.emails_failed + merged.db_failed,
+              defaultValue: 'Done — {{processed}} regenerated, {{failed}} with issues',
+            }),
+            variant: 'destructive',
+          });
+        }
+      } catch (e) {
         toast({
-          title: t('attendees.bulkRegenerate.partialToast', {
-            processed: result.processed,
-            failed: result.failed,
-            defaultValue: 'Done — {{processed}} processed, {{failed}} with issues',
-          }),
+          title: t('attendees.bulkRegenerate.errorToast', { defaultValue: 'Bulk regeneration failed' }),
+          description: (e as Error).message,
           variant: 'destructive',
         });
+      } finally {
+        setIsRunning(false);
       }
-    } catch (e) {
-      toast({
-        title: t('attendees.bulkRegenerate.errorToast', { defaultValue: 'Bulk regeneration failed' }),
-        description: (e as Error).message,
-        variant: 'destructive',
-      });
-    } finally {
-      setIsRunning(false);
-    }
+    },
+    [event?.id, queryClient, t],
+  );
+
+  const handleConfirm = () => runRegeneration(filter, 0);
+
+  const handleResume = () => {
+    if (!resumeState) return;
+    runRegeneration(resumeState.filter, resumeState.offset, resumeState);
+  };
+
+  const handleStartOver = () => {
+    if (event?.id) clearPersisted(event.id);
+    setResumeState(null);
   };
 
   const downloadErrors = () => {
@@ -144,6 +265,37 @@ export function BulkRegenerateModal({ open, onOpenChange, counts }: BulkRegenera
 
         {!isRunning && !summary && (
           <>
+            {/* Resume banner */}
+            {resumeState && (
+              <div className="rounded-md border border-primary/40 bg-primary/10 p-3 text-sm">
+                <div className="flex items-start gap-2">
+                  <RotateCw className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
+                  <div className="flex-1 space-y-2">
+                    <p className="text-foreground">
+                      {t('attendees.bulkRegenerate.resumeBanner', {
+                        offset: resumeState.offset,
+                        total: resumeState.total,
+                        defaultValue:
+                          'A previous run was interrupted at {{offset}} of {{total}}. Resume where you left off?',
+                      })}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={handleResume}>
+                        {t('attendees.bulkRegenerate.resumeButton', {
+                          defaultValue: 'Resume',
+                        })}
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={handleStartOver}>
+                        {t('attendees.bulkRegenerate.startOverButton', {
+                          defaultValue: 'Start over',
+                        })}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Warning */}
             <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">
               <div className="flex gap-2">
@@ -225,7 +377,8 @@ export function BulkRegenerateModal({ open, onOpenChange, counts }: BulkRegenera
             <Progress value={percent} />
             <p className="text-xs text-muted-foreground">
               {t('attendees.bulkRegenerate.progressHint', {
-                defaultValue: 'Do not close this window. Estimated ~7-10 minutes for 800 attendees.',
+                defaultValue:
+                  'Do not close this window. Estimated ~3 minutes for 800 attendees. Progress is saved if interrupted.',
               })}
             </p>
           </div>
@@ -233,18 +386,59 @@ export function BulkRegenerateModal({ open, onOpenChange, counts }: BulkRegenera
 
         {summary && (
           <div className="space-y-3">
-            <div className="rounded-md border bg-muted/50 p-3 text-sm space-y-1">
-              <p>
-                <strong>{summary.processed}</strong>{' '}
-                {t('attendees.bulkRegenerate.summaryProcessed', { defaultValue: 'codes regenerated' })}
-              </p>
-              {summary.failed > 0 && (
-                <p className="text-destructive">
-                  <strong>{summary.failed}</strong>{' '}
-                  {t('attendees.bulkRegenerate.summaryFailed', { defaultValue: 'failed (see CSV)' })}
-                </p>
+            <div className="rounded-md border bg-muted/30 p-3 text-sm space-y-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-accent" />
+                <span>
+                  <strong>{summary.codes_regenerated}</strong>{' '}
+                  {t('attendees.bulkRegenerate.summaryCodesRegenerated', {
+                    defaultValue: 'codes regenerated',
+                  })}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Mail className="h-4 w-4 text-primary" />
+                <span>
+                  <strong>{summary.emails_sent}</strong>{' '}
+                  {t('attendees.bulkRegenerate.summaryEmailsSent', {
+                    defaultValue: 'emails sent',
+                  })}
+                </span>
+              </div>
+              {summary.emails_failed > 0 && (
+                <div className="flex items-center gap-2 text-destructive">
+                  <XCircle className="h-4 w-4" />
+                  <span>
+                    <strong>{summary.emails_failed}</strong>{' '}
+                    {t('attendees.bulkRegenerate.summaryEmailsFailed', {
+                      defaultValue: 'emails failed',
+                    })}
+                  </span>
+                </div>
               )}
-              <p className="text-muted-foreground">
+              {summary.emails_skipped > 0 && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <SkipForward className="h-4 w-4" />
+                  <span>
+                    <strong>{summary.emails_skipped}</strong>{' '}
+                    {t('attendees.bulkRegenerate.summaryEmailsSkipped', {
+                      defaultValue: 'skipped (no/invalid email)',
+                    })}
+                  </span>
+                </div>
+              )}
+              {summary.db_failed > 0 && (
+                <div className="flex items-center gap-2 text-destructive">
+                  <XCircle className="h-4 w-4" />
+                  <span>
+                    <strong>{summary.db_failed}</strong>{' '}
+                    {t('attendees.bulkRegenerate.summaryDbFailed', {
+                      defaultValue: 'database errors',
+                    })}
+                  </span>
+                </div>
+              )}
+              <p className="text-muted-foreground text-xs pt-1 border-t">
                 {t('attendees.bulkRegenerate.summaryTotal', {
                   total: summary.total,
                   defaultValue: 'Total considered: {{total}}',
@@ -261,7 +455,7 @@ export function BulkRegenerateModal({ open, onOpenChange, counts }: BulkRegenera
         )}
 
         <DialogFooter>
-          {!isRunning && !summary && (
+          {!isRunning && !summary && !resumeState && (
             <>
               <Button variant="ghost" onClick={() => handleClose(false)}>
                 {t('attendees.bulkRegenerate.cancel', { defaultValue: 'Cancel' })}
@@ -277,6 +471,11 @@ export function BulkRegenerateModal({ open, onOpenChange, counts }: BulkRegenera
                 })}
               </Button>
             </>
+          )}
+          {!isRunning && !summary && resumeState && (
+            <Button variant="ghost" onClick={() => handleClose(false)}>
+              {t('attendees.bulkRegenerate.cancel', { defaultValue: 'Cancel' })}
+            </Button>
           )}
           {summary && (
             <Button onClick={() => handleClose(false)}>

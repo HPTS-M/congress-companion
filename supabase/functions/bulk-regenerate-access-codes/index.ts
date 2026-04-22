@@ -19,7 +19,9 @@ const corsHeaders = {
 
 const MAX_BATCH = 50;
 const BCRYPT_COST = 8;
-const EMAIL_DELAY_MS = 500;
+// 200ms = ~5 emails/sec — within Resend default rate limit.
+// 429 responses are still handled gracefully via the invitation_send_log.
+const EMAIL_DELAY_MS = 200;
 
 const requestSchema = z.object({
   event_id: z.string().uuid(),
@@ -167,7 +169,17 @@ Deno.serve(async (req) => {
       const ids = (failedIds ?? []) as string[];
       if (ids.length === 0) {
         return jsonResponse(200, {
-          processed: 0, failed: 0, remaining: 0, next_offset: offset, total: 0, errors: [],
+          codes_regenerated: 0,
+          emails_sent: 0,
+          emails_skipped: 0,
+          emails_failed: 0,
+          db_failed: 0,
+          processed: 0,
+          failed: 0,
+          remaining: 0,
+          next_offset: offset,
+          total: 0,
+          errors: [],
         });
       }
       baseSelect = baseSelect.in('id', ids);
@@ -186,7 +198,17 @@ Deno.serve(async (req) => {
 
     if (rows.length === 0) {
       return jsonResponse(200, {
-        processed: 0, failed: 0, remaining: 0, next_offset: offset, total, errors: [],
+        codes_regenerated: 0,
+        emails_sent: 0,
+        emails_skipped: 0,
+        emails_failed: 0,
+        db_failed: 0,
+        processed: 0,
+        failed: 0,
+        remaining: 0,
+        next_offset: offset,
+        total,
+        errors: [],
       });
     }
 
@@ -194,10 +216,17 @@ Deno.serve(async (req) => {
     const eventLoginUrl = buildEventUrl(event.event_code);
     const eventDates = formatEventDateRange(event.start_date, event.end_date, 'es');
 
-    const EMAIL_RE = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;
+    // FIX: previous version used double-escaped \\s and \\. which never matched
+    // any valid email — every send was incorrectly skipped as invalid_email.
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    let processed = 0;
-    let failed = 0;
+    // Granular counters: separate DB updates from email outcomes so the UI
+    // can show "X codes regenerated, Y emails sent, Z failed, W skipped".
+    let codes_regenerated = 0;
+    let emails_sent = 0;
+    let emails_skipped = 0;
+    let emails_failed = 0;
+    let db_failed = 0;
     const errors: { attendee_id: string; reason: string }[] = [];
 
     for (const a of rows) {
@@ -217,7 +246,7 @@ Deno.serve(async (req) => {
           .eq('id', a.id);
 
         if (updErr) {
-          failed++;
+          db_failed++;
           errors.push({ attendee_id: a.id, reason: `db_error: ${updErr.message}` });
           try {
             await supabaseAdmin.from('invitation_send_log').insert({
@@ -232,6 +261,8 @@ Deno.serve(async (req) => {
           continue;
         }
 
+        codes_regenerated++;
+
         const skipEmail =
           !send_email ||
           !resendApiKey ||
@@ -239,7 +270,7 @@ Deno.serve(async (req) => {
           !EMAIL_RE.test(a.email.trim());
 
         if (skipEmail) {
-          processed++;
+          emails_skipped++;
           if (send_email && (!a.email || !EMAIL_RE.test((a.email ?? '').trim()))) {
             try {
               await supabaseAdmin.from('invitation_send_log').insert({
@@ -279,7 +310,7 @@ Deno.serve(async (req) => {
         });
 
         if (resendResp.ok) {
-          processed++;
+          emails_sent++;
           try {
             await supabaseAdmin.from('invitation_send_log').insert({
               attendee_id: a.id,
@@ -289,7 +320,7 @@ Deno.serve(async (req) => {
             });
           } catch { /* ignore */ }
         } else {
-          processed++;
+          emails_failed++;
           let reason = 'resend_error';
           if (resendResp.status === 429) reason = 'rate_limited';
           let errBody = '';
@@ -312,7 +343,7 @@ Deno.serve(async (req) => {
 
         await sleep(EMAIL_DELAY_MS);
       } catch (err) {
-        failed++;
+        db_failed++;
         errors.push({ attendee_id: a.id, reason: `exception: ${(err as Error).message}` });
       }
     }
@@ -320,7 +351,20 @@ Deno.serve(async (req) => {
     const next_offset = offset + rows.length;
     const remaining = Math.max(0, total - next_offset);
 
+    // Backwards-compatible derived fields:
+    // - processed = total rows handled (DB update succeeded OR failed)
+    // - failed    = email failures + db failures (anything that produced an error)
+    const processed = codes_regenerated + db_failed;
+    const failed = emails_failed + db_failed;
+
     return jsonResponse(200, {
+      // New granular metrics
+      codes_regenerated,
+      emails_sent,
+      emails_skipped,
+      emails_failed,
+      db_failed,
+      // Legacy fields (kept for backwards compatibility)
       processed,
       failed,
       remaining,
