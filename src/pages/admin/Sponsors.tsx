@@ -44,10 +44,15 @@ export default function AdminSponsors() {
 
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingSponsor, setEditingSponsor] = useState<SponsorRow | null>(null);
+  const [editingSponsorId, setEditingSponsorId] = useState<string | null>(null);
   const [viewingSponsor, setViewingSponsor] = useState<SponsorRow | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+
+  const editingSponsor = useMemo(
+    () => (editingSponsorId ? sponsors.find((s) => s.id === editingSponsorId) ?? null : null),
+    [sponsors, editingSponsorId],
+  );
 
   const filtered = useMemo(() => {
     if (!search.trim()) return sponsors;
@@ -81,13 +86,13 @@ export default function AdminSponsors() {
   }, [deletingId, deleteSponsor, t]);
 
   const handleEdit = useCallback((s: SponsorRow) => {
-    setEditingSponsor(s);
+    setEditingSponsorId(s.id);
     setModalOpen(true);
   }, []);
 
   const handleCloseModal = useCallback(() => {
     setModalOpen(false);
-    setEditingSponsor(null);
+    setEditingSponsorId(null);
   }, []);
 
   if (isLoading) {

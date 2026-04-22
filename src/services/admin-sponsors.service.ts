@@ -79,17 +79,25 @@ export const adminSponsorsService = {
   async update(
     id: string,
     form: Partial<SponsorFormData> & { logo_url?: string | null; materials_url?: string | null },
-  ): Promise<SponsorRow | null> {
-    // Use maybeSingle() so a successful UPDATE that returns no rows due to a
-    // post-update SELECT being filtered by RLS does not surface as an error.
-    const { data, error } = await supabase
+  ): Promise<SponsorRow> {
+    // 1. Explicit UPDATE with exact count. If RLS blocks or id missing, count === 0.
+    const { error: updateError, count } = await supabase
       .from('sponsors')
-      .update(form)
+      .update(form, { count: 'exact' })
+      .eq('id', id);
+    if (updateError) throw new Error(updateError.message);
+    if (count === 0) {
+      throw new Error('update_no_rows_affected');
+    }
+
+    // 2. Separate SELECT to return canonical fresh data.
+    const { data, error: selectError } = await supabase
+      .from('sponsors')
+      .select('*')
       .eq('id', id)
-      .select()
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    return (data as SponsorRow | null) ?? null;
+      .single();
+    if (selectError) throw new Error(selectError.message);
+    return data as SponsorRow;
   },
 
   async remove(id: string): Promise<void> {
