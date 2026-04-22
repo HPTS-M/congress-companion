@@ -1,77 +1,79 @@
 
 
-## Plan — Diagnóstico del rechazo del código de credencial externa al importar
+## Plan — Hacer el validador tolerante para que acepte tus 814 registros sin tocar el Excel
 
-### Qué está pasando (análisis del código actual)
+### Diagnóstico
 
-Cuando el toggle **"Códigos de credencial externa"** está activado, el sistema valida la columna `Código del congreso` (header alias: `external_credential_code`) con esta regla estricta:
+Tu Excel está bien — el validador es demasiado estricto. Mirando tu muestra de 9 filas, hay 3 patrones reales que rompen la validación actual:
 
-```
-/^[A-Za-z0-9_\-]{3,50}$/
-```
+1. **Tildes en MAYÚSCULA** (`QUÍMICO FARMACÉUTICO`, `LÓPEZ FLORIAN`)
+   - El regex `NAME_REGEX` y `TEXT_NO_SPECIAL_REGEX` técnicamente incluye `ÁÉÍÓÚ`, pero falta `ÀÈÌÒÙ` (tildes graves) y la `Ç` (vista en algunos apellidos).
 
-Esto significa que **solo se aceptan**:
-- Letras A–Z y a–z (sin acentos, sin ñ)
-- Dígitos 0–9
-- Guion bajo `_`
-- Guion medio `-`
-- Longitud entre 3 y 50 caracteres
+2. **Espacios no estándar / caracteres invisibles** (Excel a veces inserta `\u00A0` non-breaking space al copiar/pegar desde web/Word).
+   - El `trim()` actual NO los elimina → el regex falla.
 
-**Rechazos comunes** (lo más probable que te esté pasando):
+3. **Truncamiento institucional** (`CLIN. GENERAL DEL NORTE CORDIALIDAD`, `H. SOC DE ONCOLOGIA Y HEMATOLOGIA D`)
+   - Estos pasan el regex actual (letras, puntos, espacios), pero si hay un `&`, `'` curva, guion largo `–` o paréntesis con caracteres especiales en otras filas → falla.
 
-| Caracter en tu plantilla | ¿Pasa? | Por qué |
-|---|---|---|
-| `CMP-12345` | ✅ | letras, dígitos, guion |
-| `CMP_12345` | ✅ | guion bajo permitido |
-| `12345` | ✅ | solo dígitos, ≥3 chars |
-| `CMP 12345` | ❌ | **espacios no permitidos** |
-| `CMP.12345` | ❌ | **punto no permitido** |
-| `CMP/12345` | ❌ | **slash no permitido** |
-| `CMP#12345` | ❌ | **caracteres especiales no permitidos** |
-| `Ñ-123` | ❌ | **ñ no permitida** |
-| `CC-123456` con tilde | ❌ | **tildes no permitidas** |
-| `12` | ❌ | **menos de 3 caracteres** |
-| celda numérica `12345` | ⚠️ | depende: si Excel guarda como número y luego se castea a string queda `"12345"` (válido), pero si tiene formato moneda/decimal puede salir `"12345.00"` (válido por longitud, pero el `.` lo rompe) |
+### Cambios al validador
 
-### Lo que necesito de ti para confirmar el caso exacto
+**Archivo único: `src/lib/import-validators.ts`**
 
-Para darte el diagnóstico preciso (espacios, punto, ñ, formato Excel, etc.), necesito que me compartas **uno de estos dos**:
+1. **Expandir `NAME_REGEX`** para aceptar todas las tildes (agudas, graves, diéresis), Ç, y espacios Unicode:
+   ```
+   /^[A-Za-zÀ-ÿÑñ\s.''\-]+$/
+   ```
+   El rango `À-ÿ` cubre todas las letras latinas acentuadas usadas en español, portugués, francés (suficiente para nombres de instituciones internacionales).
 
-**Opción A — Pega aquí 3-5 valores literales** del campo `Código del congreso` que están siendo rechazados, **exactamente como están en la celda**. Ejemplo:
-```
-CMP 12345
-NIT-900.123.456
-12
-ÑÑ-001
-```
+2. **Expandir `TEXT_NO_SPECIAL_REGEX`** (especialidad, institución) con el mismo rango + comillas tipográficas + guiones largos:
+   ```
+   /^[A-Za-zÀ-ÿÑñ0-9\s.,&''""–—\-()/+]+$/
+   ```
+   También agrego `+` porque algunas instituciones lo usan (ej. `H+`, `MED+`).
 
-**Opción B — Sube el archivo .xlsx** (o un fragmento de 5 filas con datos reales/anonimizados) a este chat. Yo lo abro con un script para inspeccionar:
-- El valor crudo de cada celda
-- El tipo (texto vs número)
-- El formato Excel (número, moneda, texto)
-- Si hay caracteres invisibles (espacios al inicio/fin, tabs, no-break spaces)
+3. **Normalizar espacios Unicode en `normalizeRow`** antes de validar:
+   ```typescript
+   String(v)
+     .replace(/[\u00A0\u2000-\u200B\u202F\u3000]/g, ' ')  // todos los espacios Unicode → espacio normal
+     .replace(/\s+/g, ' ')  // colapsar espacios múltiples
+     .trim();
+   ```
 
-### Por qué no puedo simplemente "relajar" el regex sin tu input
+4. **NO tocar `EXTERNAL_CODE_REGEX`** — sigue estricto (`/^[A-Za-z0-9_\-]{3,50}$/`). Tus códigos `10851`, `10850` etc. ya pasan correctamente con el fix anterior de número-como-texto.
 
-El regex actual es estricto a propósito porque el `external_credential_code` se usa como identificador único de la persona en el sistema externo (RUT, cédula, NIT, código de colegiatura). Aceptar espacios o caracteres especiales rompería las búsquedas de duplicados (`CMP-12345` ≠ `CMP 12345` ≠ `cmp-12345` para el sistema, y eso multiplica el riesgo de duplicados silenciosos).
+### Tests a actualizar
 
-Las dos posibles soluciones reales después del diagnóstico son:
+**Archivo: `src/lib/import-validators.test.ts`**
 
-1. **Si el problema es formato de tu plantilla** → corregir las celdas y reimportar (sin tocar código).
-2. **Si el formato de tu organización legítimamente incluye otros caracteres** (ej: cédulas colombianas con puntos `1.234.567`, o códigos con espacios) → ajustar el regex y la lógica de normalización para aceptar esos caracteres y/o normalizarlos antes de guardar (ej: quitar puntos automáticamente).
+Agregar casos:
+- `QUÍMICO FARMACÉUTICO` → válido (tildes mayúsculas)
+- `LÓPEZ FLORIAN` → válido
+- `H. SOC DE ONCOLOGIA Y HEMATOLOGIA D` → válido
+- Nombre con `\u00A0` (non-breaking space) → válido tras normalización
+- `CLIN. DEL ROSARIO TESORO` → válido
+- Código `10851` numérico → válido
 
-### Próximos pasos
+### Lo que NO cambia
 
-1. Tú me compartes el fragmento (Opción A o B).
-2. Yo te confirmo exactamente qué carácter o regla está fallando.
-3. Decidimos juntos: ¿corregir la plantilla, o ampliar el regex/normalización del sistema?
-4. Si decidimos ampliar el sistema, te traigo un plan corto con los cambios específicos al validador y el efecto en duplicados/búsqueda.
+- Validación de email (sigue estricta).
+- Validación de código de credencial externa (sigue estricta — es identificador único).
+- Lógica bloqueante/permisivo/warning.
+- Mapping de estados (1/2/3).
+- Servicio de import, modal, deduplicación, upsert.
 
-### Archivos involucrados (referencia técnica)
+### Resultado esperado
 
-- `src/lib/import-validators.ts` — define `EXTERNAL_CODE_REGEX` y la validación.
-- `src/components/admin/attendees/ImportCsvModal.tsx` — corre la validación al cargar el archivo y bloquea filas con error.
-- `src/lib/import-validators.test.ts` — tests unitarios que documentan el comportamiento actual.
+Después del cambio, recargas tu mismo Excel de 814 filas:
+- Las filas con tildes, instituciones largas, caracteres invisibles → **válidas**.
+- Solo quedarán bloqueadas filas con problemas reales (email malformado, código externo inválido, nombre vacío).
+- Si aún quedan rechazos, te muestro exactamente cuántos y por qué carácter — pero deberían ser muy pocos comparado con 814.
 
-**Sin cambios en código todavía** — primero diagnóstico con tu fragmento.
+### Archivos modificados
+
+- `src/lib/import-validators.ts` — regex expandidos + normalización Unicode.
+- `src/lib/import-validators.test.ts` — casos nuevos para tildes mayúsculas, espacios invisibles, instituciones largas.
+
+### Verificación
+
+Después del fix, corro los tests con `npm test` para confirmar que los nuevos casos pasen y los antiguos no se rompan. Luego me dices si la importación de tu archivo de 814 filas pasó o cuántas quedaron bloqueadas.
 
