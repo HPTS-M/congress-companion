@@ -1,75 +1,127 @@
 
 
-## Plan — Opción B: Backfill perezoso para escalar el login a 814+ asistentes
+## Plan — Regeneración masiva de códigos para desbloquear los 812 asistentes
 
 ### Objetivo
-Resolver el error `CPU Time exceeded` en `verify-access-code` sin reenviar credenciales a nadie. La solución agrega un índice ligero sobre los primeros 4 caracteres del access code; los asistentes existentes se "auto-curan" al primer login exitoso.
+Permitir al admin regenerar y reenviar credenciales a múltiples asistentes en un solo flujo, poblando automáticamente `access_code_lookup` para que todos puedan loguear sin timeouts.
 
 ### Cambios
 
-#### 1) Migración de base de datos
-Agregar columna + índice en `attendees`:
+#### 1) Nueva Edge Function: `bulk-regenerate-access-codes`
+Archivo: `supabase/functions/bulk-regenerate-access-codes/index.ts`
 
-```sql
-ALTER TABLE public.attendees
-  ADD COLUMN access_code_lookup TEXT;
+- Auth: requiere JWT de admin (verifica rol vía `has_role`).
+- Input validado con Zod:
+  ```typescript
+  {
+    event_id: string (uuid),
+    filter: 'all' | 'never_logged_in' | 'failed_invitations',
+    offset: number (default 0),
+    batch_size: number (default 50, max 50)
+  }
+  ```
+- Lógica:
+  1. Cuenta total elegible según filtro (devuelve `total` en respuesta).
+  2. Trae lote de 50 asistentes ordenados por `created_at`.
+  3. Para cada asistente:
+     - Genera nuevo código de 8 chars.
+     - Calcula `bcrypt.hashSync` + `access_code_lookup = code.substring(0,4).toUpperCase()`.
+     - Update `attendees` con ambos campos.
+     - Encola envío de correo via Resend (reusa template de `send-invitation-email`).
+  4. Throttling de 2 correos/segundo (respeta rate limit del plan Resend).
+- Output:
+  ```typescript
+  {
+    processed: number,
+    failed: number,
+    remaining: number,
+    next_offset: number,
+    errors: Array<{ attendee_id, reason }>
+  }
+  ```
+- Diseñada para ser llamada en bucle desde el frontend hasta `remaining = 0`.
 
-CREATE INDEX idx_attendees_event_lookup
-  ON public.attendees (event_id, access_code_lookup)
-  WHERE access_code_lookup IS NOT NULL AND deleted_at IS NULL;
+#### 2) Servicio frontend: `bulkRegenerateAccessCodes`
+Archivo: `src/services/admin-attendees.service.ts`
+
+- Función que orquesta llamadas paginadas a la Edge Function.
+- Acepta callback `onProgress({ processed, total })` para actualizar UI.
+- Maneja reintentos de lotes con error.
+- Devuelve resumen final agregado.
+
+#### 3) Hook React Query: `useBulkRegenerateAccessCodes`
+Archivo: `src/hooks/useAdminAttendees.ts`
+
+- Mutation con invalidación de cache de attendees al finalizar.
+- Expone estado `progress` para barra de progreso.
+
+#### 4) Modal de confirmación: `BulkRegenerateModal`
+Archivo: `src/components/admin/attendees/BulkRegenerateModal.tsx`
+
+UI:
+- Título: "Regenerar códigos masivamente"
+- Advertencia destacada en amber/yellow:
+  > "⚠️ Esta acción invalidará los códigos actuales de los asistentes seleccionados y enviará nuevos por correo. Los códigos anteriores dejarán de funcionar."
+- 3 radio options con conteo dinámico:
+  - 🔵 Solo los que **nunca se han logueado** (recomendado) — `~X asistentes`
+  - 🟡 Solo los que tienen **invitación fallida** — `~X asistentes`
+  - 🔴 **Todos los asistentes** — `~812 asistentes`
+- Texto explicativo:
+  > "Por motivos técnicos relacionados con el alto volumen de asistentes, los códigos actuales serán reemplazados. Cada asistente recibirá un correo con su nuevo código. Esta acción solo es necesaria una vez."
+- Botón "Cancelar" + "Regenerar y enviar correos" (destructive variant).
+- Durante ejecución: barra de progreso con `X de Y procesados (Z% completado)`.
+- Al terminar: resumen con éxitos/fallos + opción de descargar CSV de errores si hay.
+
+#### 5) Botón de acceso en panel admin
+Archivo: `src/pages/admin/Attendees.tsx`
+
+- Agregar botón "Regenerar códigos" en el dropdown menu del header (junto a "Importar CSV", "Exportar Excel").
+- Icono: `RefreshCw` de lucide-react.
+- Solo visible para admins (ya está protegido por `AdminRoute`).
+
+#### 6) Traducciones
+Archivos: `src/locales/es/admin.json` y `src/locales/en/admin.json`
+
+Nuevas keys bajo `attendees.bulkRegenerate.*`:
+- `title`, `warning`, `description`, `filterAll`, `filterNeverLoggedIn`, `filterFailed`, `cancel`, `confirm`, `progress`, `successSummary`, `errorSummary`, `downloadErrors`.
+
+### Flujo del usuario
+
+```
+Admin → Asistentes → menú "⋮" → "Regenerar códigos masivamente"
+  → Modal con 3 opciones + advertencia
+  → Click "Regenerar y enviar correos"
+  → Barra de progreso (≈7-10 min para 812 asistentes)
+  → Resumen: "812 procesados, 810 enviados, 2 sin email"
+  → Asistentes reciben correo con código nuevo
+  → Cualquier login posterior funciona en <500ms
 ```
 
-- Columna nullable → no rompe asistentes existentes.
-- Índice parcial → solo indexa los que ya tienen lookup, ahorra espacio.
-- No expuesta al cliente (RLS actual ya filtra columnas vía `select()` explícito en el backend).
+### Lo que NO se cambia
+- `verify-access-code` — ya está optimizada y funcionará automáticamente con los nuevos lookups.
+- Esquema de DB — la columna y el índice ya existen.
+- `regenerate-access-code` (single attendee) — sigue funcionando; el admin puede usarla en paralelo para casos urgentes.
+- Frontend de login del asistente — sin cambios.
+- Plantilla de correo de invitación — se reusa la existente.
 
-#### 2) `supabase/functions/verify-access-code/index.ts`
-Cambiar el path de búsqueda con fallback automático:
+### Verificación post-implementación
 
-- **Path rápido (nuevo)**: filtrar por `event_id + access_code_lookup = code.substring(0,4).toUpperCase()` → 1-3 candidatos → bcrypt rápido.
-- **Path fallback (existente)**: si el path rápido no encuentra match Y el asistente aún no tiene `access_code_lookup`, hacer scan en lotes paginados de 100 asistentes por iteración (sin RPC), comparando bcrypt sobre cada lote hasta encontrar match o agotar.
-- **Auto-curación**: cuando el fallback encuentra match, popular `access_code_lookup` para ese asistente → próximos logins van por path rápido.
-- **Escalado**: con 814 asistentes el primer login de cada uno cuesta ~2-4 lotes de bcrypt, dentro del límite de CPU. A medida que se loguean, el universo de "no curados" se reduce.
+1. Admin presiona "Regenerar códigos masivamente" → "Solo los que nunca se han logueado".
+2. Barra de progreso avanza correctamente, sin errores en consola.
+3. Query SQL: `SELECT COUNT(*) FROM attendees WHERE access_code_lookup IS NOT NULL` → debe coincidir con procesados.
+4. Login con código nuevo → entra en <1 segundo.
+5. Logs de `verify-access-code` → 0 errores `CPU Time exceeded`.
+6. Logs de `bulk-regenerate-access-codes` → todos los lotes terminan en <30s wall-clock.
 
-#### 3) `supabase/functions/send-invitation-email/index.ts`
-Al generar nuevo access code, guardar también:
-```typescript
-access_code_lookup: code.substring(0, 4).toUpperCase()
-```
-Junto con el `access_code_hash` existente.
+### Archivos a crear/modificar
 
-#### 4) `supabase/functions/regenerate-access-code/index.ts`
-Mismo cambio: popular `access_code_lookup` al regenerar.
+**Nuevos:**
+- `supabase/functions/bulk-regenerate-access-codes/index.ts`
+- `src/components/admin/attendees/BulkRegenerateModal.tsx`
 
-### Lo que NO cambia
-- Frontend (Login, useAuth, services) — sin tocar.
-- Esquema de respuesta de `verify-access-code` — mismo payload.
-- Hashing bcrypt — sigue igual (sigue siendo el mecanismo de validación).
-- RLS — sin tocar.
-- `regenerate-access-code` para asistentes individuales — sigue funcionando.
-
-### Comportamiento esperado tras desplegar
-
-| Escenario | Antes | Después |
-|---|---|---|
-| Asistente que YA se logueó alguna vez | OK (~1s) | OK (<300ms) — path rápido |
-| Asistente que NUNCA se ha logueado (entre los 814) | Timeout | OK (~1s) — path fallback, queda curado |
-| Asistente nuevo (post-deploy) | N/A | OK (<300ms) — lookup poblado al crear |
-| Asistente con código regenerado | OK | OK — lookup actualizado en regen |
-
-### Plan B si algún caso del fallback aún supera CPU
-Si hay un asistente cuyo bcrypt cae siempre al final del scan y excede CPU, el admin puede regenerar su código desde el drawer (un click) → genera código nuevo con `access_code_lookup` poblado → próximo login instantáneo.
-
-### Verificación post-deploy
-
-1. Login del usuario `WRTLH3DT` (o cualquier asistente bloqueado) → debe funcionar en <2s.
-2. Consultar en DB que su `access_code_lookup` ya tiene los primeros 4 chars.
-3. Logout + login del mismo usuario → debe funcionar en <500ms (path rápido).
-4. Revisar logs de `verify-access-code` → no más `CPU Time exceeded`.
-
-### Archivos modificados
-- Migración SQL (nueva).
-- `supabase/functions/verify-access-code/index.ts`.
-- `supabase/functions/send-invitation-email/index.ts`.
-- `supabase/functions/regenerate-access-code/index.ts`.
+**Modificados:**
+- `src/services/admin-attendees.service.ts` — agregar `bulkRegenerateAccessCodes`
+- `src/hooks/useAdminAttendees.ts` — agregar `useBulkRegenerateAccessCodes`
+- `src/pages/admin/Attendees.tsx` — agregar botón en menú
+- `src/locales/es/admin.json` y `src/locales/en/admin.json` — traducciones
 
