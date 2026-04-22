@@ -42,6 +42,11 @@ export const sponsorsService = {
       if (error) throw new Error(error.message);
 
       const sorted = (data as Sponsor[]).sort((a, b) => {
+        const levelDiff = LEVEL_ORDER.indexOf(a.level) - LEVEL_ORDER.indexOf(b.level);
+        if (levelDiff !== 0) return levelDiff;
+        return a.name.localeCompare(b.name);
+      });
+
       // getPublicUrl is synchronous — map URLs directly without Promise.all.
       const out = sorted.map((s) => ({
         ...s,
