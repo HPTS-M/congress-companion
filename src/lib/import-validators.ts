@@ -72,6 +72,12 @@ export function normalizeRow(raw: Record<string, unknown>): {
   institution: string;
   registration_status_raw: string;
 } {
+  const normalizeStr = (s: string): string =>
+    s
+      .replace(/[\u00A0\u2000-\u200B\u202F\u3000]/g, ' ') // Unicode spaces → normal space
+      .replace(/\s+/g, ' ') // collapse multiple spaces
+      .trim();
+
   const pick = (key: keyof typeof HEADER_ALIASES): string => {
     const aliases = HEADER_ALIASES[key];
     for (const alias of aliases) {
@@ -81,9 +87,9 @@ export function normalizeRow(raw: Record<string, unknown>): {
         // (e.g. "Código del congreso" = 10851 stored as number).
         // For integer-like floats, drop the trailing ".0" (10851.0 → "10851").
         if (typeof v === 'number') {
-          return Number.isInteger(v) ? String(v) : String(v).trim();
+          return Number.isInteger(v) ? String(v) : normalizeStr(String(v));
         }
-        return String(v).trim();
+        return normalizeStr(String(v));
       }
     }
     return '';
