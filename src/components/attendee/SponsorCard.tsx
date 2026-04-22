@@ -54,7 +54,7 @@ export function SponsorCard({ sponsor, eventId, onView }: SponsorCardProps) {
           onView();
         }
       }}
-      className="group rounded-lg border-t border-r border-b border-border bg-card shadow-sm p-4 pl-5 cursor-pointer transition-all hover:shadow-md"
+      className="group rounded-lg border-t border-r border-b border-border bg-card shadow-sm p-3 sm:p-4 pl-4 sm:pl-5 cursor-pointer transition-all hover:shadow-md"
       style={{ borderLeft: `4px solid ${borderColor}` }}
     >
       <div className="flex items-start justify-between gap-3">
@@ -63,10 +63,10 @@ export function SponsorCard({ sponsor, eventId, onView }: SponsorCardProps) {
           <img
             src={sponsor.logo_url}
             alt={sponsor.name}
-            className="h-14 w-14 sm:h-16 sm:w-16 rounded object-contain bg-white shrink-0 border border-border"
+            className="h-12 w-12 sm:h-16 sm:w-16 rounded object-contain bg-white shrink-0 border border-border"
           />
         ) : (
-          <div className="h-14 w-14 sm:h-16 sm:w-16 rounded bg-muted flex items-center justify-center text-base font-bold text-muted-foreground shrink-0">
+          <div className="h-12 w-12 sm:h-16 sm:w-16 rounded bg-muted flex items-center justify-center text-base font-bold text-muted-foreground shrink-0">
             {getInitials(sponsor.name)}
           </div>
         )}
@@ -74,8 +74,8 @@ export function SponsorCard({ sponsor, eventId, onView }: SponsorCardProps) {
         {/* Center — info */}
         <div className="flex-1 min-w-0 space-y-1.5">
           {/* Title + chevron */}
-          <div className="flex items-start gap-2">
-            <h3 className="text-base font-semibold text-card-foreground leading-tight flex-1 min-w-0">
+          <div className="flex items-start gap-2 min-w-0">
+            <h3 className="text-sm sm:text-base font-semibold text-card-foreground leading-tight flex-1 min-w-0 break-words">
               {sponsor.name}
             </h3>
             <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5 group-hover:text-primary transition-colors" />

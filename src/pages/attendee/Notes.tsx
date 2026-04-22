@@ -104,7 +104,7 @@ export default function Notes() {
   const persistNote = async (): Promise<boolean> => {
     if (!editingNote) return false;
     try {
-      const updated = await updateNote.mutateAsync({
+      await updateNote.mutateAsync({
         noteId: editingNote.id,
         content: editorContent,
         sessionId: editorSession === 'none' ? null : editorSession,
@@ -114,7 +114,7 @@ export default function Notes() {
         ...prev,
         content: editorContent,
         session_id: editorSession === 'none' ? null : editorSession,
-        updated_at: (updated as AttendeeNote)?.updated_at ?? new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       } : prev);
       return true;
     } catch {
