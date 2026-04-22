@@ -1498,6 +1498,27 @@
       "savedDescription": "Los cambios se reflejan en la app del asistente.",
       "errorTitle": "Error al guardar",
       "errorDescription": "No se pudieron guardar los cambios. Intenta de nuevo."
+    },
+    "dangerZone": {
+      "title": "Zona Peligrosa",
+      "description": "Acciones destructivas e irreversibles. Solo disponibles para superusuarios.",
+      "purgeAttendees": "Purgar todos los asistentes",
+      "purgeAttendeesDescription": "Elimina todos los datos relacionados con asistentes (perfiles, mensajes, contactos, ratings, check-ins, tickets, suscripciones push, etc.) y sus cuentas de autenticación. La configuración del evento (agenda, sponsors, servicios, polls, documentos, staff) se mantiene intacta.",
+      "purgeButton": "Purgar asistentes",
+      "confirmTitle": "Confirmar purga de asistentes",
+      "confirmDescription": "Esta acción borrará todos los asistentes del evento \"{{eventName}}\" ({{eventCode}}) y todos los datos generados por ellos. Esta operación no se puede deshacer salvo restaurando un backup de Supabase.",
+      "typeCode": "Escribe el código del evento para confirmar: {{code}}",
+      "preview": "Previsualizar borrado",
+      "previewIntro": "Esto es lo que se borrará al confirmar:",
+      "previewWarning": "⚠️ Al pulsar \"Ejecutar ahora\", el borrado es inmediato e irreversible.",
+      "executeNow": "Ejecutar ahora",
+      "cancel": "Cancelar",
+      "close": "Cerrar",
+      "successTitle": "Purga completada",
+      "deletedIntro": "Registros eliminados:",
+      "remainingIntro": "Configuración del evento que permanece:",
+      "nothingToDelete": "No hay registros que borrar.",
+      "error": "Error al purgar asistentes"
     }
   }
 }

@@ -4,6 +4,7 @@ import { EventSettingsCard } from '@/components/admin/EventSettingsCard';
 import { EventBrandingCard } from '@/components/admin/EventBrandingCard';
 import { EventVisibilityCard } from '@/components/admin/EventVisibilityCard';
 import { EventDetailsCard } from '@/components/admin/EventDetailsCard';
+import { DangerZoneCard } from '@/components/admin/DangerZoneCard';
 
 export default function EventConfig() {
   const { t } = useTranslation('admin');
@@ -24,6 +25,7 @@ export default function EventConfig() {
       <EventBrandingCard />
       <EventSettingsCard />
       <EventVisibilityCard />
+      <DangerZoneCard />
     </div>
   );
 }
