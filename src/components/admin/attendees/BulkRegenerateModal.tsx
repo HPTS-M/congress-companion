@@ -388,7 +388,7 @@ export function BulkRegenerateModal({ open, onOpenChange, counts }: BulkRegenera
           <div className="space-y-3">
             <div className="rounded-md border bg-muted/30 p-3 text-sm space-y-2">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                <CheckCircle2 className="h-4 w-4 text-accent" />
                 <span>
                   <strong>{summary.codes_regenerated}</strong>{' '}
                   {t('attendees.bulkRegenerate.summaryCodesRegenerated', {
