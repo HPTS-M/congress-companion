@@ -57,7 +57,25 @@ export function useAdminSponsors(eventId: string | undefined) {
   const updateMutation = useMutation({
     mutationFn: ({ id, form }: { id: string; form: Parameters<typeof adminSponsorsService.update>[1] }) =>
       adminSponsorsService.update(id, form),
-    onSuccess: () => qc.invalidateQueries({ queryKey: key }),
+    onMutate: async ({ id, form }) => {
+      await qc.cancelQueries({ queryKey: key });
+      const previous = qc.getQueryData<SponsorRow[]>(key);
+      qc.setQueryData<SponsorRow[]>(key, (old) =>
+        (old ?? []).map((s) => (s.id === id ? ({ ...s, ...form } as SponsorRow) : s)),
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous) qc.setQueryData(key, ctx.previous);
+    },
+    onSuccess: (updated) => {
+      if (updated) {
+        qc.setQueryData<SponsorRow[]>(key, (old) =>
+          (old ?? []).map((s) => (s.id === updated.id ? updated : s)),
+        );
+      }
+      qc.invalidateQueries({ queryKey: key });
+    },
   });
 
   const deleteMutation = useMutation({
