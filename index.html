@@ -14,6 +14,60 @@
     
     <meta name="theme-color" content="#1A56A0" />
 
+    <style>
+      /* Splash screen — visible instantly before React mounts.
+         Removed automatically by main.tsx once the app is ready. */
+      #app-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 24px;
+        background: linear-gradient(135deg, #1A56A0 0%, #00B89F 100%);
+        color: #ffffff;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
+        transition: opacity 320ms ease-out;
+      }
+      #app-splash.is-hiding { opacity: 0; pointer-events: none; }
+      #app-splash .splash-logo {
+        width: 72px;
+        height: 72px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.14);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 26px;
+        letter-spacing: 0.5px;
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+      }
+      #app-splash .splash-title {
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: 0.4px;
+        opacity: 0.95;
+      }
+      #app-splash .splash-spinner {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        border: 2.5px solid rgba(255, 255, 255, 0.25);
+        border-top-color: #ffffff;
+        animation: splash-spin 0.85s linear infinite;
+      }
+      @keyframes splash-spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) {
+        #app-splash .splash-spinner { animation-duration: 1.6s; }
+        #app-splash { transition: none; }
+      }
+    </style>
+
     
     <meta property="og:image" content="/og-image.png">
     <meta property="og:title" content="Health Plus Travels Events">
