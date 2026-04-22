@@ -86,13 +86,13 @@ export default function AdminSponsors() {
   }, [deletingId, deleteSponsor, t]);
 
   const handleEdit = useCallback((s: SponsorRow) => {
-    setEditingSponsor(s);
+    setEditingSponsorId(s.id);
     setModalOpen(true);
   }, []);
 
   const handleCloseModal = useCallback(() => {
     setModalOpen(false);
-    setEditingSponsor(null);
+    setEditingSponsorId(null);
   }, []);
 
   if (isLoading) {
