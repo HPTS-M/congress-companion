@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BarChart3, Send, CheckCircle2, MessageSquareText } from 'lucide-react';
+import { BarChart3, Send, CheckCircle2, MessageSquareText, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { usePolls } from '@/hooks/usePolls';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { type AttendeePoll } from '@/services/polls.service';
 import { cn } from '@/lib/utils';
 

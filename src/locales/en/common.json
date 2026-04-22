@@ -27,11 +27,17 @@
     "label": "Pagination"
   },
   "offlineBanner": {
-    "offline": "Offline — showing cached data",
+    "offline": "Offline — read-only mode. Some features won't be available",
     "reconnected": "Connection restored ✓",
     "syncingTitle": "Reconnecting — syncing…",
     "syncingDescription": "Refreshing messages and announcements…",
     "headerDot": "Offline"
+  },
+  "offlineFeature": {
+    "title": "Connection required",
+    "checkin": "QR check-in requires an active internet connection to record your attendance.",
+    "polls": "You're offline: you can view polls but answers won't be submitted until you're back online.",
+    "messaging": "You're offline: your message will be sent automatically once the connection is restored."
   },
   "status": {
     "confirmed": "Confirmed",
