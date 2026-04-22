@@ -27,31 +27,33 @@ Deno.serve(async (req) => {
     const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 
-    // Validate caller as superuser
-    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
     const token = authHeader.replace('Bearer ', '');
-    const { data: claims, error: claimsErr } = await userClient.auth.getClaims(token);
-    if (claimsErr || !claims?.claims) {
-      return jsonResponse({ error: 'Unauthorized' }, 401);
-    }
-    const callerId = claims.claims.sub;
-
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-    // Verify superuser role
-    const { data: roleRows, error: roleErr } = await admin
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', callerId)
-      .eq('is_active', true);
+    // Auth path A: caller provides the SERVICE_ROLE_KEY directly (internal tooling only).
+    // Auth path B: caller provides a user JWT — must resolve to a superuser.
+    if (token !== SERVICE_ROLE_KEY) {
+      const userClient = createClient(SUPABASE_URL, ANON_KEY, {
+        global: { headers: { Authorization: authHeader } },
+      });
 
-    if (roleErr) return jsonResponse({ error: 'Role check failed' }, 500);
-    const isSuperuser = (roleRows ?? []).some((r) => r.role === 'superuser');
-    if (!isSuperuser) {
-      return jsonResponse({ error: 'Forbidden: superuser role required' }, 403);
+      const { data: claims, error: claimsErr } = await userClient.auth.getClaims(token);
+      if (claimsErr || !claims?.claims) {
+        return jsonResponse({ error: 'Unauthorized' }, 401);
+      }
+      const callerId = claims.claims.sub;
+
+      const { data: roleRows, error: roleErr } = await admin
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', callerId)
+        .eq('is_active', true);
+
+      if (roleErr) return jsonResponse({ error: 'Role check failed' }, 500);
+      const isSuperuser = (roleRows ?? []).some((r) => r.role === 'superuser');
+      if (!isSuperuser) {
+        return jsonResponse({ error: 'Forbidden: superuser role required' }, 403);
+      }
     }
 
     const body: PurgeRequest = await req.json();
