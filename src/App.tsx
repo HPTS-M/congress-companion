@@ -80,7 +80,7 @@ const queryClient = new QueryClient({
 function PageLoader() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
-      <Skeleton className="h-8 w-32" />
+      <div className="h-8 w-32 animate-pulse rounded-md bg-muted" />
     </div>
   );
 }

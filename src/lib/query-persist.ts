@@ -44,19 +44,19 @@ export function shouldPersistQuery(queryKey: readonly unknown[]): boolean {
   if (typeof name !== 'string') return false;
 
   const persistable = new Set([
-    'agenda',
-    'agenda-interest-counts',
-    'agenda-user-interests',
-    'agenda-user-checkins',
-    'sponsors',
-    'sponsor-detail',
-    'documents',
-    'tickets',
-    'event',
+    'activities',          // useActivities
+    'session-interests',   // useSessionInterests (aggregated counts)
+    'user-interests',      // useUserInterests (own rows)
+    'user-checkins',       // useUserCheckins
+    'sponsors',            // useSponsors (list)
+    'sponsor',             // useSponsor (detail)
+    'documents',           // useDocuments
+    'tickets',             // useTickets
+    'event',               // useEvent
     'event-config',
-    'announcements',
-    'myContacts',
-    'attendee-profile',
+    'announcements',       // useAnnouncements
+    'myContacts',          // useContacts
+    'attendeeProfile',     // useAttendeeProfile
   ]);
   return persistable.has(name);
 }
