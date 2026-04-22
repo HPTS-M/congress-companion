@@ -202,6 +202,7 @@ async function sendOneInvitation(
     .from('attendees')
     .update({
       access_code_hash: hash,
+      access_code_lookup: code.substring(0, 4).toUpperCase(),
       invitation_sent_at: new Date().toISOString(),
     })
     .eq('id', attendee.id);
