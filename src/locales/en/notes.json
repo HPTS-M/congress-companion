@@ -17,5 +17,14 @@
   "selectSession": "Session (optional)",
   "back": "Back",
   "cancel": "Cancel",
-  "delete": "Delete"
+  "delete": "Delete",
+  "save": "Save",
+  "unsavedChanges": "Unsaved changes",
+  "noteSaved": "Note saved",
+  "discardTitle": "Discard changes?",
+  "discardDescription": "You have unsaved changes in this note. What would you like to do?",
+  "saveAndExit": "Save and exit",
+  "discard": "Discard",
+  "keepEditing": "Keep editing",
+  "exportError": "Could not export PDF"
 }
