@@ -66,7 +66,7 @@ export default function AdminLogistics() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<ServiceCatalogRow | null>(null);
   const [viewingAssignees, setViewingAssignees] = useState<ServiceCatalogRow | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<ServiceCatalogRow | null>(null);
   const [cancellingId, setCancellingId] = useState<ServiceCatalogRow | null>(null);
 
   const stats = useMemo(() => {
@@ -117,16 +117,20 @@ export default function AdminLogistics() {
   }, [editing, createService, updateService, t]);
 
   const handleDelete = useCallback(async () => {
-    if (!deletingId) return;
+    if (!deleting) return;
     try {
-      await deleteService(deletingId);
+      await deleteService(deleting.id);
       toast.success(t('logistics.deleteSuccess'));
-    } catch {
-      toast.error(t('logistics.deleteError'));
+    } catch (err: any) {
+      if (err?.message === 'SERVICE_HAS_DEPENDENCIES') {
+        toast.error(t('logistics.deleteHasDependenciesError'));
+      } else {
+        toast.error(t('logistics.deleteError'));
+      }
     } finally {
-      setDeletingId(null);
+      setDeleting(null);
     }
-  }, [deletingId, deleteService, t]);
+  }, [deleting, deleteService, t]);
 
   const handleCancelService = useCallback(async () => {
     if (!cancellingId) return;
@@ -366,7 +370,7 @@ export default function AdminLogistics() {
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => setDeletingId(s.id)} className="text-destructive focus:text-destructive">
+                          <DropdownMenuItem onClick={() => setDeleting(s)} className="text-destructive focus:text-destructive">
                             <Trash2 className="mr-2 h-4 w-4" />
                             {t('sponsors.delete')}
                           </DropdownMenuItem>
@@ -408,11 +412,15 @@ export default function AdminLogistics() {
       />
 
       {/* Delete confirm */}
-      <AlertDialog open={!!deletingId} onOpenChange={(o) => !o && setDeletingId(null)}>
+      <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('logistics.deleteTitle')}</AlertDialogTitle>
-            <AlertDialogDescription>{t('logistics.deleteConfirm')}</AlertDialogDescription>
+            <AlertDialogDescription>
+              {deleting && deleting.total_tickets > 0
+                ? t('logistics.deleteConfirmWithAssignees', { count: deleting.total_tickets })
+                : t('logistics.deleteConfirm')}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t('sponsors.cancel')}</AlertDialogCancel>

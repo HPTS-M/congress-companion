@@ -145,7 +145,10 @@ export const adminLogisticsService = {
 
   async remove(id: string): Promise<void> {
     const { error } = await supabase.from('service_catalog').delete().eq('id', id);
-    if (error) throw new Error(error.message);
+    if (error) {
+      if (error.code === '23503') throw new Error('SERVICE_HAS_DEPENDENCIES');
+      throw new Error(error.message);
+    }
   },
 
   async getAssignees(serviceCatalogId: string): Promise<ServiceAssignee[]> {
