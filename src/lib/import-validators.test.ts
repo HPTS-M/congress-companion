@@ -127,6 +127,28 @@ describe('import-validators · normalizeRow (header aliases)', () => {
     expect(row.full_name).toBe('Jane Doe');
     expect(row.specialty).toBe('Pediatrics');
   });
+  it('reads "Código del congreso" header (template alias)', () => {
+    const row = normalizeRow({
+      'Nombre completo': 'LEIDY YOHAN PALACIO',
+      Email: 'leidy@x.co',
+      'Código del congreso': 10851,
+      Especialidad: 'FARMACIA',
+      Institución: 'GLOBAL SERVICE',
+      Estado: 1,
+    });
+    expect(row.external_credential_code).toBe('10851');
+  });
+  it('matches header case-insensitively and ignoring accents', () => {
+    const row = normalizeRow({
+      'NOMBRE COMPLETO': 'Juan Pérez',
+      EMAIL: 'j@x.co',
+      'CODIGO DEL CONGRESO': 'ABC-123',
+      ESTADO: 1,
+    });
+    expect(row.full_name).toBe('Juan Pérez');
+    expect(row.email).toBe('j@x.co');
+    expect(row.external_credential_code).toBe('ABC-123');
+  });
 });
 
 describe('import-validators · validateRow', () => {
