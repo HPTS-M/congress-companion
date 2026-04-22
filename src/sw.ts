@@ -158,11 +158,9 @@ self.addEventListener('push', (event) => {
       badge: '/icon-192x192.png',
       data: { url: payload.url },
       tag: payload.tag,
-      // @ts-expect-error — non-standard but supported in Chromium
-      renotify: true,
-      // @ts-expect-error — non-standard but supported in Chromium/Android
-      vibrate: [200, 100, 200],
-    }),
+      // Non-standard but widely supported on Chromium/Android.
+      ...({ renotify: true, vibrate: [200, 100, 200] } as Record<string, unknown>),
+    } as NotificationOptions),
   );
 });
 

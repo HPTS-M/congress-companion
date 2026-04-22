@@ -28,9 +28,9 @@ export const queryPersister = createAsyncStoragePersister({
  *  - A new deploy invalidates everyone's cache (build time changes)
  *  - Switching attendees on the same device wipes prior data (no PII leak)
  */
+declare const __BUILD_TIME__: string;
 export function getPersistBuster(attendeeId: string | null | undefined): string {
-  // @ts-expect-error — injected by Vite define
-  const buildTime = (typeof __BUILD_TIME__ === 'string' ? __BUILD_TIME__ : 'dev');
+  const buildTime = typeof __BUILD_TIME__ === 'string' ? __BUILD_TIME__ : 'dev';
   return `${buildTime}::${attendeeId ?? 'anon'}`;
 }
 
