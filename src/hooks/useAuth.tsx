@@ -140,6 +140,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ...prev,
         isAdmin: hasAdminRole,
       }));
+
+      // Load MFA state for admins only
+      if (hasAdminRole) {
+        await refreshMfaState();
+      }
     } finally {
       setState(prev => ({ ...prev, isProfileLoading: false }));
     }
