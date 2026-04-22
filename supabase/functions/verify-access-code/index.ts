@@ -163,29 +163,86 @@ Deno.serve(async (req) => {
           (a) => (a.external_credential_code || '').toUpperCase().trim() === normalizedExt,
         ) || null;
     } else if (access_code) {
-      // Bcrypt access-code path
-      const { data: attendees, error: attendeesError } = await supabaseAdmin
+      const normalizedCode = access_code.toUpperCase().trim();
+      const lookupKey = normalizedCode.substring(0, 4);
+      const ATTENDEE_COLUMNS =
+        'id, full_name, email, credential_code, registration_status, user_id, event_id, access_code_hash, last_session_id, access_code_lookup';
+
+      // ---- FAST PATH: indexed lookup by first 4 chars ----
+      const { data: fastCandidates, error: fastErr } = await supabaseAdmin
         .from('attendees')
-        .select('id, full_name, email, credential_code, registration_status, user_id, event_id, access_code_hash, last_session_id')
+        .select(ATTENDEE_COLUMNS)
         .eq('event_id', event.id)
+        .eq('access_code_lookup', lookupKey)
         .is('deleted_at', null)
         .not('access_code_hash', 'is', null);
 
-      if (attendeesError) {
-        console.error('Attendee lookup error:', attendeesError.message);
+      if (fastErr) {
+        console.error('Fast path lookup error:', fastErr.message);
         return jsonError(500, 'Server error');
       }
 
-      const normalizedCode = access_code.toUpperCase().trim();
-      for (const att of (attendees || [])) {
+      for (const att of (fastCandidates || [])) {
         try {
-          const isMatch = bcrypt.compareSync(normalizedCode, att.access_code_hash!);
-          if (isMatch) {
+          if (bcrypt.compareSync(normalizedCode, att.access_code_hash!)) {
             matchedAttendee = att;
             break;
           }
         } catch {
           continue;
+        }
+      }
+
+      // ---- FALLBACK PATH: paginated scan over un-cured attendees ----
+      // Only attendees missing access_code_lookup (legacy data, pre-deploy).
+      if (!matchedAttendee) {
+        const PAGE_SIZE = 100;
+        let from = 0;
+        // Hard cap iterations to avoid runaway loops if DB grows unexpectedly.
+        const MAX_PAGES = 20;
+        for (let page = 0; page < MAX_PAGES; page++) {
+          const { data: legacy, error: legacyErr } = await supabaseAdmin
+            .from('attendees')
+            .select(ATTENDEE_COLUMNS)
+            .eq('event_id', event.id)
+            .is('deleted_at', null)
+            .is('access_code_lookup', null)
+            .not('access_code_hash', 'is', null)
+            .range(from, from + PAGE_SIZE - 1);
+
+          if (legacyErr) {
+            console.error('Fallback path lookup error:', legacyErr.message);
+            return jsonError(500, 'Server error');
+          }
+
+          if (!legacy || legacy.length === 0) break;
+
+          for (const att of legacy) {
+            try {
+              if (bcrypt.compareSync(normalizedCode, att.access_code_hash!)) {
+                matchedAttendee = att;
+                break;
+              }
+            } catch {
+              continue;
+            }
+          }
+
+          if (matchedAttendee) break;
+          if (legacy.length < PAGE_SIZE) break;
+          from += PAGE_SIZE;
+        }
+
+        // Auto-cure: backfill access_code_lookup so next login uses fast path.
+        if (matchedAttendee) {
+          try {
+            await supabaseAdmin
+              .from('attendees')
+              .update({ access_code_lookup: lookupKey })
+              .eq('id', matchedAttendee.id);
+          } catch (e) {
+            console.error('Auto-cure failed (non-fatal):', (e as Error).message);
+          }
         }
       }
     }
