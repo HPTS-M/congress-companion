@@ -44,7 +44,7 @@ export default function AdminSponsors() {
 
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingSponsor, setEditingSponsor] = useState<SponsorRow | null>(null);
+  const [editingSponsorId, setEditingSponsorId] = useState<string | null>(null);
   const [viewingSponsor, setViewingSponsor] = useState<SponsorRow | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
