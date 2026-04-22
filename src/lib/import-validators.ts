@@ -157,13 +157,10 @@ export function validateRow(
     errors.push({ field: 'email', message: 'invalid_format' });
   }
 
-  // external_credential_code: required only if toggle ON
-  if (opts.externalCredentialsRequired) {
-    if (!raw.external_credential_code) {
-      errors.push({ field: 'external_credential_code', message: 'required' });
-    } else if (!EXTERNAL_CODE_REGEX.test(raw.external_credential_code)) {
-      errors.push({ field: 'external_credential_code', message: 'invalid_format' });
-    }
+  // external_credential_code: NO se valida formato — se acepta tal cual venga del Excel.
+  // Solo se requiere presencia si el toggle está activo.
+  if (opts.externalCredentialsRequired && !raw.external_credential_code) {
+    errors.push({ field: 'external_credential_code', message: 'required' });
   }
 
   // specialty: optional, regex if present
