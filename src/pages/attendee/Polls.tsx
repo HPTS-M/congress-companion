@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BarChart3, Send, CheckCircle2, MessageSquareText } from 'lucide-react';
+import { BarChart3, Send, CheckCircle2, MessageSquareText, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { usePolls } from '@/hooks/usePolls';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { type AttendeePoll } from '@/services/polls.service';
 import { cn } from '@/lib/utils';
 
@@ -298,6 +299,7 @@ function PollCard({ poll, onSubmit, isSubmitting }: {
 export default function AttendeePolls() {
   const { t } = useTranslation('common');
   const { polls, isLoading, submitResponse } = usePolls();
+  const isOnline = useOnlineStatus();
 
   if (isLoading) {
     return (
@@ -317,6 +319,12 @@ export default function AttendeePolls() {
         <p className="text-sm text-muted-foreground">{t('polls.subtitle')}</p>
       </div>
 
+      {!isOnline && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-foreground">
+          <WifiOff className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <span>{t('offlineFeature.polls')}</span>
+        </div>
+      )}
       {polls.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <BarChart3 className="h-12 w-12 text-muted-foreground/40 mb-3" />

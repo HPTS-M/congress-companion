@@ -1,10 +1,11 @@
 import { useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { QrCode, CheckCircle2, Camera, StopCircle } from 'lucide-react';
+import { QrCode, CheckCircle2, Camera, StopCircle, WifiOff } from 'lucide-react';
 import { useEvent, useEventSettings } from '@/hooks/useEvent';
 import { useAuth } from '@/hooks/useAuth';
 import { useRecentCheckins, usePerformCheckin, useEventActivities } from '@/hooks/useCheckin';
 import { useToast } from '@/hooks/use-toast';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,6 +36,7 @@ export default function CheckIn() {
   const { toast } = useToast();
   const eventId = event?.id;
   const attendeeId = attendee?.id;
+  const isOnline = useOnlineStatus();
 
   const { data: recentCheckins, isLoading: loadingRecent } = useRecentCheckins(attendeeId);
   const checkinMutation = usePerformCheckin(attendeeId);
@@ -142,6 +144,17 @@ export default function CheckIn() {
     );
   }
 
+  if (!isOnline) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 px-4 py-16 text-center">
+        <WifiOff className="h-16 w-16 text-muted-foreground" />
+        <h2 className="text-lg font-semibold text-foreground">{tCommon('offlineFeature.title')}</h2>
+        <p className="max-w-sm text-sm text-muted-foreground">
+          {tCommon('offlineFeature.checkin')}
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="space-y-6 px-4 py-4">
       {/* Page header */}

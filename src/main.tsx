@@ -41,10 +41,13 @@ if (isPreview) {
     });
   }
 } else {
-  // Production: register PWA service worker manually
+  // Production: register the unified PWA service worker (Workbox + Push).
+  // The SW itself lives at /sw.js (built from src/sw.ts via vite-plugin-pwa).
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js');
+      navigator.serviceWorker.register('/sw.js').catch((err) => {
+        console.warn('[CONGRESSAPP] SW registration failed:', err);
+      });
     });
   }
 }

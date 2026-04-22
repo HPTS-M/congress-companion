@@ -27,11 +27,17 @@
     "label": "Paginación"
   },
   "offlineBanner": {
-    "offline": "Sin conexión — mostrando datos guardados",
+    "offline": "Sin conexión — modo solo lectura. Algunas funciones no estarán disponibles",
     "reconnected": "Conexión restaurada ✓",
     "syncingTitle": "Reconectando — sincronizando…",
     "syncingDescription": "Actualizando mensajes y anuncios…",
     "headerDot": "Sin conexión"
+  },
+  "offlineFeature": {
+    "title": "Necesitas conexión",
+    "checkin": "El check-in por QR requiere internet activo para registrar tu asistencia.",
+    "polls": "Estás sin conexión: puedes ver las encuestas pero no enviar respuestas hasta que vuelvas online.",
+    "messaging": "Estás sin conexión: tu mensaje se enviará automáticamente cuando recuperes internet."
   },
   "status": {
     "confirmed": "Confirmado",

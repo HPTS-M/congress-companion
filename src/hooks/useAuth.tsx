@@ -1,7 +1,9 @@
-import { useState, useEffect, useCallback, createContext, useContext, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, createContext, useContext, useRef, type ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { authService } from '@/services/auth.service';
+import { purgePersistedCache } from '@/lib/query-persist';
+import { useQueryClient } from '@tanstack/react-query';
 import type { AttendeeProfile } from '@/types';
 
 interface AuthState {
@@ -42,6 +44,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     mfaLevel: null,
     mfaFactorId: null,
   });
+  const queryClient = useQueryClient();
+  // Tracks the previously loaded attendee — when it changes we wipe the
+  // persisted cache to prevent leaking data across attendees on shared devices.
+  const lastAttendeeIdRef = useRef<string | null>(null);
 
   const refreshMfaState = useCallback(async () => {
     try {
@@ -121,6 +127,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
 
       if (data) {
+        const newAttendeeId = (data as AttendeeProfile).id;
+        // If we just switched attendees on this device, purge the persisted
+        // cache BEFORE the rest of the app starts hydrating queries.
+        if (
+          lastAttendeeIdRef.current &&
+          lastAttendeeIdRef.current !== newAttendeeId
+        ) {
+          queryClient.clear();
+          await purgePersistedCache();
+        }
+        lastAttendeeIdRef.current = newAttendeeId;
+
         setState(prev => ({
           ...prev,
           attendee: data as AttendeeProfile,
@@ -173,6 +191,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('id', state.attendee.id);
     }
     await authService.logout();
+    // Wipe in-memory + persisted query cache so the next attendee can't see
+    // any of the previous attendee's data on a shared device.
+    queryClient.clear();
+    await purgePersistedCache();
+    lastAttendeeIdRef.current = null;
     setState({
       session: null,
       user: null,
@@ -186,7 +209,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mfaLevel: null,
       mfaFactorId: null,
     });
-  }, [state.attendee?.id]);
+  }, [state.attendee?.id, queryClient]);
 
   return (
     <AuthContext.Provider value={{ ...state, loginWithCode, loginAdmin, logout, refreshMfaState }}>
