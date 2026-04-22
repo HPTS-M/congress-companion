@@ -45,6 +45,10 @@ export const HEADER_ALIASES: Record<string, string[]> = {
   full_name: ['Nombre completo', 'nombre_completo', 'full_name', 'nombre', 'Nombre'],
   email: ['Email', 'email', 'correo', 'Correo'],
   external_credential_code: [
+    'Código del congreso',
+    'Codigo del congreso',
+    'código del congreso',
+    'codigo del congreso',
     'Código credencial',
     'Codigo credencial',
     'codigo_credencial',
