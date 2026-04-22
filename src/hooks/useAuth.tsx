@@ -38,7 +38,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isAuthenticated: false,
     isAttendee: false,
     isAdmin: false,
+    mfaEnrolled: false,
+    mfaLevel: null,
+    mfaFactorId: null,
   });
+
+  const refreshMfaState = useCallback(async () => {
+    try {
+      const [factorsData, aalData] = await Promise.all([
+        supabase.auth.mfa.listFactors(),
+        supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+      ]);
+      const verifiedTotp = factorsData.data?.totp?.find((f) => f.status === 'verified');
+      setState(prev => ({
+        ...prev,
+        mfaEnrolled: !!verifiedTotp,
+        mfaFactorId: verifiedTotp?.id ?? null,
+        mfaLevel: (aalData.data?.currentLevel ?? null) as 'aal1' | 'aal2' | null,
+      }));
+    } catch {
+      setState(prev => ({ ...prev, mfaEnrolled: false, mfaFactorId: null, mfaLevel: null }));
+    }
+  }, []);
 
   useEffect(() => {
     // Tell the splash screen what we're doing right now.
