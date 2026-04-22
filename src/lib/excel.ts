@@ -44,36 +44,42 @@ export async function readExcelFile<T extends Record<string, unknown> = Record<s
     const obj: Record<string, unknown> = {};
     let hasData = false;
 
-    headers.forEach((header, idx) => {
-      if (!header) return;
-      const cell = row.getCell(idx + 1);
-      let value: unknown = cell.value;
+      headers.forEach((header, idx) => {
+        if (!header) return;
+        const cell = row.getCell(idx + 1);
+        let value: unknown = cell.value;
 
-      // Handle ExcelJS rich text
-      if (value && typeof value === 'object' && 'richText' in value) {
-        value = (value as { richText: { text: string }[] }).richText.map((r) => r.text).join('');
-      }
-      // Handle hyperlink cells (Excel auto-converts emails/URLs to mailto:/http: links)
-      if (value && typeof value === 'object' && 'hyperlink' in value) {
-        const hl = value as { text?: string; hyperlink: string };
-        value = (hl.text ?? hl.hyperlink).replace(/^mailto:/i, '');
-      }
-      // Handle formula cells — use the computed result
-      if (value && typeof value === 'object' && 'result' in value) {
-        value = (value as { result: unknown }).result;
-      }
-      // Handle date objects
-      if (value instanceof Date) {
-        value = value.toISOString().slice(0, 10);
-      }
-      // Fallback for any remaining object shapes — extract .text or empty string
-      if (value && typeof value === 'object' && !(value instanceof Date)) {
-        value = String((value as { text?: unknown }).text ?? '');
-      }
+        // Handle ExcelJS rich text
+        if (value && typeof value === 'object' && 'richText' in value) {
+          value = (value as { richText: { text: string }[] }).richText.map((r) => r.text).join('');
+        }
+        // Handle hyperlink cells (Excel auto-converts emails/URLs to mailto:/http: links)
+        if (value && typeof value === 'object' && 'hyperlink' in value) {
+          const hl = value as { text?: string; hyperlink: string };
+          value = (hl.text ?? hl.hyperlink).replace(/^mailto:/i, '');
+        }
+        // Handle formula cells — use the computed result
+        if (value && typeof value === 'object' && 'result' in value) {
+          value = (value as { result: unknown }).result;
+        }
+        // Handle date objects
+        if (value instanceof Date) {
+          value = value.toISOString().slice(0, 10);
+        }
+        // Fallback for any remaining object shapes (shared strings, etc.)
+        // Try .text first, then fall back to ExcelJS's cell.text which always
+        // returns the visible string representation (handles "number stored as
+        // text" cells with the green triangle indicator).
+        if (value && typeof value === 'object' && !(value instanceof Date)) {
+          const maybeText = (value as { text?: unknown }).text;
+          value = maybeText !== undefined && maybeText !== null && maybeText !== ''
+            ? String(maybeText)
+            : (cell.text ?? '');
+        }
 
-      obj[header] = value ?? '';
-      if (value !== null && value !== undefined && value !== '') hasData = true;
-    });
+        obj[header] = value ?? '';
+        if (value !== null && value !== undefined && value !== '') hasData = true;
+      });
 
     if (hasData) rows.push(obj as T);
   }
