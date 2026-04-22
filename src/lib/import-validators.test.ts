@@ -44,6 +44,44 @@ describe('import-validators · regex', () => {
     expect(TEXT_NO_SPECIAL_REGEX.test('Hospital General S.A.')).toBe(true);
     expect(TEXT_NO_SPECIAL_REGEX.test('Bad@Text')).toBe(false);
   });
+
+  it('NAME_REGEX accepts uppercase accents and Latin extended', () => {
+    expect(NAME_REGEX.test('JHON MAICOL LÓPEZ FLORIAN')).toBe(true);
+    expect(NAME_REGEX.test('JOSÉ ÁNGEL ÍÑIGUEZ')).toBe(true);
+    expect(NAME_REGEX.test('FRANÇOIS')).toBe(true);
+  });
+
+  it('TEXT_NO_SPECIAL_REGEX accepts uppercase accents and long institutions', () => {
+    expect(TEXT_NO_SPECIAL_REGEX.test('QUÍMICO FARMACÉUTICO')).toBe(true);
+    expect(TEXT_NO_SPECIAL_REGEX.test('H. SOC DE ONCOLOGIA Y HEMATOLOGIA D')).toBe(true);
+    expect(TEXT_NO_SPECIAL_REGEX.test('CLIN. DEL ROSARIO TESORO')).toBe(true);
+    expect(TEXT_NO_SPECIAL_REGEX.test('MED+ S.A.S.')).toBe(true);
+  });
+});
+
+describe('import-validators · normalizeRow Unicode space handling', () => {
+  it('strips non-breaking spaces (\\u00A0) and collapses whitespace', () => {
+    const row = normalizeRow({
+      'Nombre completo': 'Juan\u00A0Pérez\u00A0 ',
+      Email: 'j@x.co',
+      Estado: '1',
+    });
+    expect(row.full_name).toBe('Juan Pérez');
+  });
+
+  it('accepts numeric external code from Excel (10851)', () => {
+    const row = normalizeRow({
+      'Nombre completo': 'JHON MAICOL LÓPEZ FLORIAN',
+      Email: 'j@x.co',
+      'Código credencial': 10851,
+      Especialidad: 'QUÍMICO FARMACÉUTICO',
+      'Institución': 'FUNDACION VALLE DE LILI',
+      Estado: '1',
+    });
+    expect(row.external_credential_code).toBe('10851');
+    const r = validateRow(row, { externalCredentialsRequired: true });
+    expect(r.errors).toHaveLength(0);
+  });
 });
 
 describe('import-validators · mapStatusId', () => {
