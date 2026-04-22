@@ -381,21 +381,39 @@ export const adminAttendeesService = {
     options: {
       filter: 'all' | 'never_logged_in' | 'failed_invitations';
       sendEmail?: boolean;
-      onProgress?: (p: { processed: number; total: number }) => void;
+      startOffset?: number;
+      onProgress?: (p: {
+        processed: number;
+        total: number;
+        offset: number;
+        codes_regenerated: number;
+        emails_sent: number;
+        emails_skipped: number;
+        emails_failed: number;
+        db_failed: number;
+      }) => void;
     },
   ): Promise<{
+    codes_regenerated: number;
+    emails_sent: number;
+    emails_skipped: number;
+    emails_failed: number;
+    db_failed: number;
+    // Legacy aggregates (still emitted for compatibility)
     processed: number;
     failed: number;
     total: number;
     errors: { attendee_id: string; reason: string }[];
   }> => {
-    let processed = 0;
-    let failed = 0;
+    let codes_regenerated = 0;
+    let emails_sent = 0;
+    let emails_skipped = 0;
+    let emails_failed = 0;
+    let db_failed = 0;
     let total = 0;
-    let offset = 0;
+    let offset = options.startOffset ?? 0;
     const errors: { attendee_id: string; reason: string }[] = [];
 
-    // Cap loop to prevent runaway in pathological cases.
     const MAX_ITERATIONS = 200; // 200 × 50 = 10 000 attendees max per session
     for (let i = 0; i < MAX_ITERATIONS; i++) {
       const { data, error } = await supabase.functions.invoke('bulk-regenerate-access-codes', {
@@ -409,6 +427,11 @@ export const adminAttendeesService = {
       });
       if (error) throw new Error(error.message);
       const result = data as {
+        codes_regenerated?: number;
+        emails_sent?: number;
+        emails_skipped?: number;
+        emails_failed?: number;
+        db_failed?: number;
         processed: number;
         failed: number;
         remaining: number;
@@ -417,18 +440,45 @@ export const adminAttendeesService = {
         errors: { attendee_id: string; reason: string }[];
       };
 
-      processed += result.processed;
-      failed += result.failed;
+      // Prefer granular fields; fall back to legacy if an older edge build replies.
+      codes_regenerated += result.codes_regenerated ?? result.processed ?? 0;
+      emails_sent += result.emails_sent ?? 0;
+      emails_skipped += result.emails_skipped ?? 0;
+      emails_failed += result.emails_failed ?? 0;
+      db_failed += result.db_failed ?? result.failed ?? 0;
       total = result.total;
       errors.push(...(result.errors ?? []));
       offset = result.next_offset;
 
-      options.onProgress?.({ processed: processed + failed, total });
+      const processedSoFar = codes_regenerated + db_failed;
+      options.onProgress?.({
+        processed: processedSoFar,
+        total,
+        offset,
+        codes_regenerated,
+        emails_sent,
+        emails_skipped,
+        emails_failed,
+        db_failed,
+      });
 
       if (result.remaining === 0) break;
     }
 
-    return { processed, failed, total, errors };
+    const processed = codes_regenerated + db_failed;
+    const failed = emails_failed + db_failed;
+
+    return {
+      codes_regenerated,
+      emails_sent,
+      emails_skipped,
+      emails_failed,
+      db_failed,
+      processed,
+      failed,
+      total,
+      errors,
+    };
   },
 
   /**
