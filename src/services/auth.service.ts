@@ -134,4 +134,63 @@ export const authService = {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   },
+
+  /**
+   * MFA (TOTP) wrappers around Supabase Auth native MFA APIs.
+   * Compatible with Google Authenticator, Microsoft Authenticator, Authy,
+   * 1Password, Bitwarden, Apple Passwords, etc.
+   */
+  mfa: {
+    listFactors: async () => {
+      const { data, error } = await supabase.auth.mfa.listFactors();
+      if (error) throw error;
+      return data;
+    },
+
+    enroll: async (friendlyName?: string) => {
+      const { data, error } = await supabase.auth.mfa.enroll({
+        factorType: 'totp',
+        friendlyName: friendlyName ?? `Authenticator-${Date.now()}`,
+      });
+      if (error) throw error;
+      return data;
+    },
+
+    challenge: async (factorId: string) => {
+      const { data, error } = await supabase.auth.mfa.challenge({ factorId });
+      if (error) throw error;
+      return data;
+    },
+
+    verify: async (factorId: string, challengeId: string, code: string) => {
+      const { data, error } = await supabase.auth.mfa.verify({
+        factorId,
+        challengeId,
+        code,
+      });
+      if (error) throw error;
+      return data;
+    },
+
+    challengeAndVerify: async (factorId: string, code: string) => {
+      const { data, error } = await supabase.auth.mfa.challengeAndVerify({
+        factorId,
+        code,
+      });
+      if (error) throw error;
+      return data;
+    },
+
+    unenroll: async (factorId: string) => {
+      const { data, error } = await supabase.auth.mfa.unenroll({ factorId });
+      if (error) throw error;
+      return data;
+    },
+
+    getAAL: async () => {
+      const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (error) throw error;
+      return data;
+    },
+  },
 };
