@@ -1,83 +1,110 @@
 
 
-## Plan — Fix: El modal "Editar Patrocinador" muestra valores viejos al reabrir
+## Plan revisado — Sincronización limpia del modal con el sponsor
 
-### Diagnóstico (verificado en BD + código)
+### Por qué el plan anterior no es óptimo
 
-**Estado en BD (confirmado vía query):**
-"Al Pharma" tiene `whatsapp: 3136985667` y `whatsapp_message: "prueba"` correctamente persistidos.
+El plan previo proponía dos cosas, una hacky y otra correcta:
 
-**La BD SÍ se actualiza.** El problema es 100% del frontend: el modal muestra valores viejos.
+1. ❌ **Key compuesto `${id}-${open?'open':'closed'}`** — funciona pero es un hack. El modal ya está montado condicionalmente con `{modalOpen && ...}`, así que el `key` por `id` ya debería bastar. Agregar `open` al key oculta el problema real en lugar de resolverlo.
 
-**Causa raíz real:**
+2. ✅ **`useEffect` que sincroniza prop → state** — esta SÍ es la solución idiomática y suficiente por sí sola.
 
-`src/pages/admin/Sponsors.tsx` línea 246 monta el modal así:
-```tsx
-{modalOpen && event && (
-  <SponsorModal ... sponsor={editingSponsor} />
-)}
-```
-
-Sin `key`. React reutiliza la misma instancia del componente entre aperturas consecutivas. Cuando el modal se cierra (`modalOpen=false`) y se reabre (`modalOpen=true`), si pasa rápido React puede reutilizar el árbol.
-
-Pero el problema crítico está en `SponsorModal.tsx` líneas 77-90:
-```tsx
-const [name, setName] = useState(sponsor?.name ?? '');
-const [whatsappMessage, setWhatsappMessage] = useState(sponsor?.whatsapp_message ?? '');
-// ... 13 useState más
-```
-
-Los `useState(sponsor?.X ?? '')` **solo se evalúan en el primer render**. Cuando el padre actualiza la cache de TanStack Query con datos nuevos y vuelve a pasar `sponsor` con nuevos valores:
-- ❌ Los `useState` ignoran el nuevo prop.
-- ❌ El usuario ve los valores con los que abrió el modal originalmente.
-- ❌ Cuando guarda y reabre, sigue viendo lo viejo (aunque la BD ya tiene lo nuevo).
-
-Esto es un **anti-patrón clásico de React**: derivar estado inicial de props sin sincronización posterior.
-
-**Por qué el plan anterior no resolvió el síntoma:**
-El optimistic update sí actualizó la cache (la tabla detrás muestra el dato nuevo), pero al reabrir el modal, los `useState` internos seguían con los valores cacheados del primer montaje.
+Además detecté un bug real en el modal que el plan anterior no mencionaba: el `useMemo` de la línea 84 calcula `initialPhone` correctamente cuando cambia `sponsor?.whatsapp`, pero los `useState(initialPhone.dialCode)` solo lo leen en el primer render → el teléfono SIEMPRE muestra el valor del primer mount.
 
 ---
 
-### Solución limpia (2 cambios mínimos, buenas prácticas)
+### Diagnóstico final (verificado en código)
 
-#### Opción A — Forzar remontaje del modal con `key` (RECOMENDADA)
+**Causa raíz única:** el patrón `useState(sponsor?.X)` en `SponsorModal.tsx` (líneas 77-90) crea estado derivado de prop sin sincronización. React solo evalúa el inicializador una vez. Si la cache de TanStack Query se actualiza y el padre vuelve a pasar `sponsor` con datos nuevos, los `useState` los ignoran.
 
-`src/pages/admin/Sponsors.tsx` línea 246-254:
-
-```tsx
-{modalOpen && event && (
-  <SponsorModal
-    key={editingSponsor?.id ?? 'new'}  // ← fuerza nueva instancia por sponsor
-    open={modalOpen}
-    onClose={handleCloseModal}
-    eventId={event.id}
-    sponsor={editingSponsor}
-    onSaved={handleCloseModal}
-  />
-)}
-```
-
-**Por qué es la solución correcta:**
-- ✅ Patrón recomendado oficialmente por React docs ("Resetting state with a key").
-- ✅ Cada vez que cambia `editingSponsor.id`, React desmonta y remonta el modal → todos los `useState` se reinicializan con los valores nuevos.
-- ✅ Cero cambios al modal en sí — preserva toda su lógica.
-- ✅ Funciona tanto al editar diferentes sponsors como al reabrir el mismo después de guardar (porque entre cierres `modalOpen=false` desmonta el componente; al reabrir, `useState` corre con el sponsor recién actualizado de la cache).
-
-#### Opción B (defensa adicional) — Sincronizar prop → state en el modal
-
-Por seguridad, agregar un `useEffect` que sincronice cuando `sponsor.id` cambia. Pero con la opción A, esto es redundante. **No lo aplicamos** para mantener el código simple.
+Aunque el padre usa `key={editingSponsor?.id}` y monta condicionalmente con `{modalOpen && ...}` (lo cual SÍ remonta entre aperturas), hay dos casos donde el modal recibe datos nuevos sin remontaje:
+- Cache se invalida durante una sesión abierta (refetch en background).
+- Optimistic update muta el objeto `sponsor` mientras el modal sigue abierto.
 
 ---
 
-### Verificación de que la cache se actualiza correctamente
+### Solución (1 archivo, 1 cambio limpio)
 
-Revisé `useAdminSponsors.updateMutation` (post-fix anterior):
-- ✅ `onMutate` actualiza la cache optimísticamente.
-- ✅ `onSuccess` reemplaza con datos canónicos del servidor.
-- ✅ `invalidateQueries` dispara refetch para sincronizar.
+#### Único cambio — `SponsorModal.tsx`: sincronizar estado con `useEffect` cuando cambia `sponsor?.id`
 
-La cache YA está bien. Solo falta que el modal lea el dato fresco al reabrirse, lo cual logra el `key`.
+Agregar un solo `useEffect` que resetea TODOS los campos cuando cambia el sponsor (o cuando llega data fresca del mismo sponsor por su ID estable). Eliminar el `useMemo` redundante de `initialPhone` porque el effect ya cubre el caso del teléfono.
+
+```tsx
+// Reemplazar líneas 77-95 por:
+
+const [name, setName] = useState('');
+const [level, setLevel] = useState<typeof LEVELS[number]>('gold');
+const [category, setCategory] = useState<typeof CATEGORIES[number]>('pharmaceutical');
+const [description, setDescription] = useState('');
+const [standLocation, setStandLocation] = useState('');
+const [websiteUrl, setWebsiteUrl] = useState('');
+const [contactEmail, setContactEmail] = useState('');
+const [whatsappDialCode, setWhatsappDialCode] = useState('57');
+const [whatsappNumber, setWhatsappNumber] = useState('');
+const [whatsappMessage, setWhatsappMessage] = useState('');
+const [videoUrl, setVideoUrl] = useState('');
+const [linkedin, setLinkedin] = useState('');
+const [instagram, setInstagram] = useState('');
+
+const [logoFile, setLogoFile] = useState<File | null>(null);
+const [materialsFile, setMaterialsFile] = useState<File | null>(null);
+const [removeLogo, setRemoveLogo] = useState(false);
+const [removeMaterials, setRemoveMaterials] = useState(false);
+
+// Sincroniza estado con el sponsor cuando cambia (incluye apertura del modal,
+// invalidación de cache, optimistic update). Depende solo del id para evitar
+// loops por cambio de referencia del objeto.
+useEffect(() => {
+  setName(sponsor?.name ?? '');
+  setLevel(sponsor?.level ?? 'gold');
+  setCategory(sponsor?.category ?? 'pharmaceutical');
+  setDescription(sponsor?.description ?? '');
+  setStandLocation(sponsor?.stand_location ?? '');
+  setWebsiteUrl(sponsor?.website_url ?? '');
+  setContactEmail(sponsor?.contact_email ?? '');
+  const parsed = parsePhoneE164(sponsor?.whatsapp ?? null);
+  setWhatsappDialCode(parsed.dialCode);
+  setWhatsappNumber(parsed.number);
+  setWhatsappMessage(sponsor?.whatsapp_message ?? '');
+  setVideoUrl(sponsor?.video_url ?? '');
+  setLinkedin(sponsor?.social_linkedin ?? '');
+  setInstagram(sponsor?.social_instagram ?? '');
+  setLogoFile(null);
+  setMaterialsFile(null);
+  setRemoveLogo(false);
+  setRemoveMaterials(false);
+  setErrors({});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [sponsor?.id]);
+```
+
+**Por qué esta solución es la mejor práctica:**
+- ✅ Resuelve TODOS los casos: apertura, cierre/reapertura, invalidación de cache, optimistic update.
+- ✅ Dependencia solo del `id` → no genera loops por cambios de referencia del objeto sponsor.
+- ✅ Elimina el bug latente del `useMemo(initialPhone)` que nunca se aplicaba al state.
+- ✅ Patrón idiomático de React para "resetear estado cuando cambia una identidad clave" cuando la opción `key` no es suficiente.
+- ✅ Compatible con el `key={editingSponsor?.id ?? 'new'}` ya existente — defensa en profundidad.
+
+#### NO se cambia `Sponsors.tsx`
+El `key={editingSponsor?.id ?? 'new'}` ya existente sigue siendo correcto. No hace falta el key compuesto hacky.
+
+#### NO se cambia `useAdminSponsors.ts` ni `admin-sponsors.service.ts`
+Los fixes anteriores (optimistic update + `.maybeSingle()`) ya quedaron correctos.
+
+---
+
+### Verificación post-fix
+
+1. Editar "Al Pharma" → cambiar mensaje WhatsApp a "test final" → Guardar.
+   - Toast verde, modal cierra.
+   - Query directa BD: `whatsapp_message = "test final"` ✅
+2. Reabrir "Al Pharma" → el modal abre con "test final" inmediatamente.
+3. Cambiar WhatsApp de 3136985667 a 3001234567 → Guardar → reabrir.
+   - Modal muestra país CO + número 3001234567 (este es el bug del `useMemo` que se resuelve).
+4. Editar otro sponsor → ningún campo "leak" del anterior.
+5. Cancelar sin guardar → cache intacta.
+6. Crear nuevo (sponsor=null) → todos los campos vacíos, level=gold, category=pharmaceutical.
 
 ---
 
@@ -85,32 +112,22 @@ La cache YA está bien. Solo falta que el modal lea el dato fresco al reabrirse,
 
 | Archivo | Cambio | Líneas |
 |---|---|---|
-| `src/pages/admin/Sponsors.tsx` | Agregar `key={editingSponsor?.id ?? 'new'}` al `<SponsorModal>` | 1 línea |
+| `src/components/admin/sponsors/SponsorModal.tsx` | Inicializar `useState` con valores neutros + agregar `useEffect` de sync por `sponsor?.id` + eliminar `useMemo(initialPhone)` redundante | ~30 |
 
-**1 archivo, 1 línea.** Solución mínima, idiomática de React.
-
----
-
-### Verificación post-fix
-
-1. Editar "Al Pharma" → cambiar mensaje WhatsApp de "prueba" a "Hola desde admin" → guardar → toast verde.
-2. Reabrir "Al Pharma" → ver "Hola desde admin" inmediatamente (sin parpadeo, sin valores viejos).
-3. Editar otro sponsor distinto → ver sus datos correctos (no mezclados con el anterior).
-4. Crear nuevo sponsor (key="new") → modal vacío correctamente.
-5. Query directa a BD → datos coinciden con UI.
+**Total: 1 archivo. Sin tocar el padre. Sin keys compuestos. Sin reordenar `performSave`.**
 
 ---
 
-### Lo que NO se toca
+### Lo que se descartó del plan anterior
 
-- `useAdminSponsors.ts` — el optimistic update ya quedó bien del fix anterior.
-- `admin-sponsors.service.ts` — el `.maybeSingle()` ya quedó bien.
-- `SponsorModal.tsx` — su lógica interna es correcta, solo necesita remontaje limpio.
-- BD, RLS, storage — nada que ver.
+| Cambio descartado | Razón |
+|---|---|
+| Key compuesto `${id}-${open}` en `Sponsors.tsx` | Hack innecesario; el `useEffect` resuelve el problema raíz. |
+| Reordenar `toast.success` antes de `onSaved/onClose` | El `toast` global de Sonner sobrevive al unmount; reordenar no aporta valor. |
 
 ---
 
 ### Esfuerzo
 
-~30 segundos. 1 línea cambiada. Cero riesgo.
+~3 minutos. 1 archivo, ~30 líneas. Patrón estándar de React. Cero riesgo de regresión.
 
