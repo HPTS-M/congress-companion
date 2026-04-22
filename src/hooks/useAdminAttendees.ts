@@ -338,3 +338,15 @@ export function useInvitationLog(attendeeId: string | null) {
     staleTime: 15_000,
   });
 }
+
+/** Counts for the bulk-regenerate modal (never logged in / failed / all active). */
+export function useBulkRegenerateCounts(enabled: boolean) {
+  const { event } = useEvent();
+  const eventId = event?.id ?? '';
+  return useQuery({
+    queryKey: ['admin-bulk-regenerate-counts', eventId],
+    queryFn: () => adminAttendeesService.getBulkRegenerateCounts(eventId),
+    enabled: !!eventId && enabled,
+    staleTime: 30_000,
+  });
+}

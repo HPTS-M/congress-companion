@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
-import { Users, UserPlus, Upload, Download, Search, X, RefreshCw, Mail, Trash2, Loader2 } from 'lucide-react';
+import { Users, UserPlus, Upload, Download, Search, X, RefreshCw, Mail, Trash2, Loader2, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,7 +13,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
-import { useAdminAttendees, useSendInvitations, useDeleteAttendee, useUpdateAttendeeStatus, useAttendeeFilterOptions, usePendingInvitations, useFailedInvitations } from '@/hooks/useAdminAttendees';
+import { useAdminAttendees, useSendInvitations, useDeleteAttendee, useUpdateAttendeeStatus, useAttendeeFilterOptions, usePendingInvitations, useFailedInvitations, useBulkRegenerateCounts } from '@/hooks/useAdminAttendees';
 import { adminAttendeesService, type AttendeeWithServices, type AttendeeFilters } from '@/services/admin-attendees.service';
 import { useEvent } from '@/hooks/useEvent';
 import { writeExcelFile } from '@/lib/excel';
@@ -24,6 +24,7 @@ import { ImportCsvModal } from '@/components/admin/attendees/ImportCsvModal';
 import { DeleteAttendeeDialog } from '@/components/admin/attendees/DeleteAttendeeDialog';
 import { DataQualityPanel } from '@/components/admin/attendees/DataQualityPanel';
 import { BulkSendCredentialsModal } from '@/components/admin/attendees/BulkSendCredentialsModal';
+import { BulkRegenerateModal } from '@/components/admin/attendees/BulkRegenerateModal';
 import { DataTablePagination } from '@/components/ui/data-table-pagination';
 import { usePagination } from '@/hooks/usePagination';
 import { cn } from '@/lib/utils';
@@ -135,6 +136,7 @@ export default function AdminAttendees() {
   // Prevents losing rows when the user changes filters/pages after selecting
   // (selectedIds persists across pages, but `attendees` only holds current view).
   const [bulkSendSnapshot, setBulkSendSnapshot] = useState<AttendeeWithServices[]>([]);
+  const [showBulkRegenerateModal, setShowBulkRegenerateModal] = useState(false);
 
   // ---------------- Data ----------------
   const { attendees, isLoading, isFetching, isRefetching, counts, isCountsLoading, refetch } =
@@ -146,6 +148,7 @@ export default function AdminAttendees() {
   const { data: pendingInvitationIds = [] } = usePendingInvitations();
   const { data: failedInvitationIds = [] } = useFailedInvitations();
   const failedIdsSet = useMemo(() => new Set(failedInvitationIds), [failedInvitationIds]);
+  const { data: bulkRegenCounts } = useBulkRegenerateCounts(showBulkRegenerateModal);
 
   const handleRetryFailedInvitations = useCallback(async () => {
     if (failedInvitationIds.length === 0 || !event?.id) return;
@@ -403,6 +406,14 @@ export default function AdminAttendees() {
               })}
             </Button>
           )}
+          <Button
+            variant="outline"
+            onClick={() => setShowBulkRegenerateModal(true)}
+            title={t('attendees.bulkRegenerate.title', { defaultValue: 'Bulk regenerate access codes' })}
+          >
+            <KeyRound className="mr-2 h-4 w-4" />
+            {t('attendees.bulkRegenerate.button', { defaultValue: 'Regenerate codes' })}
+          </Button>
           <Button variant="outline" onClick={handleExportExcel} disabled={isExporting}>
             <Download className="mr-2 h-4 w-4" />
             {isExporting ? t('attendees.exporting') : t('attendees.exportCsv')}
@@ -644,6 +655,13 @@ export default function AdminAttendees() {
         isSending={sendInvitationsMutation.isPending}
         onConfirm={confirmBulkSend}
         failedIds={failedIdsSet}
+      />
+
+      {/* Bulk regenerate access codes */}
+      <BulkRegenerateModal
+        open={showBulkRegenerateModal}
+        onOpenChange={setShowBulkRegenerateModal}
+        counts={bulkRegenCounts ?? { neverLoggedIn: 0, failed: 0, all: counts.total }}
       />
 
       {/* Deactivate / Reactivate confirmation */}
