@@ -44,6 +44,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     mfaLevel: null,
     mfaFactorId: null,
   });
+  const queryClient = useQueryClient();
+  // Tracks the previously loaded attendee — when it changes we wipe the
+  // persisted cache to prevent leaking data across attendees on shared devices.
+  const lastAttendeeIdRef = useRef<string | null>(null);
 
   const refreshMfaState = useCallback(async () => {
     try {
