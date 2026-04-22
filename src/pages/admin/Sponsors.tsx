@@ -49,6 +49,11 @@ export default function AdminSponsors() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
 
+  const editingSponsor = useMemo(
+    () => (editingSponsorId ? sponsors.find((s) => s.id === editingSponsorId) ?? null : null),
+    [sponsors, editingSponsorId],
+  );
+
   const filtered = useMemo(() => {
     if (!search.trim()) return sponsors;
     const q = search.toLowerCase();
