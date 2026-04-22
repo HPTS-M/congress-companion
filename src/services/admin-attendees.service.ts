@@ -367,6 +367,70 @@ export const adminAttendeesService = {
     return { access_code: result.access_code, email_sent: result.email_sent };
   },
 
+  /**
+   * Bulk regenerate access codes + send new credentials emails for an event.
+   * Calls the bulk-regenerate-access-codes edge function in pages of 50 until
+   * `remaining` reaches 0. Reports progress via callback.
+   *
+   * Why paginated: each batch costs ~50 bcrypt hashes + ~25s of throttled
+   * Resend calls. Splitting keeps every request well within the edge
+   * function CPU/wall-clock limits.
+   */
+  bulkRegenerateAccessCodes: async (
+    eventId: string,
+    options: {
+      filter: 'all' | 'never_logged_in' | 'failed_invitations';
+      sendEmail?: boolean;
+      onProgress?: (p: { processed: number; total: number }) => void;
+    },
+  ): Promise<{
+    processed: number;
+    failed: number;
+    total: number;
+    errors: { attendee_id: string; reason: string }[];
+  }> => {
+    let processed = 0;
+    let failed = 0;
+    let total = 0;
+    let offset = 0;
+    const errors: { attendee_id: string; reason: string }[] = [];
+
+    // Cap loop to prevent runaway in pathological cases.
+    const MAX_ITERATIONS = 200; // 200 × 50 = 10 000 attendees max per session
+    for (let i = 0; i < MAX_ITERATIONS; i++) {
+      const { data, error } = await supabase.functions.invoke('bulk-regenerate-access-codes', {
+        body: {
+          event_id: eventId,
+          filter: options.filter,
+          offset,
+          batch_size: 50,
+          send_email: options.sendEmail ?? true,
+        },
+      });
+      if (error) throw new Error(error.message);
+      const result = data as {
+        processed: number;
+        failed: number;
+        remaining: number;
+        next_offset: number;
+        total: number;
+        errors: { attendee_id: string; reason: string }[];
+      };
+
+      processed += result.processed;
+      failed += result.failed;
+      total = result.total;
+      errors.push(...(result.errors ?? []));
+      offset = result.next_offset;
+
+      options.onProgress?.({ processed: processed + failed, total });
+
+      if (result.remaining === 0) break;
+    }
+
+    return { processed, failed, total, errors };
+  },
+
   // --- Invitation audit log ---
 
   /** IDs of attendees whose last invitation attempt failed (no successful send). */
