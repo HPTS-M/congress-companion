@@ -69,11 +69,13 @@ export function useAdminSponsors(eventId: string | undefined) {
       if (ctx?.previous) qc.setQueryData(key, ctx.previous);
     },
     onSuccess: (updated) => {
-      if (updated) {
-        qc.setQueryData<SponsorRow[]>(key, (old) =>
-          (old ?? []).map((s) => (s.id === updated.id ? updated : s)),
-        );
-      }
+      // updated is always a real SponsorRow (service contract is non-nullable).
+      qc.setQueryData<SponsorRow[]>(key, (old) =>
+        (old ?? []).map((s) => (s.id === updated.id ? updated : s)),
+      );
+    },
+    onSettled: () => {
+      // Guaranteed refetch: runs on success AND error so cache always converges to DB.
       qc.invalidateQueries({ queryKey: key });
     },
   });
