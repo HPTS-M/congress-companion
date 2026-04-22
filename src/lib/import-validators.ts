@@ -76,6 +76,12 @@ export function normalizeRow(raw: Record<string, unknown>): {
     for (const alias of aliases) {
       const v = raw[alias];
       if (v !== undefined && v !== null && String(v).trim() !== '') {
+        // Normalize numeric values that Excel may deliver as numbers
+        // (e.g. "Código del congreso" = 10851 stored as number).
+        // For integer-like floats, drop the trailing ".0" (10851.0 → "10851").
+        if (typeof v === 'number') {
+          return Number.isInteger(v) ? String(v) : String(v).trim();
+        }
         return String(v).trim();
       }
     }
