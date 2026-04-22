@@ -10,6 +10,8 @@ import { useEvent, useEventSlug, useEventSettings } from '@/hooks/useEvent';
 import { useUnreadAnnouncements } from '@/hooks/useUnreadAnnouncements';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { usePrefetch } from '@/hooks/usePrefetch';
+import { usePrefetchHandlers } from '@/hooks/usePrefetchHandlers';
 import {
   Sidebar,
   SidebarContent,
