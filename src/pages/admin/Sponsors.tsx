@@ -245,6 +245,7 @@ export default function AdminSponsors() {
       {/* Modal */}
       {modalOpen && event && (
         <SponsorModal
+          key={editingSponsor?.id ?? 'new'}
           open={modalOpen}
           onClose={handleCloseModal}
           eventId={event.id}
