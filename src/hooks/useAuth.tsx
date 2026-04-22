@@ -13,12 +13,17 @@ interface AuthState {
   isAuthenticated: boolean;
   isAttendee: boolean;
   isAdmin: boolean;
+  // MFA state (only relevant for admins)
+  mfaEnrolled: boolean;
+  mfaLevel: 'aal1' | 'aal2' | null;
+  mfaFactorId: string | null;
 }
 
 interface AuthContextValue extends AuthState {
   loginWithCode: (accessCode: string, eventCode: string, forceLogin?: boolean) => Promise<void>;
   loginAdmin: (email: string, password: string) => Promise<{ userId: string }>;
   logout: () => Promise<void>;
+  refreshMfaState: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
