@@ -45,6 +45,10 @@ export const HEADER_ALIASES: Record<string, string[]> = {
   full_name: ['Nombre completo', 'nombre_completo', 'full_name', 'nombre', 'Nombre'],
   email: ['Email', 'email', 'correo', 'Correo'],
   external_credential_code: [
+    'Código del congreso',
+    'Codigo del congreso',
+    'código del congreso',
+    'codigo del congreso',
     'Código credencial',
     'Codigo credencial',
     'codigo_credencial',
@@ -78,13 +82,30 @@ export function normalizeRow(raw: Record<string, unknown>): {
       .replace(/\s+/g, ' ') // collapse multiple spaces
       .trim();
 
+  // Normalize a header for tolerant matching: lowercase, strip accents,
+  // collapse whitespace. So "Código del congreso", "CODIGO DEL CONGRESO" and
+  // "código  del  congreso" all match the same alias.
+  const normalizeHeader = (h: string): string =>
+    h
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // strip diacritics
+      .replace(/[\u00A0\u2000-\u200B\u202F\u3000]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+
+  // Build a normalized lookup of the raw row once.
+  const rawNormalized: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    rawNormalized[normalizeHeader(k)] = v;
+  }
+
   const pick = (key: keyof typeof HEADER_ALIASES): string => {
     const aliases = HEADER_ALIASES[key];
     for (const alias of aliases) {
-      const v = raw[alias];
+      const v = rawNormalized[normalizeHeader(alias)];
       if (v !== undefined && v !== null && String(v).trim() !== '') {
-        // Normalize numeric values that Excel may deliver as numbers
-        // (e.g. "Código del congreso" = 10851 stored as number).
+        // Excel may deliver numbers (e.g. "Código del congreso" = 10851).
         // For integer-like floats, drop the trailing ".0" (10851.0 → "10851").
         if (typeof v === 'number') {
           return Number.isInteger(v) ? String(v) : normalizeStr(String(v));
