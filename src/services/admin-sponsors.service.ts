@@ -76,15 +76,20 @@ export const adminSponsorsService = {
     return data as SponsorRow;
   },
 
-  async update(id: string, form: Partial<SponsorFormData> & { logo_url?: string | null; materials_url?: string | null }): Promise<SponsorRow> {
+  async update(
+    id: string,
+    form: Partial<SponsorFormData> & { logo_url?: string | null; materials_url?: string | null },
+  ): Promise<SponsorRow | null> {
+    // Use maybeSingle() so a successful UPDATE that returns no rows due to a
+    // post-update SELECT being filtered by RLS does not surface as an error.
     const { data, error } = await supabase
       .from('sponsors')
       .update(form)
       .eq('id', id)
       .select()
-      .single();
+      .maybeSingle();
     if (error) throw new Error(error.message);
-    return data as SponsorRow;
+    return (data as SponsorRow | null) ?? null;
   },
 
   async remove(id: string): Promise<void> {
