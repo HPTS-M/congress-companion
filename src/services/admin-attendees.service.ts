@@ -431,6 +431,38 @@ export const adminAttendeesService = {
     return { processed, failed, total, errors };
   },
 
+  /**
+   * Counts used by the bulk-regenerate modal.
+   * - neverLoggedIn: attendees who have never authenticated (user_id IS NULL)
+   * - failed: attendees whose last invitation attempt failed
+   * - all: total active (non-deleted, non-cancelled) attendees
+   */
+  getBulkRegenerateCounts: async (
+    eventId: string,
+  ): Promise<{ neverLoggedIn: number; failed: number; all: number }> => {
+    const [neverRes, allRes, failedIds] = await Promise.all([
+      supabase
+        .from('attendees')
+        .select('id', { count: 'exact', head: true })
+        .eq('event_id', eventId)
+        .is('deleted_at', null)
+        .neq('registration_status', 'cancelled')
+        .is('user_id', null),
+      supabase
+        .from('attendees')
+        .select('id', { count: 'exact', head: true })
+        .eq('event_id', eventId)
+        .is('deleted_at', null)
+        .neq('registration_status', 'cancelled'),
+      supabase.rpc('get_failed_invitation_attendee_ids', { _event_id: eventId }),
+    ]);
+    return {
+      neverLoggedIn: neverRes.count ?? 0,
+      all: allRes.count ?? 0,
+      failed: (failedIds.data ?? []).length,
+    };
+  },
+
   // --- Invitation audit log ---
 
   /** IDs of attendees whose last invitation attempt failed (no successful send). */
