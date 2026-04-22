@@ -136,10 +136,8 @@ export const adminSponsorsService = {
   },
 
   getSignedUrl: async (path: string): Promise<string> => {
-    const { data, error } = await supabase.storage
-      .from(BUCKET)
-      .createSignedUrl(path, 3600);
-    if (error) throw new Error(error.message);
-    return data.signedUrl;
+    // Bucket is now public — getPublicUrl is synchronous and never fails.
+    // Signature kept async for backward compatibility with consumers.
+    return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
   },
 };
