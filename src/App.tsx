@@ -7,7 +7,6 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from '@/hooks/useAuth';
 import { EventProvider } from '@/components/layout/EventProvider';
-import { Skeleton } from '@/components/ui/skeleton';
 import { queryPersister, getPersistBuster, shouldPersistQuery } from '@/lib/query-persist';
 
 // Lazy loaded pages
