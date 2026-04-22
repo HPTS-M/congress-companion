@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Search, UserCheck, Check } from 'lucide-react';
@@ -6,10 +6,13 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
+import { MobilePagination } from '@/components/ui/mobile-pagination';
 import { useAuth } from '@/hooks/useAuth';
 import { useEvent } from '@/hooks/useEvent';
 import { useEventAttendees, useMyContacts, useSendContactRequest, useAcceptContact, useRejectContact, useCancelContactRequest } from '@/hooks/useContacts';
 import type { ContactRow, DirectoryAttendee } from '@/services/contacts.service';
+
+const PAGE_SIZE = 10;
 
 function getInitials(name: string) {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
@@ -19,7 +22,7 @@ function ContactSkeleton() {
   return (
     <div className="flex items-center gap-3 p-4">
       <Skeleton className="h-10 w-10 rounded-full" />
-      <div className="flex-1 space-y-1">
+      <div className="flex-1 space-y-1 min-w-0">
         <Skeleton className="h-4 w-32" />
         <Skeleton className="h-3 w-24" />
       </div>
@@ -41,34 +44,34 @@ function AttendeeCard({ attendee, contactStatus, onConnect, onTap, isSending }: 
 
   return (
     <div
-      className="flex items-center gap-3 p-4 border-b border-border last:border-b-0 cursor-pointer hover:bg-muted/50 transition-colors"
+      className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 border-b border-border last:border-b-0 cursor-pointer hover:bg-muted/50 transition-colors"
       onClick={onTap}
     >
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1A56A0] text-white text-sm font-semibold">
         {getInitials(attendee.full_name)}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-[15px] font-bold text-foreground truncate">{attendee.full_name}</p>
+        <p className="text-[14px] sm:text-[15px] font-bold text-foreground truncate">{attendee.full_name}</p>
         {attendee.specialty && (
-          <p className="text-[13px] text-muted-foreground truncate">{attendee.specialty}</p>
+          <p className="text-[12px] sm:text-[13px] text-muted-foreground truncate">{attendee.specialty}</p>
         )}
         {attendee.institution && (
-          <p className="text-[12px] text-muted-foreground truncate">{attendee.institution}</p>
+          <p className="text-[11px] sm:text-[12px] text-muted-foreground truncate">{attendee.institution}</p>
         )}
       </div>
-      <div onClick={e => e.stopPropagation()}>
+      <div onClick={e => e.stopPropagation()} className="shrink-0">
         {contactStatus === 'none' && (
-          <Button variant="outline" size="sm" onClick={onConnect} disabled={isSending}>
+          <Button variant="outline" size="sm" onClick={onConnect} disabled={isSending} className="text-xs px-2 sm:px-3">
             {t('connect')}
           </Button>
         )}
         {contactStatus === 'sent' && (
-          <Button variant="ghost" size="sm" disabled className="text-muted-foreground">
+          <Button variant="ghost" size="sm" disabled className="text-muted-foreground text-xs px-2 sm:px-3">
             {t('sent')}
           </Button>
         )}
         {contactStatus === 'accepted' && (
-          <Button variant="default" size="sm" disabled className="bg-[#00B89F] hover:bg-[#00B89F] text-white">
+          <Button variant="default" size="sm" disabled className="bg-[#00B89F] hover:bg-[#00B89F] text-white text-xs px-2 sm:px-3">
             <Check className="h-3 w-3 mr-1" />
             {t('connected')}
           </Button>
@@ -85,6 +88,8 @@ export default function Contacts() {
   const { attendee } = useAuth();
   const { event } = useEvent();
   const [search, setSearch] = useState('');
+  const [participantsPage, setParticipantsPage] = useState(1);
+  const [contactsPage, setContactsPage] = useState(1);
 
   const { data: attendees, isLoading: loadingAttendees } = useEventAttendees(event?.id);
   const { data: contacts, isLoading: loadingContacts } = useMyContacts(attendee?.id);
@@ -122,6 +127,15 @@ export default function Contacts() {
       );
   }, [attendees, search, myId]);
 
+  // Reset to page 1 when filter result shrinks
+  useEffect(() => { setParticipantsPage(1); }, [filteredAttendees.length]);
+
+  const participantsTotalPages = Math.max(1, Math.ceil(filteredAttendees.length / PAGE_SIZE));
+  const paginatedParticipants = useMemo(() => {
+    const start = (participantsPage - 1) * PAGE_SIZE;
+    return filteredAttendees.slice(start, start + PAGE_SIZE);
+  }, [filteredAttendees, participantsPage]);
+
   const pendingRequests = useMemo(() => {
     if (!contacts || !myId || !attendees) return [];
     return contacts
@@ -155,6 +169,13 @@ export default function Contacts() {
       })
       .filter(r => r.attendee);
   }, [contacts, myId, attendees]);
+
+  useEffect(() => { setContactsPage(1); }, [acceptedContacts.length]);
+  const contactsTotalPages = Math.max(1, Math.ceil(acceptedContacts.length / PAGE_SIZE));
+  const paginatedAccepted = useMemo(() => {
+    const start = (contactsPage - 1) * PAGE_SIZE;
+    return acceptedContacts.slice(start, start + PAGE_SIZE);
+  }, [acceptedContacts, contactsPage]);
 
   const handleConnect = (contactId: string) => {
     if (!event?.id || !myId) return;
@@ -198,7 +219,7 @@ export default function Contacts() {
                 {t('noParticipants')}
               </div>
             ) : (
-              filteredAttendees.map(a => {
+              paginatedParticipants.map(a => {
                 const info = contactMap.get(a.id);
                 return (
                   <AttendeeCard
@@ -213,6 +234,13 @@ export default function Contacts() {
               })
             )}
           </div>
+
+          <MobilePagination
+            currentPage={participantsPage}
+            totalPages={participantsTotalPages}
+            totalItems={filteredAttendees.length}
+            onPageChange={setParticipantsPage}
+          />
         </TabsContent>
 
         {/* TAB 2: Mis Contactos */}
@@ -229,21 +257,21 @@ export default function Contacts() {
                   </h3>
                   <div className="rounded-lg border border-border bg-card overflow-hidden">
                     {pendingRequests.map(({ contact, attendee: a }) => (
-                      <div key={contact.id} className="flex items-center gap-3 p-4 border-b border-border last:border-b-0">
+                      <div key={contact.id} className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 border-b border-border last:border-b-0">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1A56A0] text-white text-sm font-semibold">
                           {getInitials(a!.full_name)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[15px] font-bold text-foreground truncate">{a!.full_name}</p>
+                          <p className="text-[14px] sm:text-[15px] font-bold text-foreground truncate">{a!.full_name}</p>
                           {a!.specialty && (
-                            <p className="text-[13px] text-muted-foreground truncate">{a!.specialty}</p>
+                            <p className="text-[12px] sm:text-[13px] text-muted-foreground truncate">{a!.specialty}</p>
                           )}
                         </div>
-                        <div className="flex gap-2">
-                          <Button size="sm" className="bg-[#00B89F] hover:bg-[#00a08a] text-white" onClick={() => acceptContact.mutate(contact.id)}>
+                        <div className="flex flex-col sm:flex-row gap-1 sm:gap-2 shrink-0">
+                          <Button size="sm" className="bg-[#00B89F] hover:bg-[#00a08a] text-white text-xs px-2 sm:px-3" onClick={() => acceptContact.mutate(contact.id)}>
                             {t('accept')}
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => rejectContact.mutate(contact.id)}>
+                          <Button variant="ghost" size="sm" className="text-xs px-2 sm:px-3" onClick={() => rejectContact.mutate(contact.id)}>
                             {t('reject')}
                           </Button>
                         </div>
@@ -261,20 +289,20 @@ export default function Contacts() {
                   </h3>
                   <div className="rounded-lg border border-border bg-card overflow-hidden">
                     {sentRequests.map(({ contact, attendee: a }) => (
-                      <div key={contact.id} className="flex items-center gap-3 p-4 border-b border-border last:border-b-0">
+                      <div key={contact.id} className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 border-b border-border last:border-b-0">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1A56A0] text-white text-sm font-semibold">
                           {getInitials(a!.full_name)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[15px] font-bold text-foreground truncate">{a!.full_name}</p>
+                          <p className="text-[14px] sm:text-[15px] font-bold text-foreground truncate">{a!.full_name}</p>
                           {a!.specialty && (
-                            <p className="text-[13px] text-muted-foreground truncate">{a!.specialty}</p>
+                            <p className="text-[12px] sm:text-[13px] text-muted-foreground truncate">{a!.specialty}</p>
                           )}
                           <span className="inline-block mt-1 text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
                             {t('sent')}
                           </span>
                         </div>
-                        <Button variant="ghost" size="sm" onClick={() => cancelRequest.mutate(contact.id)} disabled={cancelRequest.isPending}>
+                        <Button variant="ghost" size="sm" className="text-xs px-2 sm:px-3 shrink-0" onClick={() => cancelRequest.mutate(contact.id)} disabled={cancelRequest.isPending}>
                           {t('cancel')}
                         </Button>
                       </div>
@@ -289,31 +317,40 @@ export default function Contacts() {
                   <p>{t('noContacts')}</p>
                 </div>
               ) : (
-                <div className="rounded-lg border border-border bg-card overflow-hidden">
-                  {acceptedContacts.map(({ attendee: a }) => (
-                    <div
-                      key={a!.id}
-                      className="flex items-center gap-3 p-4 border-b border-border last:border-b-0 cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => goToProfile(a!.id)}
-                    >
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1A56A0] text-white text-sm font-semibold">
-                        {getInitials(a!.full_name)}
+                <>
+                  <div className="rounded-lg border border-border bg-card overflow-hidden">
+                    {paginatedAccepted.map(({ attendee: a }) => (
+                      <div
+                        key={a!.id}
+                        className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 border-b border-border last:border-b-0 cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => goToProfile(a!.id)}
+                      >
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1A56A0] text-white text-sm font-semibold">
+                          {getInitials(a!.full_name)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[14px] sm:text-[15px] font-bold text-foreground truncate">{a!.full_name}</p>
+                          {a!.specialty && (
+                            <p className="text-[12px] sm:text-[13px] text-muted-foreground truncate">{a!.specialty}</p>
+                          )}
+                          {a!.institution && (
+                            <p className="text-[11px] sm:text-[12px] text-muted-foreground truncate">{a!.institution}</p>
+                          )}
+                        </div>
+                        <Button variant="outline" size="sm" className="text-xs px-2 sm:px-3 shrink-0" onClick={e => { e.stopPropagation(); goToProfile(a!.id); }}>
+                          {t('viewProfile')}
+                        </Button>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[15px] font-bold text-foreground truncate">{a!.full_name}</p>
-                        {a!.specialty && (
-                          <p className="text-[13px] text-muted-foreground truncate">{a!.specialty}</p>
-                        )}
-                        {a!.institution && (
-                          <p className="text-[12px] text-muted-foreground truncate">{a!.institution}</p>
-                        )}
-                      </div>
-                      <Button variant="outline" size="sm" onClick={e => { e.stopPropagation(); goToProfile(a!.id); }}>
-                        {t('viewProfile')}
-                      </Button>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+
+                  <MobilePagination
+                    currentPage={contactsPage}
+                    totalPages={contactsTotalPages}
+                    totalItems={acceptedContacts.length}
+                    onPageChange={setContactsPage}
+                  />
+                </>
               )}
             </>
           )}

@@ -21,7 +21,10 @@
     "showing": "Showing {{start}}-{{end}} of {{total}}",
     "previous": "Previous",
     "next": "Next",
-    "rowsPerPage": "Rows per page"
+    "rowsPerPage": "Rows per page",
+    "pageOf": "Page {{current}} of {{total}}",
+    "totalItems": "{{count}} items",
+    "label": "Pagination"
   },
   "offlineBanner": {
     "offline": "Offline — showing cached data",

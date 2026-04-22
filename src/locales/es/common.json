@@ -21,7 +21,10 @@
     "showing": "Mostrando {{start}}-{{end}} de {{total}}",
     "previous": "Anterior",
     "next": "Siguiente",
-    "rowsPerPage": "Filas por página"
+    "rowsPerPage": "Filas por página",
+    "pageOf": "Página {{current}} de {{total}}",
+    "totalItems": "{{count}} elementos",
+    "label": "Paginación"
   },
   "offlineBanner": {
     "offline": "Sin conexión — mostrando datos guardados",

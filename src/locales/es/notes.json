@@ -17,5 +17,14 @@
   "selectSession": "Sesión (opcional)",
   "back": "Volver",
   "cancel": "Cancelar",
-  "delete": "Eliminar"
+  "delete": "Eliminar",
+  "save": "Guardar",
+  "unsavedChanges": "Cambios sin guardar",
+  "noteSaved": "Nota guardada",
+  "discardTitle": "¿Descartar cambios?",
+  "discardDescription": "Tienes cambios sin guardar en esta nota. ¿Qué deseas hacer?",
+  "saveAndExit": "Guardar y salir",
+  "discard": "Descartar",
+  "keepEditing": "Seguir editando",
+  "exportError": "No se pudo exportar el PDF"
 }
