@@ -28,7 +28,61 @@
   },
   "layout": {
     "backToApp": "Volver a la app",
-    "logout": "Cerrar sesión"
+    "logout": "Cerrar sesión",
+    "profile": "Mi Perfil"
+  },
+  "profile": {
+    "title": "Mi Perfil",
+    "back": "Volver",
+    "accountInfo": "Información de cuenta",
+    "email": "Correo",
+    "userId": "ID de usuario"
+  },
+  "mfa": {
+    "card": {
+      "title": "Seguridad de la cuenta",
+      "description": "Protege tu cuenta con autenticación de dos factores (2FA).",
+      "toggleLabel": "Autenticación de dos factores",
+      "enabledHint": "2FA está activo. Se solicitará el código al iniciar sesión.",
+      "disabledHint": "Activa 2FA para añadir una capa extra de seguridad.",
+      "activeBadge": "Activo",
+      "compatibleApps": "Compatible con Google Authenticator, Microsoft Authenticator, Authy, 1Password, Bitwarden y Apple Passwords."
+    },
+    "setup": {
+      "title": "Configurar 2FA",
+      "subtitle": "Escanea el código QR con tu app autenticadora.",
+      "step1": "Abre tu app autenticadora (Google Authenticator, Authy, etc.).",
+      "step2": "Escanea el código QR o ingresa el código manual.",
+      "step3": "Introduce el código de 6 dígitos que aparece en la app.",
+      "manualCode": "Código manual (si no puedes escanear):",
+      "copy": "Copiar",
+      "enterCode": "Código de verificación",
+      "verify": "Verificar y activar",
+      "verifying": "Verificando...",
+      "cancel": "Cancelar",
+      "success": "2FA activado correctamente",
+      "invalidCode": "Código inválido. Intenta de nuevo.",
+      "enrollError": "No se pudo iniciar la configuración de 2FA"
+    },
+    "verify": {
+      "title": "Verificación de dos factores",
+      "subtitle": "Introduce el código de 6 dígitos de tu app autenticadora.",
+      "submit": "Verificar",
+      "verifying": "Verificando...",
+      "success": "Verificación exitosa",
+      "invalidCode": "Código incorrecto. Intenta de nuevo.",
+      "lostAccess": "¿Perdiste el acceso a tu app? Contacta a un superusuario para resetear tu 2FA."
+    },
+    "disable": {
+      "title": "Desactivar 2FA",
+      "warning": "Tu cuenta quedará protegida solo por contraseña. Confirma con tu código actual para desactivar.",
+      "enterCurrentCode": "Código actual de la app",
+      "confirm": "Desactivar 2FA",
+      "disabling": "Desactivando...",
+      "cancel": "Cancelar",
+      "success": "2FA desactivado",
+      "invalidCode": "Código incorrecto"
+    }
   },
   "dashboard": {
     "title": "Dashboard",
