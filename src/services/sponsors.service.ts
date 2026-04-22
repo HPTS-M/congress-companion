@@ -4,13 +4,9 @@ import { measure } from '@/lib/perf';
 const LEVEL_ORDER = ['gold', 'silver', 'bronze', 'exhibitor'];
 const BUCKET = 'event-sponsors';
 
-async function resolveStorageUrl(path: string | null): Promise<string | null> {
+function resolveStorageUrl(path: string | null): string | null {
   if (!path) return null;
-  const { data, error } = await supabase.storage
-    .from(BUCKET)
-    .createSignedUrl(path, 3600);
-  if (error) return null;
-  return data.signedUrl;
+  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
 export interface Sponsor {
