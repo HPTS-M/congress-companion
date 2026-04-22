@@ -2,11 +2,13 @@ import { lazy, Suspense } from 'react';
 import { Toaster } from '@/components/ui/toaster';
 import { Toaster as Sonner } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from '@/hooks/useAuth';
 import { EventProvider } from '@/components/layout/EventProvider';
 import { Skeleton } from '@/components/ui/skeleton';
+import { queryPersister, getPersistBuster, shouldPersistQuery } from '@/lib/query-persist';
 
 // Lazy loaded pages
 const Index = lazy(() => import('@/pages/Index'));
@@ -67,7 +69,7 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 60 * 1000, // 1 min — fresh enough without hammering the server
-      gcTime: 10 * 60 * 1000, // collect unused cache after 10 min (memory cap)
+      gcTime: 24 * 60 * 60 * 1000, // 24h so persisted snapshot survives reload
       retry: 1,
       refetchOnReconnect: 'always',
       refetchOnWindowFocus: false, // avoid double fetch when returning from background
@@ -84,7 +86,19 @@ function PageLoader() {
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
+  <PersistQueryClientProvider
+    client={queryClient}
+    persistOptions={{
+      persister: queryPersister,
+      maxAge: 24 * 60 * 60 * 1000, // 24h cap on persisted entries
+      // Initial buster — useAuth purges the persister on logout / attendee switch.
+      buster: getPersistBuster(null),
+      dehydrateOptions: {
+        shouldDehydrateQuery: (query) =>
+          query.state.status === 'success' && shouldPersistQuery(query.queryKey),
+      },
+    }}
+  >
     <TooltipProvider>
       <Toaster />
       <Sonner />
