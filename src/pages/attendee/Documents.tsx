@@ -53,7 +53,16 @@ export default function Documents() {
     setDownloading(doc.id);
     try {
       const url = await documentsService.getSignedUrl(doc.file_path);
-      window.open(url, '_blank');
+      // Synthetic <a download> avoids mobile pop-up blockers triggered by
+      // window.open() called after an await.
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${doc.title}.${doc.file_type ?? 'pdf'}`;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
     } catch {
       toast({
         title: 'Error',
