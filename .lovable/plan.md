@@ -1,134 +1,104 @@
 
 
-## Plan — Implementación de los 3 cambios coordinados (RLS ya corregido)
+## Plan — Eliminar servicios con tickets asignados sin error
 
-### Contexto
+### Diagnóstico (verificado en BD)
 
-La policy RLS de UPDATE en `sponsors` ya fue corregida en BD. Ahora aplicamos las 3 capas del frontend que faltan para garantizar que el flujo de edición sea robusto: fail-fast en el service, reconciliación garantizada en el hook, y `editingSponsor` derivado del cache vivo en la página.
+Al intentar eliminar un servicio (`service_catalog`) que tiene asignados (`attendee_services`), Postgres lanza **foreign key violation (23503)** porque la FK `fk_service_catalog` **NO tiene `ON DELETE CASCADE`**.
+
+```
+attendee_services.service_catalog_id  → service_catalog(id)   [NO CASCADE] ❌
+provider_services.service_catalog_id  → service_catalog(id)   [CASCADE] ✅
+service_tickets.attendee_service_id   → attendee_services(id) [CASCADE] ✅
+```
+
+**Estado real verificado:**
+- "Almuerzo Día 1": 2 asignados → DELETE falla con 23503.
+- "desayuno 3", "Prueba", "Tour Comuna 13": 0 asignados → DELETE debería funcionar; el toast "Error al eliminar servicio" visible probablemente proviene de un intento previo sobre un servicio con asignados (Sonner mantiene el toast unos segundos).
+
+Además, el código actual:
+- `Logistics.tsx:124` usa `catch {}` sin diferenciar el tipo de error → siempre muestra el mismo mensaje genérico.
+- `admin-logistics.service.ts:remove()` no detecta el caso 23503 ni explica al usuario qué hacer.
 
 ---
 
-### Cambio 1 — `src/services/admin-sponsors.service.ts`
+### Solución (3 capas coordinadas)
 
-Separar UPDATE de SELECT en el método `update()`. Detectar 0 filas afectadas como error explícito.
+#### Capa 1 — Migración de BD: añadir `ON DELETE CASCADE` a la FK faltante
+
+`supabase/migrations/<timestamp>_cascade_attendee_services_on_catalog_delete.sql`
+
+```sql
+ALTER TABLE public.attendee_services
+  DROP CONSTRAINT fk_service_catalog;
+
+ALTER TABLE public.attendee_services
+  ADD CONSTRAINT fk_service_catalog
+  FOREIGN KEY (service_catalog_id)
+  REFERENCES public.service_catalog(id)
+  ON DELETE CASCADE;
+```
+
+**Efecto:** al borrar un servicio del catálogo, sus `attendee_services` se borran automáticamente, y por el cascade existente en `service_tickets.attendee_service_id` los tickets también se eliminan en la misma transacción. Nada queda huérfano.
+
+#### Capa 2 — Servicio: detectar 23503 y lanzar error tipado
+
+`src/services/admin-logistics.service.ts` — método `remove()`:
 
 ```ts
-async update(
-  id: string,
-  form: Partial<SponsorFormData> & { logo_url?: string | null; materials_url?: string | null },
-): Promise<SponsorRow> {
-  // 1. UPDATE explícito con count exacto. Si la policy bloquea o el id no existe, count === 0.
-  const { error: updateError, count } = await supabase
-    .from('sponsors')
-    .update(form, { count: 'exact' })
-    .eq('id', id);
-  if (updateError) throw new Error(updateError.message);
-  if (count === 0) {
-    throw new Error('update_no_rows_affected');
+async remove(id: string): Promise<void> {
+  const { error } = await supabase.from('service_catalog').delete().eq('id', id);
+  if (error) {
+    if (error.code === '23503') throw new Error('SERVICE_HAS_DEPENDENCIES');
+    throw new Error(error.message);
   }
-
-  // 2. SELECT separado para devolver datos canónicos frescos.
-  const { data, error: selectError } = await supabase
-    .from('sponsors')
-    .select('*')
-    .eq('id', id)
-    .single();
-  if (selectError) throw new Error(selectError.message);
-  return data as SponsorRow;
 },
 ```
 
-**Cambios clave:**
-- Tipo de retorno: `Promise<SponsorRow>` (no nullable).
-- Lanza `update_no_rows_affected` si UPDATE no toca filas → toast rojo en UI.
-- SELECT separado → datos canónicos garantizados para reconciliar cache.
+(Defensa en profundidad por si en algún entorno el cascade aún no se aplicó.)
 
----
+#### Capa 3 — UI: confirmación contextual + manejo de error específico
 
-### Cambio 2 — `src/hooks/useAdminSponsors.ts`
+`src/pages/admin/Logistics.tsx`:
 
-Simplificar `updateMutation`: `onSuccess` siempre recibe `SponsorRow`; mover `invalidateQueries` a `onSettled` para refetch garantizado incluso ante error.
+1. **Diálogo de confirmación de borrado**: cuando el servicio tiene `total_tickets > 0`, mostrar texto adicional advirtiendo que se eliminarán también los tickets de los X asignados. Para esto, cambiar `deletingId: string | null` por `deleting: ServiceCatalogRow | null` para tener acceso al servicio completo.
 
+2. **Manejar error específico** en `handleDelete`:
 ```ts
-const updateMutation = useMutation({
-  mutationFn: ({ id, form }: { id: string; form: Parameters<typeof adminSponsorsService.update>[1] }) =>
-    adminSponsorsService.update(id, form),
-  onMutate: async ({ id, form }) => {
-    await qc.cancelQueries({ queryKey: key });
-    const previous = qc.getQueryData<SponsorRow[]>(key);
-    qc.setQueryData<SponsorRow[]>(key, (old) =>
-      (old ?? []).map((s) => (s.id === id ? ({ ...s, ...form } as SponsorRow) : s)),
-    );
-    return { previous };
-  },
-  onError: (_err, _vars, ctx) => {
-    if (ctx?.previous) qc.setQueryData(key, ctx.previous);
-  },
-  onSuccess: (updated) => {
-    // updated SIEMPRE es SponsorRow real (contrato del service ya no es nullable)
-    qc.setQueryData<SponsorRow[]>(key, (old) =>
-      (old ?? []).map((s) => (s.id === updated.id ? updated : s)),
-    );
-  },
-  onSettled: () => {
-    // Refetch garantizado: corre en éxito Y en error → cache siempre converge a BD real
-    qc.invalidateQueries({ queryKey: key });
-  },
-});
+} catch (err: any) {
+  if (err?.message === 'SERVICE_HAS_DEPENDENCIES') {
+    toast.error(t('logistics.deleteHasDependenciesError'));
+  } else {
+    toast.error(t('logistics.deleteError'));
+  }
+}
 ```
 
-**Cambios clave:**
-- Eliminar el `if (updated)` del `onSuccess` (ya no hace falta).
-- `invalidateQueries` se mueve de `onSuccess` a `onSettled` → garantiza refetch incluso en rollback.
+3. **Nuevas claves i18n** en `src/locales/es/admin.json` y `src/locales/en/admin.json`:
+```json
+"logistics": {
+  "deleteConfirmWithAssignees": "Este servicio tiene {{count}} asignación(es). Al eliminarlo se borrarán también todas sus asignaciones y tickets. ¿Continuar?",
+  "deleteHasDependenciesError": "No se pudo eliminar el servicio por dependencias. Intenta nuevamente.",
+}
+```
 
 ---
 
-### Cambio 3 — `src/pages/admin/Sponsors.tsx`
+### Verificación post-fix
 
-Reemplazar el snapshot local `editingSponsor` por derivación del cache vivo vía `useMemo`. Mantener solo el `id` en estado local.
-
-```tsx
-const [editingSponsorId, setEditingSponsorId] = useState<string | null>(null);
-
-const editingSponsor = useMemo(
-  () => (editingSponsorId ? sponsors.find((s) => s.id === editingSponsorId) ?? null : null),
-  [sponsors, editingSponsorId],
-);
-
-const handleEdit = useCallback((s: SponsorRow) => {
-  setEditingSponsorId(s.id);
-  setModalOpen(true);
-}, []);
-
-const handleCloseModal = useCallback(() => {
-  setModalOpen(false);
-  setEditingSponsorId(null);
-}, []);
-```
-
-**Cambios clave:**
-- `editingSponsor` ahora se recalcula automáticamente cuando `sponsors` (cache) cambia → optimistic update y refetch se reflejan inmediatamente en el modal.
-- El `key={editingSponsor?.id ?? 'new'}` ya existente sigue funcionando.
-- El `useEffect` de sync por `sponsor?.id` en `SponsorModal` (ya implementado) recibe siempre el dato más fresco.
+1. Eliminar "Almuerzo Día 1" (2 asignados) → diálogo advierte de los 2 asignados → confirmar → toast verde, tabla actualiza, BD: servicio + 2 attendee_services + sus tickets eliminados.
+2. Eliminar "desayuno 3" (0 asignados) → diálogo simple → confirmar → toast verde.
+3. Cancelar diálogo → no pasa nada.
+4. Si por algún motivo la migración no corrió (caso defensivo): toast rojo específico "No se pudo eliminar por dependencias".
 
 ---
 
 ### Lo que NO se toca
 
-- `src/components/admin/sponsors/SponsorModal.tsx` — el `useEffect` de sync ya quedó correcto.
-- RLS policies / schema — ya corregido en BD.
-- `createMutation` y `deleteMutation` — siguen funcionando.
-
----
-
-### Verificación post-implementación
-
-1. Editar "Al Pharma" → cambiar mensaje WhatsApp → Guardar.
-   - Toast verde, modal cierra, tabla muestra valor nuevo.
-   - Query directa BD: valor nuevo persistido.
-2. Reabrir "Al Pharma" → modal muestra valor nuevo inmediatamente.
-3. Si la policy llegara a fallar (escenario imposible ahora pero defensivo): toast rojo + rollback automático de la tabla.
-4. Editar otro sponsor → datos correctos sin leakage.
+- `useAdminLogistics.ts` — patrón de mutation actual es correcto.
+- RLS policies de `service_catalog` — ya permiten admin DELETE vía `Admins manage org service catalog`.
+- `cancelService` / `reactivateService` — sin cambios.
+- `provider_services` — ya tiene cascade correcto.
 
 ---
 
@@ -136,9 +106,11 @@ const handleCloseModal = useCallback(() => {
 
 | Archivo | Cambio |
 |---|---|
-| `src/services/admin-sponsors.service.ts` | `update()` separa UPDATE+count de SELECT, lanza si 0 filas, retorna `SponsorRow` no nullable |
-| `src/hooks/useAdminSponsors.ts` | `updateMutation`: `onSuccess` simplificado, `invalidateQueries` movido a `onSettled` |
-| `src/pages/admin/Sponsors.tsx` | `editingSponsor` derivado del cache vivo con `useMemo`, solo `editingSponsorId` en estado |
+| `supabase/migrations/<new>.sql` | DROP + ADD constraint con `ON DELETE CASCADE` |
+| `src/services/admin-logistics.service.ts` | `remove()` detecta error 23503 y lanza `SERVICE_HAS_DEPENDENCIES` |
+| `src/pages/admin/Logistics.tsx` | `deletingId` → `deleting: ServiceCatalogRow \| null`; diálogo con advertencia contextual; toast diferenciado |
+| `src/locales/es/admin.json` | 2 claves nuevas (`deleteConfirmWithAssignees`, `deleteHasDependenciesError`) |
+| `src/locales/en/admin.json` | mismas 2 claves traducidas |
 
-**Total: 3 archivos, ~25 líneas modificadas.**
+**Total: 5 archivos, ~25 líneas. Resuelve la causa raíz (FK sin cascade) y mejora la experiencia de usuario.**
 
