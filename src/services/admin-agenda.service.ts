@@ -242,11 +242,9 @@ export const adminAgendaService = {
 
   getSpeakerPhotoUrl: async (path: string): Promise<string | null> => {
     if (!path) return null;
-    const { data, error } = await supabase.storage
-      .from('speaker-photos')
-      .createSignedUrl(path, 3600);
-    if (error) return null;
-    return data.signedUrl;
+    // Bucket is now public — getPublicUrl is synchronous.
+    // Signature kept async for backward compatibility with SpeakerPhotoUpload.
+    return supabase.storage.from('speaker-photos').getPublicUrl(path).data.publicUrl;
   },
 
   deleteSpeakerPhoto: async (path: string): Promise<void> => {

@@ -101,12 +101,13 @@ export function EventBrandingCard() {
         .upload(path, file, { upsert: true, contentType: file.type });
       if (uploadError) throw uploadError;
 
-      const { data: signedData, error: signError } = await supabase.storage
+      // Bucket is public — public URL never expires (no more 1-year time bomb).
+      const publicUrl = supabase.storage
         .from('event-sponsors')
-        .createSignedUrl(path, 60 * 60 * 24 * 365); // 1 year
-      if (signError || !signedData?.signedUrl) throw signError || new Error('No URL');
+        .getPublicUrl(path).data.publicUrl;
+      if (!publicUrl) throw new Error('No URL');
 
-      await updateSettings({ [key]: signedData.signedUrl });
+      await updateSettings({ [key]: publicUrl });
       toast({ title: t('settings.saved') });
     } catch {
       toast({ title: t('settings.error'), variant: 'destructive' });

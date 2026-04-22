@@ -4,13 +4,9 @@ import { measure } from '@/lib/perf';
 const LEVEL_ORDER = ['gold', 'silver', 'bronze', 'exhibitor'];
 const BUCKET = 'event-sponsors';
 
-async function resolveStorageUrl(path: string | null): Promise<string | null> {
+function resolveStorageUrl(path: string | null): string | null {
   if (!path) return null;
-  const { data, error } = await supabase.storage
-    .from(BUCKET)
-    .createSignedUrl(path, 3600);
-  if (error) return null;
-  return data.signedUrl;
+  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
 export interface Sponsor {
@@ -51,23 +47,12 @@ export const sponsorsService = {
         return a.name.localeCompare(b.name);
       });
 
-      // Flatten signed-URL generation into a single Promise.all over BOTH urls
-      // for ALL sponsors, instead of N rounds of 2 sequential awaits.
-      const urlJobs: Promise<string | null>[] = [];
-      const indexMap: { idx: number; field: 'logo_url' | 'materials_url' }[] = [];
-      sorted.forEach((s, idx) => {
-        urlJobs.push(resolveStorageUrl(s.logo_url));
-        indexMap.push({ idx, field: 'logo_url' });
-        urlJobs.push(resolveStorageUrl(s.materials_url));
-        indexMap.push({ idx, field: 'materials_url' });
-      });
-
-      const resolvedUrls = await Promise.all(urlJobs);
-      const out = sorted.map((s) => ({ ...s }));
-      resolvedUrls.forEach((url, i) => {
-        const meta = indexMap[i];
-        out[meta.idx][meta.field] = url;
-      });
+      // getPublicUrl is synchronous — map URLs directly without Promise.all.
+      const out = sorted.map((s) => ({
+        ...s,
+        logo_url: resolveStorageUrl(s.logo_url),
+        materials_url: resolveStorageUrl(s.materials_url),
+      }));
 
       return out;
     });
@@ -83,15 +68,10 @@ export const sponsorsService = {
     if (error) throw new Error(error.message);
     const sponsor = data as Sponsor;
 
-    const [logoUrl, materialsUrl] = await Promise.all([
-      resolveStorageUrl(sponsor.logo_url),
-      resolveStorageUrl(sponsor.materials_url),
-    ]);
-
     return {
       ...sponsor,
-      logo_url: logoUrl,
-      materials_url: materialsUrl,
+      logo_url: resolveStorageUrl(sponsor.logo_url),
+      materials_url: resolveStorageUrl(sponsor.materials_url),
     };
   },
 };
