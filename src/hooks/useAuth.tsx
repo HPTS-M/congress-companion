@@ -36,6 +36,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
+    // Tell the splash screen what we're doing right now.
+    // Listener lives in index.html and works before React mounts.
+    window.dispatchEvent(
+      new CustomEvent('app:init', { detail: { step: 'Verificando sesión…' } }),
+    );
+
     // Set up auth listener BEFORE checking session
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
