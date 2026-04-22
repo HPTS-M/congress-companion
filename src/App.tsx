@@ -7,7 +7,6 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from '@/hooks/useAuth';
 import { EventProvider } from '@/components/layout/EventProvider';
-import { Skeleton } from '@/components/ui/skeleton';
 import { queryPersister, getPersistBuster, shouldPersistQuery } from '@/lib/query-persist';
 
 // Lazy loaded pages
@@ -80,7 +79,7 @@ const queryClient = new QueryClient({
 function PageLoader() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
-      <Skeleton className="h-8 w-32" />
+      <div className="h-8 w-32 animate-pulse rounded-md bg-muted" />
     </div>
   );
 }

@@ -29,13 +29,23 @@ export function usePrefetchOfflineBundle(): void {
 
     const tasks: Promise<unknown>[] = [
       qc.prefetchQuery({
-        queryKey: ['agenda', eventId],
+        queryKey: ['activities', eventId],
         queryFn: () => agendaService.getActivities(eventId),
         staleTime: 5 * 60 * 1000,
       }),
       qc.prefetchQuery({
-        queryKey: ['agenda-interest-counts', eventId],
+        queryKey: ['session-interests', eventId],
         queryFn: () => agendaService.getInterestCounts(eventId),
+        staleTime: 60 * 1000,
+      }),
+      qc.prefetchQuery({
+        queryKey: ['user-interests', eventId, attendeeId],
+        queryFn: () => agendaService.getUserInterests(eventId, attendeeId),
+        staleTime: 60 * 1000,
+      }),
+      qc.prefetchQuery({
+        queryKey: ['user-checkins', attendeeId],
+        queryFn: () => agendaService.getUserCheckins(attendeeId),
         staleTime: 60 * 1000,
       }),
       qc.prefetchQuery({
