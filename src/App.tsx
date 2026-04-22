@@ -27,6 +27,8 @@ const AdminStaff = lazy(() => import('@/pages/admin/Staff'));
 const AdminReports = lazy(() => import('@/pages/admin/Reports'));
 const AdminPolls = lazy(() => import('@/pages/admin/Polls'));
 const AdminEventConfig = lazy(() => import('@/pages/admin/EventConfig'));
+const AdminProfile = lazy(() => import('@/pages/admin/Profile'));
+const AdminMfaVerify = lazy(() => import('@/pages/admin/MfaVerify'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 
 // Staff portal
