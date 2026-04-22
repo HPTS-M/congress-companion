@@ -1,65 +1,60 @@
 
+## Plan — Corregir el import para que reconozca “Código del congreso” sin cambiar el Excel
 
-## Plan — Eliminar validación del Código del Congreso e importar tal cual viene
+### Causa raíz confirmada
+El bloqueo no viene de que el dato esté vacío en tu archivo, sino de que el importador **no está leyendo esa columna**.
 
-### Qué quieres
+Hoy hay una inconsistencia interna:
 
-Que el sistema **deje de validar** el campo `Código del congreso` (`external_credential_code`) y simplemente **lo guarde como venga** en el Excel — sin regex, sin longitud mínima/máxima, sin rechazos por caracteres especiales.
+- La plantilla descargable del modal exporta la columna como:
+  `Código del congreso`
+- Pero el validador (`src/lib/import-validators.ts`) solo reconoce aliases como:
+  `Código credencial`, `Codigo credencial`, `codigo_credencial`, `credential_code`, `external_credential_code`
 
-### Cambio único
+Como `Código del congreso` no está en `HEADER_ALIASES.external_credential_code`, el sistema la ignora, deja `external_credential_code = ''`, y luego dispara el error:
+`Campo obligatorio`
 
-**Archivo: `src/lib/import-validators.ts`**
+Por eso te bloquea los 814 registros aunque la columna sí esté diligenciada.
 
-1. **Quitar la validación de `external_credential_code`** en la función `validateRow`:
-   - Eliminar la verificación contra `EXTERNAL_CODE_REGEX`.
-   - Eliminar el chequeo de longitud (3-50).
-   - Eliminar el error "Código de credencial externa inválido".
+### Qué voy a cambiar
 
-2. **Mantener la normalización mínima** en `normalizeRow`:
-   - Casteo de número → string (para que `10851` no llegue como `10851.0`).
-   - Trim de espacios y caracteres invisibles.
-   - **Sin validación posterior** — lo que sea queda.
+#### 1) Alinear el alias del encabezado con la plantilla real
+Archivo: `src/lib/import-validators.ts`
 
-3. **Mantener `EXTERNAL_CODE_REGEX` exportado** (otros lugares pueden usarlo), pero **no aplicarlo** durante el import.
+Actualizar `HEADER_ALIASES.external_credential_code` para aceptar explícitamente:
 
-### Lo que NO cambia
+- `Código del congreso`
+- `Codigo del congreso`
+- `código del congreso`
+- `codigo del congreso`
 
-- Validación de `email` (sigue estricta — sin email no se puede enviar credenciales).
-- Validación de `full_name` (sigue tolerante con tildes/ñ).
-- Validación de `specialty` / `institution` (sigue tolerante).
-- Lógica bloqueante / permisivo / warnings.
-- Detección de duplicados por código externo (sigue funcionando — usa el valor tal cual).
-- Servicio de upsert, modal, mapping de estados.
+Y mantener los aliases anteriores por compatibilidad.
 
-### Tests a actualizar
+#### 2) Mantener el comportamiento actual del campo
+No voy a volver a poner validación de formato sobre el valor.
+El campo seguirá:
+- leyéndose tal cual viene del Excel
+- convirtiendo números a string cuando aplique
+- exigiéndose solo si el toggle está activo
 
-**Archivo: `src/lib/import-validators.test.ts`**
+#### 3) Cubrir el caso con tests
+Archivo: `src/lib/import-validators.test.ts`
 
-- Eliminar/actualizar los tests que esperaban rechazo del código externo (caracteres especiales, longitud).
-- Agregar tests que confirman:
-  - `"CMP 12345"` (con espacio) → válido.
-  - `"NIT-900.123.456"` (con puntos) → válido.
-  - `"12"` (corto) → válido.
-  - `""` (vacío) → válido (campo opcional).
-  - `"código-ñ-001"` (con ñ y tilde) → válido.
-
-### Riesgo aceptado
-
-- **Duplicados silenciosos posibles**: `"CMP-12345"` y `"cmp 12345"` ahora son tratados como diferentes por el sistema. Si tu organización ya garantiza que los códigos vienen consistentes desde el sistema externo, no es problema.
-- **No hay normalización agresiva** (no se quita espacios internos, ni se uniforma mayúsculas). Lo que llega es lo que se guarda.
+Agregar pruebas para confirmar que:
+- `Código del congreso` se mapea correctamente a `external_credential_code`
+- un valor como `10851` se reconoce como presente
+- `validateRow(..., { externalCredentialsRequired: true })` ya no marque `required` cuando el archivo usa ese encabezado
 
 ### Resultado esperado
+Con tu mismo archivo actual, sin editar el Excel:
 
-Recargas el Excel de 814 filas → todas las filas que solo fallaban por el código externo ahora pasan → solo quedan bloqueadas las que tienen problemas reales (email malformado, nombre vacío).
+- el import dejará de marcar `Código del congreso: Campo obligatorio`
+- las filas pasarán a validarse con el valor real de esa columna
+- solo quedarán bloqueadas filas con problemas reales en otros campos, si existieran
 
-### Archivos modificados
+### Archivos involucrados
+- `src/lib/import-validators.ts`
+- `src/lib/import-validators.test.ts`
 
-- `src/lib/import-validators.ts` — remover bloque de validación de `external_credential_code`.
-- `src/lib/import-validators.test.ts` — ajustar tests al nuevo comportamiento permisivo.
-
-### Verificación post-cambio
-
-1. Corro `npm test` para asegurar que los tests pasan con la nueva lógica.
-2. Tú recargas el Excel → me dices cuántas filas quedaron bloqueadas (deberían ser muy pocas o ninguna).
-3. Confirmamos en la base que los códigos `10851`, `10850`, etc. se guardaron correctamente.
-
+### Verificación
+Después del cambio, la validación debe aceptar archivos generados por la plantilla oficial del sistema y el contador ya no debería mostrar `814 bloqueado` por ese motivo.
