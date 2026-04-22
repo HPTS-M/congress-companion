@@ -74,25 +74,49 @@ export function SponsorModal({ open, onClose, eventId, sponsor, onSaved }: Props
   const isEdit = !!sponsor;
   const { createSponsor, updateSponsor, isCreating, isUpdating } = useAdminSponsors(eventId);
 
-  const [name, setName] = useState(sponsor?.name ?? '');
-  const [level, setLevel] = useState(sponsor?.level ?? 'gold');
-  const [category, setCategory] = useState(sponsor?.category ?? 'pharmaceutical');
-  const [description, setDescription] = useState(sponsor?.description ?? '');
-  const [standLocation, setStandLocation] = useState(sponsor?.stand_location ?? '');
-  const [websiteUrl, setWebsiteUrl] = useState(sponsor?.website_url ?? '');
-  const [contactEmail, setContactEmail] = useState(sponsor?.contact_email ?? '');
-  const initialPhone = useMemo(() => parsePhoneE164(sponsor?.whatsapp ?? null), [sponsor?.whatsapp]);
-  const [whatsappDialCode, setWhatsappDialCode] = useState(initialPhone.dialCode);
-  const [whatsappNumber, setWhatsappNumber] = useState(initialPhone.number);
-  const [whatsappMessage, setWhatsappMessage] = useState(sponsor?.whatsapp_message ?? '');
-  const [videoUrl, setVideoUrl] = useState(sponsor?.video_url ?? '');
-  const [linkedin, setLinkedin] = useState(sponsor?.social_linkedin ?? '');
-  const [instagram, setInstagram] = useState(sponsor?.social_instagram ?? '');
+  const [name, setName] = useState('');
+  const [level, setLevel] = useState<string>('gold');
+  const [category, setCategory] = useState<string>('pharmaceutical');
+  const [description, setDescription] = useState('');
+  const [standLocation, setStandLocation] = useState('');
+  const [websiteUrl, setWebsiteUrl] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [whatsappDialCode, setWhatsappDialCode] = useState('57');
+  const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [whatsappMessage, setWhatsappMessage] = useState('');
+  const [videoUrl, setVideoUrl] = useState('');
+  const [linkedin, setLinkedin] = useState('');
+  const [instagram, setInstagram] = useState('');
 
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [materialsFile, setMaterialsFile] = useState<File | null>(null);
   const [removeLogo, setRemoveLogo] = useState(false);
   const [removeMaterials, setRemoveMaterials] = useState(false);
+
+  // Sync state with sponsor prop when its identity changes (open, cache refetch,
+  // optimistic update). Depends only on id to avoid loops from object reference changes.
+  useEffect(() => {
+    setName(sponsor?.name ?? '');
+    setLevel(sponsor?.level ?? 'gold');
+    setCategory(sponsor?.category ?? 'pharmaceutical');
+    setDescription(sponsor?.description ?? '');
+    setStandLocation(sponsor?.stand_location ?? '');
+    setWebsiteUrl(sponsor?.website_url ?? '');
+    setContactEmail(sponsor?.contact_email ?? '');
+    const parsed = parsePhoneE164(sponsor?.whatsapp ?? null);
+    setWhatsappDialCode(parsed.dialCode);
+    setWhatsappNumber(parsed.number);
+    setWhatsappMessage(sponsor?.whatsapp_message ?? '');
+    setVideoUrl(sponsor?.video_url ?? '');
+    setLinkedin(sponsor?.social_linkedin ?? '');
+    setInstagram(sponsor?.social_instagram ?? '');
+    setLogoFile(null);
+    setMaterialsFile(null);
+    setRemoveLogo(false);
+    setRemoveMaterials(false);
+    setErrors({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sponsor?.id]);
 
   const [errors, setErrors] = useState<Errors>({});
   const [duplicatePrompt, setDuplicatePrompt] = useState<{ existingId: string; name: string } | null>(null);
