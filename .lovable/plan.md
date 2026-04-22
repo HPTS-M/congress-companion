@@ -1,159 +1,116 @@
 
 
-## Plan — Fix: Cambios del modal "Editar patrocinador" no se reflejan
+## Plan — Fix: El modal "Editar Patrocinador" muestra valores viejos al reabrir
 
-### Diagnóstico
+### Diagnóstico (verificado en BD + código)
 
-Inspeccioné el flujo completo (modal → hook → service → BD) y verifiqué el estado real de la tabla `sponsors`. Hallazgos:
+**Estado en BD (confirmado vía query):**
+"Al Pharma" tiene `whatsapp: 3136985667` y `whatsapp_message: "prueba"` correctamente persistidos.
 
-**Estado en BD (verificado):**
-- El patrocinador "Al Pharma" SÍ tiene `whatsapp_message: "prueba"` y `whatsapp: "3136985667"` persistidos.
-- Otros patrocinadores tienen `whatsapp` en formato E.164 correcto (`+573009876543`), confirmando que el modal sí escribe al menos algunos campos.
-- **Conclusión:** los cambios SÍ llegan a la BD, pero el usuario percibe que "no se toman" por dos problemas combinados.
+**La BD SÍ se actualiza.** El problema es 100% del frontend: el modal muestra valores viejos.
 
-**Problema 1 — Cache no se actualiza optimísticamente tras `update`**
+**Causa raíz real:**
 
-`src/hooks/useAdminSponsors.ts` líneas 57-61:
-```ts
-const updateMutation = useMutation({
-  mutationFn: ({ id, form }) => adminSponsorsService.update(id, form),
-  onSuccess: () => qc.invalidateQueries({ queryKey: key }),  // ← solo invalida
-});
+`src/pages/admin/Sponsors.tsx` línea 246 monta el modal así:
+```tsx
+{modalOpen && event && (
+  <SponsorModal ... sponsor={editingSponsor} />
+)}
 ```
 
-Comparado con `createMutation` que SÍ tiene `onMutate` con actualización optimista y `onSuccess` que reemplaza la fila optimista por la real:
-- Tras `update`, `invalidateQueries` dispara un refetch async.
-- Mientras el refetch viaja, la lista de la página y el `editingSponsor` (que se pasa al modal en la próxima edición) usan datos stale.
-- Si el usuario reabre el modal antes de que el refetch llegue, ve los valores viejos.
+Sin `key`. React reutiliza la misma instancia del componente entre aperturas consecutivas. Cuando el modal se cierra (`modalOpen=false`) y se reabre (`modalOpen=true`), si pasa rápido React puede reutilizar el árbol.
 
-**Problema 2 — `.single()` post-UPDATE puede lanzar error si RLS filtra**
-
-`src/services/admin-sponsors.service.ts` línea 79-87:
-```ts
-const { data, error } = await supabase
-  .from('sponsors')
-  .update(form)
-  .eq('id', id)
-  .select()
-  .single();
+Pero el problema crítico está en `SponsorModal.tsx` líneas 77-90:
+```tsx
+const [name, setName] = useState(sponsor?.name ?? '');
+const [whatsappMessage, setWhatsappMessage] = useState(sponsor?.whatsapp_message ?? '');
+// ... 13 useState más
 ```
 
-La política `Admins manage org sponsors` permite UPDATE, pero el `.select()` post-UPDATE evalúa políticas SELECT independientemente. Aunque las políticas vigentes deberían cubrir al admin, cualquier glitch (rol expirado, organization_id null momentáneamente) hace que `.single()` lance `PGRST116: No rows returned` aunque el UPDATE haya tenido éxito → el modal muestra toast rojo "Error al editar" y el usuario asume que nada se guardó.
+Los `useState(sponsor?.X ?? '')` **solo se evalúan en el primer render**. Cuando el padre actualiza la cache de TanStack Query con datos nuevos y vuelve a pasar `sponsor` con nuevos valores:
+- ❌ Los `useState` ignoran el nuevo prop.
+- ❌ El usuario ve los valores con los que abrió el modal originalmente.
+- ❌ Cuando guarda y reabre, sigue viendo lo viejo (aunque la BD ya tiene lo nuevo).
 
-**Problema 3 — `editingSponsor` no se refresca tras invalidar**
+Esto es un **anti-patrón clásico de React**: derivar estado inicial de props sin sincronización posterior.
 
-`src/pages/admin/Sponsors.tsx` líneas 47, 88-91:
-- `editingSponsor` es state local con la fila clicada.
-- `handleCloseModal` lo resetea, pero entre mientras la lista refresca y el usuario hace clic en "Editar" de nuevo, recibe la fila NUEVA del cache. OK.
-- El verdadero issue: cuando guarda y cierra, la tabla muestra valores viejos durante 100-500ms hasta que el refetch resuelve.
+**Por qué el plan anterior no resolvió el síntoma:**
+El optimistic update sí actualizó la cache (la tabla detrás muestra el dato nuevo), pero al reabrir el modal, los `useState` internos seguían con los valores cacheados del primer montaje.
 
 ---
 
-### Solución (3 capas, buenas prácticas)
+### Solución limpia (2 cambios mínimos, buenas prácticas)
 
-#### Capa 1 — `useAdminSponsors`: actualización optimista en `update`
+#### Opción A — Forzar remontaje del modal con `key` (RECOMENDADA)
 
-Replicar el patrón del `createMutation` para `updateMutation`:
+`src/pages/admin/Sponsors.tsx` línea 246-254:
 
-```ts
-const updateMutation = useMutation({
-  mutationFn: ({ id, form }: { id: string; form: ... }) =>
-    adminSponsorsService.update(id, form),
-  onMutate: async ({ id, form }) => {
-    await qc.cancelQueries({ queryKey: key });
-    const previous = qc.getQueryData<SponsorRow[]>(key);
-    qc.setQueryData<SponsorRow[]>(key, (old) =>
-      (old ?? []).map((s) =>
-        s.id === id
-          ? { ...s, ...form } as SponsorRow
-          : s
-      )
-    );
-    return { previous };
-  },
-  onError: (_err, _vars, ctx) => {
-    if (ctx?.previous) qc.setQueryData(key, ctx.previous);
-  },
-  onSuccess: (updated) => {
-    if (updated) {
-      qc.setQueryData<SponsorRow[]>(key, (old) =>
-        (old ?? []).map((s) => (s.id === updated.id ? updated : s))
-      );
-    }
-    qc.invalidateQueries({ queryKey: key });
-  },
-});
+```tsx
+{modalOpen && event && (
+  <SponsorModal
+    key={editingSponsor?.id ?? 'new'}  // ← fuerza nueva instancia por sponsor
+    open={modalOpen}
+    onClose={handleCloseModal}
+    eventId={event.id}
+    sponsor={editingSponsor}
+    onSaved={handleCloseModal}
+  />
+)}
 ```
 
-Beneficios:
-- ✅ La lista refleja el cambio inmediatamente (sin esperar refetch).
-- ✅ Si el server falla, `onError` revierte al estado previo.
-- ✅ Cuando el server responde, se sincroniza con datos canónicos.
-- ✅ Patrón consistente con `createMutation` ya existente.
+**Por qué es la solución correcta:**
+- ✅ Patrón recomendado oficialmente por React docs ("Resetting state with a key").
+- ✅ Cada vez que cambia `editingSponsor.id`, React desmonta y remonta el modal → todos los `useState` se reinicializan con los valores nuevos.
+- ✅ Cero cambios al modal en sí — preserva toda su lógica.
+- ✅ Funciona tanto al editar diferentes sponsors como al reabrir el mismo después de guardar (porque entre cierres `modalOpen=false` desmonta el componente; al reabrir, `useState` corre con el sponsor recién actualizado de la cache).
 
-#### Capa 2 — Service `update`: tolerar respuesta vacía sin lanzar
+#### Opción B (defensa adicional) — Sincronizar prop → state en el modal
 
-`src/services/admin-sponsors.service.ts`:
-
-```ts
-async update(
-  id: string,
-  form: Partial<SponsorFormData> & { logo_url?: string | null; materials_url?: string | null }
-): Promise<SponsorRow | null> {
-  const { data, error } = await supabase
-    .from('sponsors')
-    .update(form)
-    .eq('id', id)
-    .select()
-    .maybeSingle();  // ← cambia .single() → .maybeSingle()
-  if (error) throw new Error(error.message);
-  return data as SponsorRow | null;
-},
-```
-
-Cambios:
-- `.single()` → `.maybeSingle()`: si RLS filtra el SELECT post-UPDATE, devuelve `null` sin lanzar (el UPDATE ya se ejecutó).
-- Tipo retorno `SponsorRow | null` para reflejar el contrato real.
-- El `onSuccess` del hook ya maneja `if (updated) { ... }`.
-
-Trade-off documentado: si el UPDATE falla por RLS (USING denegado), el cliente lo verá porque `error` sí se propaga. Solo cubrimos el caso "UPDATE OK + SELECT denegado".
-
-#### Capa 3 — Modal: indicar éxito incluso si server no devuelve fila
-
-`src/components/admin/sponsors/SponsorModal.tsx` líneas 245-261: el flujo actual (toast + `onSaved + onClose`) ya funciona bien con la corrección anterior. No requiere cambios.
+Por seguridad, agregar un `useEffect` que sincronice cuando `sponsor.id` cambia. Pero con la opción A, esto es redundante. **No lo aplicamos** para mantener el código simple.
 
 ---
 
-### Verificación
+### Verificación de que la cache se actualiza correctamente
 
-1. **Editar "Al Pharma": cambiar mensaje de WhatsApp de "prueba" a "Hola, soy admin"** → guardar → toast verde → reabrir modal → ver "Hola, soy admin" sin parpadeo ni delay.
-2. **Editar logo + texto en una sola operación** → ambos cambios persisten.
-3. **Editar y cancelar (sin guardar)** → cache no se contamina, valores quedan como estaban.
-4. **Simular fallo de red durante update** → DevTools throttle offline → toast rojo + lista vuelve al estado anterior (rollback).
-5. **Verificar query directa en BD** post-edit → datos coinciden con lo guardado.
+Revisé `useAdminSponsors.updateMutation` (post-fix anterior):
+- ✅ `onMutate` actualiza la cache optimísticamente.
+- ✅ `onSuccess` reemplaza con datos canónicos del servidor.
+- ✅ `invalidateQueries` dispara refetch para sincronizar.
+
+La cache YA está bien. Solo falta que el modal lea el dato fresco al reabrirse, lo cual logra el `key`.
 
 ---
 
-### Archivos a modificar
+### Archivos modificados
 
-| Archivo | Cambio | Líneas aprox |
+| Archivo | Cambio | Líneas |
 |---|---|---|
-| `src/hooks/useAdminSponsors.ts` | `updateMutation`: añadir `onMutate` (optimista) + `onError` (rollback) + `onSuccess` con sync de fila | ~25 |
-| `src/services/admin-sponsors.service.ts` | `update`: `.single()` → `.maybeSingle()`, retorno `SponsorRow \| null` | ~3 |
+| `src/pages/admin/Sponsors.tsx` | Agregar `key={editingSponsor?.id ?? 'new'}` al `<SponsorModal>` | 1 línea |
+
+**1 archivo, 1 línea.** Solución mínima, idiomática de React.
+
+---
+
+### Verificación post-fix
+
+1. Editar "Al Pharma" → cambiar mensaje WhatsApp de "prueba" a "Hola desde admin" → guardar → toast verde.
+2. Reabrir "Al Pharma" → ver "Hola desde admin" inmediatamente (sin parpadeo, sin valores viejos).
+3. Editar otro sponsor distinto → ver sus datos correctos (no mezclados con el anterior).
+4. Crear nuevo sponsor (key="new") → modal vacío correctamente.
+5. Query directa a BD → datos coinciden con UI.
 
 ---
 
 ### Lo que NO se toca
 
-- RLS de `sponsors` (las políticas actuales son correctas; el admin SÍ tiene UPDATE+SELECT permitidos).
-- UI del modal `SponsorModal.tsx` (el flujo es correcto).
-- `Sponsors.tsx` (la página padre solo consume el hook, sin lógica propia de cache).
-- `createMutation` (ya tiene patrón optimista correcto).
-- Tabla `sponsors` schema, triggers, ni storage.
+- `useAdminSponsors.ts` — el optimistic update ya quedó bien del fix anterior.
+- `admin-sponsors.service.ts` — el `.maybeSingle()` ya quedó bien.
+- `SponsorModal.tsx` — su lógica interna es correcta, solo necesita remontaje limpio.
+- BD, RLS, storage — nada que ver.
 
 ---
 
 ### Esfuerzo
 
-~10 minutos. 2 archivos. Cero riesgo de regresión: el patrón optimista es idéntico al ya probado en `createMutation`.
+~30 segundos. 1 línea cambiada. Cero riesgo.
 
