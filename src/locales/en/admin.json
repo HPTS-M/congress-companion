@@ -28,7 +28,61 @@
   },
   "layout": {
     "backToApp": "Back to app",
-    "logout": "Log out"
+    "logout": "Log out",
+    "profile": "My Profile"
+  },
+  "profile": {
+    "title": "My Profile",
+    "back": "Back",
+    "accountInfo": "Account information",
+    "email": "Email",
+    "userId": "User ID"
+  },
+  "mfa": {
+    "card": {
+      "title": "Account security",
+      "description": "Protect your account with two-factor authentication (2FA).",
+      "toggleLabel": "Two-factor authentication",
+      "enabledHint": "2FA is active. You'll be asked for a code at sign-in.",
+      "disabledHint": "Enable 2FA to add an extra layer of security.",
+      "activeBadge": "Active",
+      "compatibleApps": "Compatible with Google Authenticator, Microsoft Authenticator, Authy, 1Password, Bitwarden and Apple Passwords."
+    },
+    "setup": {
+      "title": "Set up 2FA",
+      "subtitle": "Scan the QR code with your authenticator app.",
+      "step1": "Open your authenticator app (Google Authenticator, Authy, etc.).",
+      "step2": "Scan the QR code or enter the manual code.",
+      "step3": "Enter the 6-digit code shown in the app.",
+      "manualCode": "Manual code (if you can't scan):",
+      "copy": "Copy",
+      "enterCode": "Verification code",
+      "verify": "Verify and enable",
+      "verifying": "Verifying...",
+      "cancel": "Cancel",
+      "success": "2FA enabled successfully",
+      "invalidCode": "Invalid code. Try again.",
+      "enrollError": "Could not start 2FA setup"
+    },
+    "verify": {
+      "title": "Two-factor verification",
+      "subtitle": "Enter the 6-digit code from your authenticator app.",
+      "submit": "Verify",
+      "verifying": "Verifying...",
+      "success": "Verification successful",
+      "invalidCode": "Incorrect code. Try again.",
+      "lostAccess": "Lost access to your app? Contact a superuser to reset your 2FA."
+    },
+    "disable": {
+      "title": "Disable 2FA",
+      "warning": "Your account will be protected only by password. Confirm with your current code to disable.",
+      "enterCurrentCode": "Current code from the app",
+      "confirm": "Disable 2FA",
+      "disabling": "Disabling...",
+      "cancel": "Cancel",
+      "success": "2FA disabled",
+      "invalidCode": "Incorrect code"
+    }
   },
   "dashboard": {
     "title": "Dashboard",
