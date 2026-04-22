@@ -1,158 +1,223 @@
 
 
-## Plan — Migración de signed URLs → public URLs (event-sponsors + speaker-photos)
+## Plan — Ajustes Mobile: Comercial, Documentos, Contactos, Mensajería, Notas, Anuncios
 
-### Resumen
+### Resumen ejecutivo
 
-Los buckets `event-sponsors` y `speaker-photos` ya son públicos en Supabase. Reemplazamos `createSignedUrl` por `getPublicUrl` en todo el código, manteniendo signatures `async` para no romper consumidores. Migramos URLs ya guardadas en `events.settings` para que no expiren al año. `event-documents` queda intacto.
+Cuatro problemas independientes en módulos de producción, agrupados por afinidad:
 
----
+1. **Responsividad mobile** — Comercial, Documentos, Contactos, Mensajería tienen scroll horizontal por uso indebido de `gap`, `truncate` faltante y anchos fijos.
+2. **Descarga de Documentos** — falla por bloqueo de pop-ups en mobile (`window.open` rechazado por Safari/Chrome iOS).
+3. **Paginado de Contactos y Anuncios** — listas crecen sin límite, scroll casi infinito.
+4. **Notas** — botón "Volver" no sale del editor, falta botón "Guardar" explícito (mantenemos solo auto-save), `window.print()` no genera PDF en mobile.
 
-### Beneficios
-
-| Métrica | Hoy (signed) | Después (public) |
-|---|---|---|
-| Logos sponsors en Commercial (N=20) | ~20 round-trips a Storage API (~600ms total) | 0 round-trips (síncrono local) |
-| Logo sponsor en SponsorDetail | 1 round-trip (~80ms) | 0 round-trips |
-| Foto speaker en SessionModal admin | 1 round-trip por sesión | 0 round-trips |
-| Banner/logo evento (Home, Header) | URL caduca a 1 año (bomba de tiempo) | URL permanente |
-| Cache CDN | Limitado (signed query params rotativos) | Pleno (URLs estables) |
-
-**Beneficio cualitativo:** Commercial directory carga instantáneamente; ya no hay 20 spinners de logo en mobile lento.
+Cero cambios en DB, RLS o servicios de backend. Todos los cambios son frontend.
 
 ---
 
-### Cambios técnicos
+### 1. Responsividad mobile (4 módulos)
 
-#### 1. `src/services/sponsors.service.ts` — bucket `event-sponsors`
+**Causa raíz común:** componentes diseñados con espaciado desktop (`gap-3` + padding generoso) sin `min-w-0` en flex children, lo que provoca overflow horizontal cuando el contenido excede el ancho del viewport (360px–414px).
 
-Reemplazar la función `resolveStorageUrl` async + signed por una versión síncrona que envuelve `getPublicUrl`:
+#### 1.1 Commercial (`src/pages/attendee/Commercial.tsx` + `SponsorCard.tsx`)
+- `SponsorCard`: añadir `min-w-0` al contenedor central; reducir logo a `h-12 w-12` en mobile (`sm:h-16 sm:w-16`); `flex-wrap` en badges; `text-sm` en título mobile.
+- Limitar el ancho del botón "Me interesa" para que no empuje contenido.
 
+#### 1.2 Documents (`src/pages/attendee/Documents.tsx`)
+- Card actualmente: `flex items-center gap-3` sin `min-w-0` en el bloque central. Añadir `min-w-0` y `truncate` al título (ya existe `truncate` pero el padre no tiene `min-w-0` correctamente propagado).
+- Reducir padding mobile (`p-3` en vez de `p-4`).
+
+#### 1.3 Contacts (`src/pages/attendee/Contacts.tsx`)
+- `AttendeeCard`: agregar `min-w-0` real en el bloque central; en mobile el botón "Conectar" se apila debajo del nombre cuando hay nombres largos. Solución: usar `flex-col sm:flex-row` solo cuando el nombre exceda; alternativa más simple: forzar `text-xs` en botones y `gap-2` mobile.
+- Tabs `Participantes / Mis Contactos`: ya son `flex-1`, ok.
+
+#### 1.4 Messaging (`DirectConversationList.tsx` + `DirectChatView.tsx`)
+- `DirectConversationList`: añadir `min-w-0` en bloques centrales; los botones de invitación pendiente (`flex gap-2 mt-3`) se montan correctamente con `flex-1`, ok.
+- `DirectChatView`: header del chat (no visto pero referenciado) — verificar `truncate` en nombre del contacto.
+- Burbujas de mensaje ya usan `max-w-[75%]`, ok.
+
+**Patrón aplicado:** `min-w-0` en todo flex child que contenga texto + `truncate` en el primer hijo de texto + revisar paddings mobile.
+
+---
+
+### 2. Descarga de Documentos
+
+**Causa raíz:** En `src/pages/attendee/Documents.tsx` línea 56 se usa `window.open(url, '_blank')`. Safari iOS y Chrome mobile bloquean esto cuando la apertura ocurre tras un `await` (fuera del gesture handler síncrono original). Resultado: pop-up bloqueado + toast rojo de error en algunos navegadores.
+
+**Solución (patrón `<a download>` con blob):**
 ```ts
-function resolveStorageUrl(path: string | null): string | null {
-  if (!path) return null;
-  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
-}
+const handleDownload = async (doc: EventDocument) => {
+  if (downloading) return;
+  setDownloading(doc.id);
+  try {
+    const url = await documentsService.getSignedUrl(doc.file_path);
+    // Descarga vía link sintético — no requiere gesture handler síncrono
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${doc.title}.${doc.file_type ?? 'pdf'}`;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch {
+    toast({ title: 'Error', description: t('downloadError'), variant: 'destructive' });
+  } finally {
+    setDownloading(null);
+  }
+};
 ```
 
-En `getByEvent`: eliminar `Promise.all` sobre URLs — el mapeo se vuelve síncrono. La función sigue siendo `async` (firma intacta).
+Mejoras:
+- `<a download>` no es bloqueado por pop-up blocker.
+- El atributo `download` sugiere descarga directa al navegador (cuando el servidor no fija `Content-Disposition`).
+- `target="_blank"` como fallback para tipos que el navegador prefiere abrir inline (PDF en Chrome).
 
-En `getById`: eliminar `Promise.all([resolveStorageUrl(logo), resolveStorageUrl(materials)])`, llamar directo. Signature sigue `async`.
+**Nota:** PPTX y XLSX descargarán siempre. PDF se abrirá en nueva pestaña en escritorio (comportamiento esperado del navegador).
 
-#### 2. `src/services/admin-sponsors.service.ts` — bucket `event-sponsors`
+---
 
-`getSignedUrl` se mantiene como método `async` para no romper a `SponsorMaterialPreviewModal`, `SponsorDetailDrawer`, `SponsorModal`, pero internamente usa `getPublicUrl`:
+### 3. Paginado en Contactos y Anuncios
 
-```ts
-getSignedUrl: async (path: string): Promise<string> => {
-  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
-},
-```
+#### 3.1 Hook reutilizable `usePaginatedList`
+Ya existe `src/hooks/usePagination.ts` (cliente-side). Lo usamos.
 
-(Opcionalmente renombrable a `getAssetUrl` en el futuro; no lo hacemos ahora para evitar tocar 4 archivos extra.)
+#### 3.2 Componente nuevo `MobilePagination`
+**Archivo nuevo:** `src/components/ui/mobile-pagination.tsx`
 
-#### 3. `src/services/admin-agenda.service.ts` — bucket `speaker-photos`
+Diseño mobile-first:
+- Botones grandes (`h-10`) `‹ Anterior` / `Siguiente ›`, separados por contador `Página 2 de 8`.
+- En desktop (`sm:`) muestra adicionalmente número de página actual y total de items.
+- Reutiliza tokens del design system (primary blue + accent teal en estado activo).
 
-`getSpeakerPhotoUrl` mantiene firma `async`, internamente usa `getPublicUrl`:
+#### 3.3 Aplicación
+- **Contacts.tsx:** paginar `filteredAttendees` y `acceptedContacts` (10 por página, configurable). `pendingRequests` y `sentRequests` no se paginan (típicamente <10).
+- **Announcements.tsx:** paginar `announcements` (10 por página). Reset a página 1 al cambiar filtro.
 
-```ts
-getSpeakerPhotoUrl: async (path: string): Promise<string | null> => {
-  if (!path) return null;
-  return supabase.storage.from('speaker-photos').getPublicUrl(path).data.publicUrl;
-},
-```
+Las paginaciones se aplican client-side sobre arrays ya cargados (cantidad esperada <500 items por evento — performance ok). Si la lista crece a miles, migramos a server-side con `range()` de Supabase en una iteración futura.
 
-`SpeakerPhotoUpload.tsx` no requiere cambios — sigue haciendo `await` sobre la promesa.
+---
 
-#### 4. `src/components/admin/EventBrandingCard.tsx` — bucket `event-sponsors`
+### 4. Notas — refactor del flujo
 
-Reemplazar la generación de signed URL de 1 año por `getPublicUrl`. Esto elimina la "bomba de tiempo" de URLs que caducan. Como `getPublicUrl` es síncrono, simplificamos el flujo de upload (sin `await` sobre el URL builder).
+**Problemas confirmados:**
+- "Volver" llama `closeEditor` que hace `await updateNote.mutateAsync(...)` antes de salir; si la mutación demora o falla, parece que el botón no responde.
+- No hay botón "Guardar" — usuarios buscan confirmación visible.
+- `window.print()` en mobile invoca diálogo del sistema operativo, no genera PDF descargable.
+- Auto-save de 3s funciona pero no comunica al usuario.
 
-#### 5. Migración SQL — actualizar URLs ya guardadas
+**Decisión del usuario:** quitar auto-save, solo botón guardar.
 
-URLs almacenadas hoy en `events.settings.banner_url` y `events.settings.header_logo_url` son signed (caducan al año). Hay que reescribirlas a public URL extrayendo el path de la URL signed.
+**Refactor:**
 
-**Estructura signed:** `https://<ref>.supabase.co/storage/v1/object/sign/event-sponsors/<path>?token=...`
-**Estructura public:** `https://<ref>.supabase.co/storage/v1/object/public/event-sponsors/<path>`
+#### 4.1 Eliminar auto-save
+- Quitar `triggerSave`, `debounceRef`, `saveStatus`, refs de contenido.
+- `handleContentChange` y `handleSessionChange` solo actualizan estado local.
 
-Migración:
+#### 4.2 Botón "Guardar" explícito
+- Botón fijo bottom: "Guardar" (primario, accent teal) + indicador "Cambios sin guardar" cuando `editorContent !== editingNote.content || editorSession !== (editingNote.session_id ?? 'none')`.
+- Al guardar: `updateNote.mutateAsync(...)`, toast verde "Nota guardada", actualiza el `editingNote` local con los nuevos valores.
+- Botón deshabilitado cuando no hay cambios.
 
-```sql
-UPDATE events
-SET settings = jsonb_set(
-  settings,
-  '{banner_url}',
-  to_jsonb(
-    regexp_replace(
-      split_part(settings->>'banner_url', '?', 1),
-      '/storage/v1/object/sign/',
-      '/storage/v1/object/public/'
-    )
-  )
-)
-WHERE settings->>'banner_url' LIKE '%/storage/v1/object/sign/event-sponsors/%';
+#### 4.3 Botón "Volver" arreglado
+- Si hay cambios sin guardar → AlertDialog "¿Descartar cambios?" con opciones `Guardar y salir` / `Descartar` / `Cancelar`.
+- Si no hay cambios → salir inmediatamente (`setEditingNote(null)`).
 
-UPDATE events
-SET settings = jsonb_set(
-  settings,
-  '{header_logo_url}',
-  to_jsonb(
-    regexp_replace(
-      split_part(settings->>'header_logo_url', '?', 1),
-      '/storage/v1/object/sign/',
-      '/storage/v1/object/public/'
-    )
-  )
-)
-WHERE settings->>'header_logo_url' LIKE '%/storage/v1/object/sign/event-sponsors/%';
-```
+#### 4.4 Exportación PDF real con `jsPDF`
+- Instalar `jspdf` (paquete único, ~50KB gz, sin dependencias). NO usamos `html2canvas` porque las notas son texto plano y no necesitamos rasterizar HTML — generamos PDF nativo (texto seleccionable, mejor calidad).
+- Función:
+  ```ts
+  import jsPDF from 'jspdf';
+  
+  const exportToPdf = (note: AttendeeNote) => {
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+    const margin = 20;
+    const lineHeight = 7;
+    let y = margin;
+    
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(16);
+    pdf.text(note.session_title ?? t('generalNote'), margin, y);
+    y += 10;
+    
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(11);
+    const lines = pdf.splitTextToSize(note.content ?? '', 170);
+    for (const line of lines) {
+      if (y > 280) { pdf.addPage(); y = margin; }
+      pdf.text(line, margin, y);
+      y += lineHeight;
+    }
+    
+    pdf.save(`nota-${note.id.slice(0, 8)}.pdf`);
+  };
+  ```
+- Funciona en mobile (Safari/Chrome): trigger directo de descarga vía blob.
 
-`split_part(..., '?', 1)` elimina el query string del token. `regexp_replace` cambia `sign` → `public`.
+#### 4.5 Botón Eliminar en editor
+- Mantenemos botón eliminar (ya existe en lista). Opcional: añadir en editor para flujo completo. Por ahora respetamos el alcance pedido.
+
+---
+
+### 5. Anuncios — solo paginado
+
+`Announcements.tsx` ya es responsive (cards single-column). Solo aplicamos `MobilePagination` con 10 items por página + reset al filtrar (en este módulo no hay filtros, solo orden).
+
+---
+
+### Archivos a modificar/crear
+
+| Archivo | Acción |
+|---|---|
+| `src/components/ui/mobile-pagination.tsx` | **Nuevo** — componente paginación mobile-first |
+| `src/pages/attendee/Commercial.tsx` | Padding mobile |
+| `src/components/attendee/SponsorCard.tsx` | `min-w-0`, logo más pequeño en mobile |
+| `src/pages/attendee/Documents.tsx` | `min-w-0` + descarga `<a download>` |
+| `src/pages/attendee/Contacts.tsx` | `min-w-0` + paginado en `filteredAttendees` y `acceptedContacts` |
+| `src/components/attendee/DirectConversationList.tsx` | `min-w-0` en bloques centrales |
+| `src/components/attendee/DirectChatView.tsx` | `truncate` en header del chat |
+| `src/pages/attendee/Announcements.tsx` | Paginado 10 items |
+| `src/pages/attendee/Notes.tsx` | Quitar auto-save, botón Guardar, fix Volver, jsPDF |
+| `src/locales/es/notes.json` + `en/notes.json` | Nuevas keys: `save`, `unsavedChanges`, `discardChanges`, `keepEditing`, `saveAndExit`, `discard`, `noteSaved` |
+| `src/locales/es/contacts.json` + `en/contacts.json` | Keys de paginación si no existen |
+| `src/locales/es/announcements.json` + `en/announcements.json` | Keys de paginación |
+| `package.json` | Añadir `jspdf` (~50KB gz) |
+
+---
+
+### Verificación (escenarios manuales)
+
+1. **Mobile 360px Commercial:** abrir `/ACQFH-2026/commercial` con 20 sponsors → 0 scroll horizontal, cards apiladas, logos visibles.
+2. **Documentos descarga:** desde iPhone Safari, tap "descargar" PDF → archivo se descarga sin pop-up bloqueado.
+3. **Contactos paginado:** lista con 30 attendees → muestra 10, botón "Siguiente" navega a página 2.
+4. **Anuncios paginado:** 25 anuncios → 3 páginas, navegación funciona.
+5. **Notas botón Volver:** abrir nota, modificar contenido, tap "Volver" → aparece dialog "¿Descartar?".
+6. **Notas Guardar:** botón aparece habilitado solo con cambios; al guardar muestra toast.
+7. **Notas Export PDF:** tap "Exportar PDF" → descarga `nota-xxxxxxxx.pdf` con título + cuerpo legible.
+
+---
+
+### Riesgos y mitigaciones
+
+| Riesgo | Mitigación |
+|---|---|
+| `jspdf` añade ~50KB al bundle de Notes | Lazy import dentro de `exportToPdf` (solo se descarga cuando el usuario exporta) |
+| Paginado client-side con 1000+ items genera lag | Aceptable para tamaños actuales (<500). Migrar a server-side si crece |
+| `<a download>` en iOS Safari abre PDF en pestaña en vez de descargar | Comportamiento estándar del SO, no es regresión — antes ni siquiera abría |
+| Quitar auto-save hace que usuario pierda nota si recarga sin guardar | Compensado con: botón siempre visible + indicador "Cambios sin guardar" + dialog de confirmación al salir |
 
 ---
 
 ### Lo que NO se toca
 
-- `event-documents` (sigue privado, sigue con `createSignedUrl` en `adminDocumentsService` y `documentsService`).
-- `useDocuments`, `useAdminDocuments`, `DocumentPreviewModal`, etc.
-- Ninguna RLS, ninguna política de Storage.
-- Logos de logos cargados en `attendees.avatar_url` u otros (no aplica).
-
----
-
-### Archivos modificados
-
-| Archivo | Cambio |
-|---|---|
-| `src/services/sponsors.service.ts` | `resolveStorageUrl` síncrona con `getPublicUrl` |
-| `src/services/admin-sponsors.service.ts` | `getSignedUrl` async wrapper de `getPublicUrl` |
-| `src/services/admin-agenda.service.ts` | `getSpeakerPhotoUrl` async wrapper de `getPublicUrl` |
-| `src/components/admin/EventBrandingCard.tsx` | Reemplazo de signed por public en upload de banner/logo |
-| Migración SQL | UPDATE de `events.settings.banner_url` y `header_logo_url` |
-
----
-
-### Verificación
-
-1. **Commercial directory mobile:** abrir `/ACQFH-2026/commercial` con 20 sponsors → todos los logos aparecen sin "parpadeo" inicial.
-2. **Sponsor detail:** abrir un sponsor → logo y PDF de materiales abren al instante.
-3. **Admin EventBranding:** subir un banner nuevo → URL guardada en BD comienza con `/storage/v1/object/public/event-sponsors/`.
-4. **Migración:** después de correr el SQL, query manual `SELECT settings->>'banner_url' FROM events;` confirma que ya no aparece `?token=` ni `/sign/`.
-5. **Speaker photo en SessionModal admin:** crear sesión nueva, subir foto → preview aparece sin retraso.
-6. **Documentos académicos:** abrir cualquier documento desde `/ACQFH-2026/documents` → sigue funcionando con signed URL (no tocado).
-
----
-
-### Consideración de seguridad
-
-Los buckets ya son públicos en Supabase (decisión confirmada por el usuario). Cualquier persona con la URL puede acceder a logos, fotos de speaker y PDFs de sponsors. Esto es aceptable porque:
-- Logos y fotos son material promocional/branding.
-- PDFs de sponsors son material comercial diseñado para distribución.
-- Las URLs no son adivinables (incluyen UUIDs y timestamps).
-
----
+- DB schema, RLS, Edge Functions.
+- Servicios backend (`documents.service.ts` se mantiene — solo cambia el handler).
+- Bucket `event-documents` (sigue privado con signed URLs).
+- Realtime de mensajería y anuncios.
+- Dark mode (todos los cambios respetan tokens existentes).
+- Otros módulos no mencionados (Agenda, Tickets, Polls, Check-in, Home).
 
 ### Esfuerzo
 
-~15 minutos. 4 archivos + 1 migración SQL. Cero cambios de tipos, RLS o consumidores.
+~1 hora. 12 archivos editados + 1 nuevo + 1 dependencia (`jspdf`).
 
