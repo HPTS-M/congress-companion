@@ -68,8 +68,8 @@ export function initWebVitals(): void {
     let cls = 0;
     const po = new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
-        // @ts-expect-error — layout-shift entries are not typed in lib.dom
-        if (!entry.hadRecentInput) cls += (entry as { value: number }).value;
+        const e = entry as PerformanceEntry & { hadRecentInput?: boolean; value?: number };
+        if (!e.hadRecentInput) cls += e.value ?? 0;
       }
       send('CLS', cls * 1000);
     });
