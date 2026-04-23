@@ -112,6 +112,22 @@ export function divider(): string {
   return `<hr style="border:none;border-top:1px solid ${BRAND.border};margin:24px 0;" />`;
 }
 
+/**
+ * Render a highlighted callout box (teal accent) used to draw attention to
+ * support information, important notices, or contextual help blocks.
+ */
+export function supportCallout(title: string, body: string): string {
+  return `
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+    <tr>
+      <td style="background:#F0FDFA;border-left:4px solid ${BRAND.accent};border-radius:8px;padding:16px 18px;">
+        <div style="color:${BRAND.textDark};font-size:14px;font-weight:700;margin:0 0 6px;font-family:Arial,sans-serif;">${escapeHtml(title)}</div>
+        <div style="color:${BRAND.textBody};font-size:14px;line-height:1.5;font-family:Arial,sans-serif;">${body}</div>
+      </td>
+    </tr>
+  </table>`;
+}
+
 /** Build the optional event-metadata strip (dates + venue). */
 function eventMetaStrip(opts: RenderEmailOptions): string {
   if (!opts.eventDates && !opts.eventVenue) return '';

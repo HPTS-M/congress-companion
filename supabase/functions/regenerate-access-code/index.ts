@@ -6,6 +6,8 @@ import {
   renderEmail,
   renderEmailText,
   codeBlock,
+  stepList,
+  supportCallout,
   formatEventDateRange,
   escapeHtml,
 } from '../_shared/email-templates.ts';
@@ -45,25 +47,37 @@ function buildRegenEmail(params: {
   eventVenue?: string;
 }) {
   const { attendeeName, eventName, accessCode, loginUrl, eventDates, eventVenue } = params;
+  const steps = [
+    'Toca el botón <strong>"Entrar al evento"</strong> que aparece más abajo.',
+    'Ingresa tu <strong>código personal de 8 caracteres</strong>.',
+  ];
+  const supportBlock = supportCallout(
+    '💬 ¿Sigues teniendo inconvenientes?',
+    'Acércate a nuestro <strong>stand de soporte durante el congreso</strong> — nuestro equipo estará acompañándote en todo momento para resolver cualquier requerimiento.',
+  );
+  const body =
+    codeBlock(accessCode, 'Tu nuevo código de acceso') +
+    stepList('Cómo entrar', steps) +
+    supportBlock;
   const opts = {
-    preheader: 'Tu código anterior ya no es válido. Aquí está el nuevo.',
+    preheader: 'Lamentamos los inconvenientes — este es tu nuevo código de acceso vigente.',
     eyebrow: '🔐 Nuevo código de acceso',
-    headline: `Hola ${attendeeName}, tu código fue regenerado`,
+    headline: `Hola ${attendeeName}, tu código fue actualizado`,
     intro:
-      'El organizador del evento ha generado un <strong>nuevo código de acceso</strong> para ti. Tu código anterior ya no funciona — usa el siguiente para entrar a la app.',
-    body: codeBlock(accessCode, 'Tu nuevo código de acceso'),
+      'Lamentamos los inconvenientes causados por un <strong>incidente técnico que ya ha sido resuelto</strong>. Como medida de seguridad, hemos generado un <strong>nuevo código de acceso</strong> para ti.<br/><br/>Por favor, <strong>haz caso omiso de cualquier código anterior</strong> que hayas recibido y utiliza únicamente el que acompaña este correo.',
+    body,
     ctaLabel: 'Entrar al evento',
     ctaUrl: loginUrl,
     ctaUrlHint: true,
     footerNote:
-      'Si no solicitaste este cambio, contacta de inmediato al organizador del evento.',
+      'Este código es personal e intransferible. Agradecemos tu comprensión.',
     eventName,
     eventDates,
     eventVenue,
   };
   return {
     html: renderEmail(opts),
-    text: renderEmailText({ ...opts, code: accessCode, codeLabel: 'Nuevo código' }),
+    text: renderEmailText({ ...opts, code: accessCode, codeLabel: 'Nuevo código de acceso', steps }),
     subject: `🔐 ${eventName} — Nuevo código de acceso`,
   };
 }

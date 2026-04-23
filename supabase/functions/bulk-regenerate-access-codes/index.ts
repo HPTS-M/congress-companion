@@ -7,6 +7,7 @@ import {
   renderEmailText,
   codeBlock,
   stepList,
+  supportCallout,
   formatEventDateRange,
   escapeHtml,
 } from '../_shared/email-templates.ts';
@@ -63,19 +64,26 @@ function buildInvitationEmail(params: {
     'Toca el botón <strong>"Entrar al evento"</strong> que aparece más abajo.',
     'Ingresa tu <strong>código personal de 8 caracteres</strong>.',
   ];
-  const body = codeBlock(accessCode, 'Tu código de acceso') + stepList('Cómo entrar', steps);
+  const supportBlock = supportCallout(
+    '💬 ¿Sigues teniendo inconvenientes?',
+    'Acércate a nuestro <strong>stand de soporte durante el congreso</strong> — nuestro equipo estará acompañándote en todo momento para resolver cualquier requerimiento.',
+  );
+  const body =
+    codeBlock(accessCode, 'Tu código de acceso') +
+    stepList('Cómo entrar', steps) +
+    supportBlock;
   const opts = {
-    preheader: `Tu nuevo código personal para entrar a ${eventName}${eventDates ? ' — ' + eventDates : ''}`,
+    preheader: 'Lamentamos los inconvenientes — este es tu nuevo código de acceso vigente.',
     eyebrow: '🔐 Nuevo código de acceso',
     headline: `Hola ${attendeeName}, tu código fue actualizado`,
     intro:
-      'Por mejoras técnicas hemos generado un <strong>nuevo código de acceso</strong> para ti. Tu código anterior ya no funciona — usa el siguiente para entrar a la app.',
+      'Lamentamos los inconvenientes causados por un <strong>incidente técnico que ya ha sido resuelto</strong>. Como medida de seguridad, hemos generado un <strong>nuevo código de acceso</strong> para ti.<br/><br/>Por favor, <strong>haz caso omiso de cualquier código anterior</strong> que hayas recibido y utiliza únicamente el que acompaña este correo.',
     body,
     ctaLabel: 'Entrar al evento',
     ctaUrl: loginUrl,
     ctaUrlHint: true,
     footerNote:
-      'Este código es personal e intransferible. Si tienes dudas, contacta al organizador.',
+      'Este código es personal e intransferible. Agradecemos tu comprensión.',
     eventName,
     eventDates,
     eventVenue,
