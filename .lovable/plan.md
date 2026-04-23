@@ -1,88 +1,134 @@
 
 
-## Auditoría del ajuste y simulación de prueba
+## Plan — Mensaje de disculpa por incidente en correo de regeneración
 
-### ✅ AUDITORÍA: los 3 fixes están correctamente implementados
-
-**Fix 1 — `src/lib/query-persist.ts` (whitelist alineado)**
-Verificado: contiene exactamente las 13 keys que usan los hooks reales:
-`activities`, `session-interests`, `user-interests`, `user-checkins`, `sponsors`, `sponsor`, `documents`, `tickets`, `event`, `event-config`, `announcements`, `myContacts`, `attendeeProfile`. ✓ Coincide con `useAgenda`, `useSponsors`, `useContacts`, `useTickets`, `useDocuments`, `useEvent`, `useAnnouncements`. ✓
-
-**Fix 2 — `src/hooks/usePrefetchOfflineBundle.ts` (prefetch correcto)**
-Verificado: las 7 prefetchQuery usan keys `['activities', eventId]`, `['session-interests', eventId]`, `['user-interests', eventId, attendeeId]`, `['user-checkins', attendeeId]`, `['sponsors', eventId]`, `['documents', eventId]`, `['tickets', attendeeId]`. ✓ Idénticas a las que consume cada hook.
-
-**Fix 3 — `src/App.tsx` (PageLoader sin Skeleton)**
-Verificado: línea 82 usa `<div className="h-8 w-32 animate-pulse rounded-md bg-muted" />`. ✓ Sin import de `Skeleton`.
-
-**Verificaciones colaterales OK:**
-- `useAuth.tsx` purga `queryClient.clear() + purgePersistedCache()` en logout (L196-197) y al detectar cambio de attendee (L137-138). ✓
-- `vite.config.ts`: `injectManifest`, `srcDir: src`, `filename: sw.ts`, `injectRegister: false`. ✓
-- `src/sw.ts` tiene `NetworkOnly` para `/storage/v1/object/sign/` (L107-113) y `CacheFirst` 7d para `/storage/v1/object/public/`. ✓
-- `main.tsx` preserva el guard de iframe/preview que desregistra SW. ✓
+Actualizar la plantilla del correo que reciben los asistentes cuando se regenera su código, agregando el contexto del incidente técnico, el aviso de ignorar códigos anteriores, y la invitación al stand de soporte.
 
 ---
 
-### ⚠️ HALLAZGO en console logs: el warning de PageLoader **persiste**
+### Propuesta de copy (español, tono institucional y empático)
 
+**Asunto** *(sin cambios)*: `🔐 ACQFH-2026 — Nuevo código de acceso`
+
+**Preheader** *(nuevo)*:
+`Lamentamos los inconvenientes — este es tu nuevo código de acceso vigente.`
+
+**Eyebrow** *(sin cambios)*: `🔐 Nuevo código de acceso`
+
+**Headline** *(sin cambios)*: `Hola {nombre}, tu código fue actualizado`
+
+**Intro** *(reescrito):*
+> Lamentamos los inconvenientes causados por un **incidente técnico que ya ha sido resuelto**. Como medida de seguridad, hemos generado un **nuevo código de acceso** para ti.
+>
+> Por favor, **haz caso omiso de cualquier código anterior** que hayas recibido y utiliza únicamente el que acompaña este correo.
+
+**Bloque de código** *(sin cambios)*: caja destacada con el nuevo código de 8 caracteres + label "Tu código de acceso".
+
+**Pasos "Cómo entrar"** *(sin cambios):*
+1. Toca el botón **"Entrar al evento"** que aparece más abajo.
+2. Ingresa tu **código personal de 8 caracteres**.
+
+**CTA** *(sin cambios)*: botón `Entrar al evento` → URL del evento.
+
+**Bloque nuevo "¿Necesitas ayuda?"** *(insertado antes del footer):*
+> 💬 **¿Sigues teniendo inconvenientes?**
+> Acércate a nuestro **stand de soporte durante el congreso** — nuestro equipo estará acompañándote en todo momento para resolver cualquier requerimiento.
+
+**Footer note** *(reescrito ligeramente):*
+> Este código es personal e intransferible. Agradecemos tu comprensión.
+
+**Versión texto plano (fallback Resend):** misma estructura, sin HTML, generada automáticamente por `renderEmailText`.
+
+---
+
+### Vista previa estructural del correo
+
+```text
+┌───────────────────────────────────────────┐
+│  [Gradient header — CONGRESSAPP / ACQFH]  │
+├───────────────────────────────────────────┤
+│  🔐 Nuevo código de acceso                │
+│                                           │
+│  Hola {Nombre}, tu código fue actualizado │
+│                                           │
+│  Lamentamos los inconvenientes causados   │
+│  por un incidente técnico que ya ha sido  │
+│  resuelto. Como medida de seguridad...    │
+│                                           │
+│  Por favor, haz caso omiso de cualquier   │
+│  código anterior y utiliza únicamente...  │
+│                                           │
+│  ┌─────────────────────────────────────┐  │
+│  │   TU CÓDIGO DE ACCESO               │  │
+│  │       X X X X - X X X X             │  │
+│  └─────────────────────────────────────┘  │
+│                                           │
+│  Cómo entrar:                             │
+│   1. Toca "Entrar al evento"              │
+│   2. Ingresa tu código de 8 caracteres    │
+│                                           │
+│       ┌─────────────────────┐             │
+│       │  Entrar al evento   │             │
+│       └─────────────────────┘             │
+│                                           │
+│  ┌─────────────────────────────────────┐  │
+│  │ 💬 ¿Sigues teniendo inconvenientes? │  │
+│  │ Acércate a nuestro stand de soporte │  │
+│  │ durante el congreso — nuestro equipo│  │
+│  │ estará acompañándote en todo momento│  │
+│  └─────────────────────────────────────┘  │
+│                                           │
+│  Este código es personal e intransferible │
+├───────────────────────────────────────────┤
+│  ACQFH-2026 · Fechas · Sede                │
+│  CONGRESSAPP · Health Plus Travels        │
+└───────────────────────────────────────────┘
 ```
-Warning: Function components cannot be given refs.
-Check the render method of `App`. at PageLoader at Suspense
-```
-
-El fix removió el `Skeleton`, pero el warning sigue apareciendo. Causa real: **`<Suspense fallback={<PageLoader />}>`** envuelve un componente lazy que internamente tiene un `forwardRef` upstream pidiendo ref al fallback. El componente `PageLoader` actual es una función plana sin `forwardRef`.
-
-Aparece dos veces en logs:
-- Al render inicial de `App`
-- Al montar lazy `Index`
-
-**No bloquea funcionalidad** (es warning de DEV solamente, desaparece en producción optimizada), pero ensucia la consola.
-
-**Mitigación opcional (no rompe nada):** envolver `PageLoader` con `React.forwardRef` aunque no use el ref:
-```tsx
-const PageLoader = React.forwardRef<HTMLDivElement>((_, ref) => (
-  <div ref={ref} className="flex min-h-screen ...">
-    <div className="h-8 w-32 animate-pulse rounded-md bg-muted" />
-  </div>
-));
-PageLoader.displayName = 'PageLoader';
-```
 
 ---
 
-### 🧪 SIMULACIÓN DE PRUEBA — 6 escenarios sobre el código actual
+### Cambios técnicos (solo lo necesario)
 
-| # | Escenario | Estado simulado | Comportamiento esperado | Veredicto |
-|---|-----------|-----------------|--------------------------|-----------|
-| **1** | Login online en `/ACQFH-2026` con código `TEST1234`, abrir `/agenda` | Hook `useActivities` consulta `['activities', eventId]` → SW `StaleWhileRevalidate` cachea respuesta → React Query la persiste en IndexedDB (whitelist match) | Lista de sesiones visible, estrellas "Me interesa" con conteo, filas marcadas como check-in | ✅ PASA |
-| **2** | Mismo login → cerrar pestaña → DevTools → Offline → abrir `/ACQFH-2026/agenda` | SW intercepta navegación → sirve `index.html` precacheado → React Query rehidrata `activities`/`session-interests`/`user-interests`/`user-checkins` desde IndexedDB | Agenda completa con estrellas del usuario, sin spinner infinito, sin pantalla en blanco | ✅ PASA |
-| **3** | Online → `/commercial` carga logos públicos → offline → recargar | Logos viven en `/storage/v1/object/public/event-sponsors/...` (bucket público) → regla CacheFirst 7d hace match | Logos visibles desde caché | ✅ PASA |
-| **4** | Online → `/documents` lista 6 PDFs → offline → recargar | Metadata persistida (key `documents`) → al hacer click "Descargar", `getSignedUrl` falla porque SW tiene `NetworkOnly` para `/sign/` | Lista visible, descarga muestra error de red (correcto) | ✅ PASA |
-| **5** | Online → enviar push announcement → usuario recibe en background | SW `push` handler en `src/sw.ts` L138-165 muestra notificación con título, body, icon `/icon-192x192.png`, tag, vibración | Notificación nativa visible | ✅ PASA (handlers migrados correctamente) |
-| **6** | Usuario A logueado → logout → Usuario B login en mismo dispositivo | `logout` ejecuta `queryClient.clear() + purgePersistedCache()`. Login de B dispara `loadAttendeeProfile` que detecta `lastAttendeeIdRef !== newAttendeeId` y purga otra vez como red de seguridad | Cero datos del Usuario A visibles para B | ✅ PASA |
+**Archivo 1 — `supabase/functions/bulk-regenerate-access-codes/index.ts`** *(función `buildInvitationEmail`, prioritaria — la usarás para el envío masivo)*
+
+- Reemplazar `preheader`, `intro` y `footerNote` con el copy nuevo.
+- Insertar un nuevo bloque `supportBlock` (caja destacada con borde teal `#00B89F` y fondo `#F0FDFA`) entre los pasos y el footer, con el mensaje del stand de soporte.
+- Concatenarlo en `body`: `codeBlock + stepList + supportBlock`.
+
+**Archivo 2 — `supabase/functions/regenerate-access-code/index.ts`** *(función `buildRegenEmail`, regeneración individual — para consistencia)*
+
+- Mismos cambios de copy en `preheader`, `intro`, `footerNote`.
+- Misma inserción del bloque de soporte.
+
+**Archivo 3 — `supabase/functions/_shared/email-templates.ts`** *(helper opcional)*
+
+- Agregar una función `supportCallout(title: string, body: string): string` que renderice una caja destacada reusable. Mantiene el código limpio y permite reutilizar el bloque en futuras plantillas.
+
+**Sin cambios en:**
+- Lógica de regeneración (bcrypt, BD, Resend) — intacta.
+- Frontend / modales admin — los textos del UI no cambian.
+- Asunto del correo — se mantiene.
+- i18n — el correo es solo en español por diseño actual del proyecto.
 
 ---
 
-### 🟡 Riesgos residuales (no bloqueantes)
+### Validación post-cambio
 
-- **R1 — Buster del persister estático:** `App.tsx` L94 usa `getPersistBuster(null)` siempre. La purga manual en `useAuth` lo compensa. No-op funcional pero pierde la dimensión de buster por attendee. *No requiere fix.*
-- **R2 — Warning de PageLoader:** descrito arriba. Cosmético. *Fix opcional.*
-- **R3 — Validación real solo es posible en URL publicada:** el preview de Lovable desregistra el SW (correcto), por tanto los escenarios 2-4 NO son validables en preview. **Hay que probar en `https://congress-connect-app.lovable.app`** con DevTools en modo offline.
+1. **Deploy** de las dos edge functions modificadas.
+2. **Prueba dirigida** con 1 asistente real (TEST1234 o similar) usando el modal "Regenerar acceso" individual → revisar correo recibido.
+3. **Confirmar visualmente** en cliente Gmail/Outlook web/iOS Mail que:
+   - El bloque de disculpa aparece arriba con el tono correcto.
+   - La caja del código resalta.
+   - El bloque "¿Necesitas ayuda? Stand de soporte" aparece destacado en teal.
+4. **Solo después de validar el correo individual**, ejecutar la regeneración masiva desde el modal "Regenerar códigos en lote".
 
 ---
 
-### 📋 Veredicto: **GO sin cambios obligatorios**
+### Decisiones que necesito confirmar antes de implementar
 
-Los 3 fixes están bien aplicados y la simulación pasa los 6 escenarios. El sistema offline está operativo conforme al plan aprobado.
+1. **Tono del incidente:** ¿prefieres mencionarlo explícitamente como "incidente técnico" (transparente) o suavizarlo como "actualización de seguridad" (más neutro)? Mi propuesta usa la primera.
+2. **Ubicación del stand:** ¿quieres que el bloque diga genéricamente "nuestro stand de soporte" o agrego ubicación concreta (ej. "stand de registro, lobby principal")? Si me das la ubicación, la incluyo.
+3. **Firma:** ¿agregamos al final el nombre del organizador (ej. "El equipo de ACQFH-2026") o se mantiene el footer estándar de CONGRESSAPP?
 
-**Acciones recomendadas para el usuario (sin código):**
-1. Publicar la build actual.
-2. En `https://congress-connect-app.lovable.app/ACQFH-2026`, login con `TEST1234`.
-3. DevTools → Application → Service Workers → confirmar que `/sw.js` está activo.
-4. DevTools → Application → IndexedDB → confirmar que existe la base `keyval-store` con la key `congressapp-rq-cache`.
-5. DevTools → Network → modo "Offline" → recargar `/agenda` → debe pintar la lista completa.
-6. Enviar un announcement de prueba → confirmar push en dispositivo.
-
-**Acción opcional si quieres consola limpia:** envolver `PageLoader` en `React.forwardRef` (1 línea de cambio, sin impacto visual).
-
-¿Quieres que aplique el fix opcional del warning de `PageLoader`, o lo dejamos como está dado que no bloquea nada?
+Confirma estos 3 puntos y procedo a implementar los cambios en las 3 funciones, hacer deploy, y dejarte listo para enviar la prueba individual antes del envío masivo.
 
