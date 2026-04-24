@@ -47,7 +47,7 @@ export default function ProviderDashboard() {
             <h1 className="text-lg font-bold text-white">{session.company_name}</h1>
             <p className="text-xs text-white/70">{session.event_name}</p>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleLogout} className="text-white hover:bg-white/10">
+          <Button variant="ghost" size="sm" onClick={() => { void logout(); }} className="text-white hover:bg-white/10">
             <LogOut className="mr-1 h-4 w-4" /> {t('logout')}
           </Button>
         </div>
