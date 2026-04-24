@@ -16,6 +16,10 @@ interface UseProviderSessionReturn {
   logout: () => Promise<void>;
 }
 
+type ProviderRouteParams = {
+  eventSlug: string;
+};
+
 /**
  * Centralizes provider portal session verification used across /provider/* pages.
  * - Verifies a valid provider session exists.
@@ -27,15 +31,17 @@ export function useProviderSession(
   options: UseProviderSessionOptions = {}
 ): UseProviderSessionReturn {
   const { requirePasswordChanged = true } = options;
-  const { eventSlug } = useParams();
+  const { eventSlug } = useParams<ProviderRouteParams>();
   const navigate = useNavigate();
   const [session, setSession] = useState<ProviderSession | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
+    if (!eventSlug) return;
+
     let cancelled = false;
 
-    const loadSession = async () => {
+    const loadSession = async (): Promise<void> => {
       const s = await providerPortalService.getProviderSession();
 
       if (cancelled) return;
@@ -54,17 +60,18 @@ export function useProviderSession(
       setIsLoading(false);
     };
 
-    loadSession();
+    void loadSession();
 
     return () => {
       cancelled = true;
     };
   }, [eventSlug, navigate, requirePasswordChanged]);
 
-  const logout = useCallback(async () => {
+  const logout = useCallback(async (): Promise<void> => {
     await providerPortalService.logout();
     navigate(`/${eventSlug}/provider`, { replace: true });
   }, [eventSlug, navigate]);
 
   return { session, isLoading, logout };
 }
+
