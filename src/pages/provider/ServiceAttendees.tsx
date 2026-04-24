@@ -15,29 +15,39 @@ import { useProviderSession } from '@/hooks/useProviderSession';
 
 export default function ProviderServiceAttendees() {
   const { t } = useTranslation('provider');
-  const { eventSlug, serviceId } = useParams();
+  const { eventSlug, serviceId } = useParams<{ eventSlug: string; serviceId: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { session, isLoading: sessionLoading } = useProviderSession();
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState<string>('');
+
+  const providerId = session?.provider_id;
 
   const { data: services = [] } = useQuery({
-    queryKey: ['provider-services', session?.provider_id],
-    queryFn: () => providerPortalService.getServices(session!.provider_id),
-    enabled: !!session?.provider_id,
+    queryKey: ['provider-services', providerId] as const,
+    queryFn: () => {
+      if (!providerId) throw new Error('Provider session not ready');
+      return providerPortalService.getServices(providerId);
+    },
+    enabled: !!providerId,
   });
   const service = services.find((s) => s.id === serviceId);
 
-  const attendeesKey = ['provider-attendees', session?.provider_id, serviceId];
+  const attendeesKey = ['provider-attendees', providerId, serviceId] as const;
   const { data: attendees = [], isLoading } = useQuery({
     queryKey: attendeesKey,
-    queryFn: () => providerPortalService.getServiceAttendees(session!.provider_id, serviceId!),
-    enabled: !!session?.provider_id && !!serviceId,
+    queryFn: () => {
+      if (!providerId || !serviceId) throw new Error('Provider session or service not ready');
+      return providerPortalService.getServiceAttendees(providerId, serviceId);
+    },
+    enabled: !!providerId && !!serviceId,
   });
 
   const validateMut = useMutation({
-    mutationFn: (attendeeServiceId: string) =>
-      providerPortalService.validateTicket(session!.provider_id, attendeeServiceId),
+    mutationFn: (attendeeServiceId: string) => {
+      if (!providerId) throw new Error('Provider session not ready');
+      return providerPortalService.validateTicket(providerId, attendeeServiceId);
+    },
     onSuccess: (result) => {
       if (result.success) {
         toast.success('✅ ' + t('ticketValidated'));
