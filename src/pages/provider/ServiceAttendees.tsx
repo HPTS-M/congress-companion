@@ -82,7 +82,13 @@ export default function ProviderServiceAttendees() {
     }
   };
 
-  if (!session) return null;
+  if (sessionLoading || !session) {
+    return (
+      <div className="min-h-screen bg-muted/30 flex items-center justify-center">
+        <Skeleton className="h-8 w-32" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-muted/30">
