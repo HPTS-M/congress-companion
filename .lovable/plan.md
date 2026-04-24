@@ -1,134 +1,125 @@
+## Contexto
 
+Las 3 cosas pedidas (Supabase Auth real, tabla `user_roles` + `has_role()` SECURITY DEFINER, guards de ruta) **ya están implementadas**. Este plan **audita y refuerza** lo existente, en lugar de reescribirlo (lo cual rompería el evento ACQFH-2026 en curso con 83 sesiones activas).
 
-## Plan — Mensaje de disculpa por incidente en correo de regeneración
+## Estado actual verificado
 
-Actualizar la plantilla del correo que reciben los asistentes cuando se regenera su código, agregando el contexto del incidente técnico, el aviso de ignorar códigos anteriores, y la invitación al stand de soporte.
+| Pieza | Ubicación | Estado |
+|---|---|---|
+| Supabase Auth real | `src/hooks/useAuth.tsx` | ✅ Usa `supabase.auth.onAuthStateChange`, `getSession`, `signInWithPassword`, MFA. Sin mock. |
+| Tabla `user_roles` | DB `public.user_roles` | ✅ Con enum `app_role`, `organization_id`, `expires_at`, `is_active`, `assigned_by` |
+| `has_role()` SECURITY DEFINER | DB function | ✅ `STABLE`, `search_path=public`, valida `is_active` y `expires_at` |
+| RLS en `user_roles` | 7 políticas | ✅ Con `block_anon_access`, `Users can view own roles`, `Admins/Superusers manage` |
+| `AdminRoute` guard | `src/components/guards/AdminRoute.tsx` | ✅ Redirect real + chequeo MFA aal2 |
+| `AttendeeRoute` guard | `src/components/guards/AttendeeRoute.tsx` | ✅ Redirect real |
 
----
+## Hallazgos de la auditoría (gaps reales a cerrar)
 
-### Propuesta de copy (español, tono institucional y empático)
+### 1. Rutas Staff y Provider sin guard centralizado
+En `App.tsx` las rutas `/staff/checkin`, `/provider/dashboard`, `/provider/service/:id`, `/provider/change-password` están sueltas — la protección está duplicada *dentro* de cada página (`useEffect` que llama `getProviderSession` y hace `navigate`).
 
-**Asunto** *(sin cambios)*: `🔐 ACQFH-2026 — Nuevo código de acceso`
+Problemas:
+- Hay un flash de UI antes del redirect.
+- Lógica repetida en 4 archivos.
+- Si alguien añade una nueva página de provider y olvida copiar el `useEffect`, queda pública.
 
-**Preheader** *(nuevo)*:
-`Lamentamos los inconvenientes — este es tu nuevo código de acceso vigente.`
+**Fix:** crear `ProviderRoute.tsx` y `StaffRoute.tsx` siguiendo el mismo patrón que `AdminRoute`/`AttendeeRoute`, y envolver las rutas en `App.tsx` mediante elementos padre. Eliminar los `useEffect` redundantes en las páginas.
 
-**Eyebrow** *(sin cambios)*: `🔐 Nuevo código de acceso`
+### 2. `AdminRoute` no exige rol específico por ruta
+Hoy `isAdmin` se cumple si el usuario tiene cualquiera de: `superuser | admin | coordinator | field_manager`. Pero algunas rutas admin (ej. `staff`, `config`) deberían restringirse a `admin/superuser`.
 
-**Headline** *(sin cambios)*: `Hola {nombre}, tu código fue actualizado`
+**Fix:** extender `AdminRoute` con prop opcional `requiredRoles?: AppRole[]` y aplicarla en rutas sensibles. Sin romper el comportamiento por defecto.
 
-**Intro** *(reescrito):*
-> Lamentamos los inconvenientes causados por un **incidente técnico que ya ha sido resuelto**. Como medida de seguridad, hemos generado un **nuevo código de acceso** para ti.
->
-> Por favor, **haz caso omiso de cualquier código anterior** que hayas recibido y utiliza únicamente el que acompaña este correo.
+### 3. `useAuth` no expone los roles del usuario
+`loadAttendeeProfile` llama `get_user_roles` pero solo guarda el booleano `isAdmin`. Para guards por rol específico hace falta exponer el array.
 
-**Bloque de código** *(sin cambios)*: caja destacada con el nuevo código de 8 caracteres + label "Tu código de acceso".
+**Fix:** añadir `roles: AppRole[]` al estado de `AuthContextValue` y persistirlo. Crear helper `hasRole(role)` en el contexto.
 
-**Pasos "Cómo entrar"** *(sin cambios):*
-1. Toca el botón **"Entrar al evento"** que aparece más abajo.
-2. Ingresa tu **código personal de 8 caracteres**.
+### 4. Falta tipo `AppRole` en TypeScript
+El enum `app_role` existe en DB pero el frontend usa `string[]`. Riesgo de typos.
 
-**CTA** *(sin cambios)*: botón `Entrar al evento` → URL del evento.
+**Fix:** importar el tipo desde `src/integrations/supabase/types.ts` (auto-generado) y usarlo en todos los guards/hooks.
 
-**Bloque nuevo "¿Necesitas ayuda?"** *(insertado antes del footer):*
-> 💬 **¿Sigues teniendo inconvenientes?**
-> Acércate a nuestro **stand de soporte durante el congreso** — nuestro equipo estará acompañándote en todo momento para resolver cualquier requerimiento.
+### 5. (Opcional) `is_active` y `expires_at` ya están en `has_role` ✅
+Verificado: la función actual ya filtra `is_active = true AND (expires_at IS NULL OR expires_at > now())`. No hace falta cambio.
 
-**Footer note** *(reescrito ligeramente):*
-> Este código es personal e intransferible. Agradecemos tu comprensión.
+## Plan de implementación
 
-**Versión texto plano (fallback Resend):** misma estructura, sin HTML, generada automáticamente por `renderEmailText`.
+### Paso 1 — Backend (sin migración, ya está bien)
+No se requieren cambios en `user_roles` ni en `has_role()`. Solo verificar con `supabase--linter` que no haya warnings nuevos.
 
----
+### Paso 2 — Tipos compartidos
+- Crear `src/types/auth.ts` con:
+  - `export type AppRole = Database['public']['Enums']['app_role']`
+  - Constante `ADMIN_ROLES: AppRole[] = ['superuser','admin','coordinator','field_manager']`
 
-### Vista previa estructural del correo
+### Paso 3 — Extender `useAuth`
+- Añadir `roles: AppRole[]` al state.
+- Guardar el resultado de `get_user_roles` con tipo correcto.
+- Exponer helper `hasRole(role: AppRole): boolean` y `hasAnyRole(roles: AppRole[]): boolean`.
+- Mantener `isAdmin` como derivado para no romper consumidores actuales.
 
-```text
-┌───────────────────────────────────────────┐
-│  [Gradient header — CONGRESSAPP / ACQFH]  │
-├───────────────────────────────────────────┤
-│  🔐 Nuevo código de acceso                │
-│                                           │
-│  Hola {Nombre}, tu código fue actualizado │
-│                                           │
-│  Lamentamos los inconvenientes causados   │
-│  por un incidente técnico que ya ha sido  │
-│  resuelto. Como medida de seguridad...    │
-│                                           │
-│  Por favor, haz caso omiso de cualquier   │
-│  código anterior y utiliza únicamente...  │
-│                                           │
-│  ┌─────────────────────────────────────┐  │
-│  │   TU CÓDIGO DE ACCESO               │  │
-│  │       X X X X - X X X X             │  │
-│  └─────────────────────────────────────┘  │
-│                                           │
-│  Cómo entrar:                             │
-│   1. Toca "Entrar al evento"              │
-│   2. Ingresa tu código de 8 caracteres    │
-│                                           │
-│       ┌─────────────────────┐             │
-│       │  Entrar al evento   │             │
-│       └─────────────────────┘             │
-│                                           │
-│  ┌─────────────────────────────────────┐  │
-│  │ 💬 ¿Sigues teniendo inconvenientes? │  │
-│  │ Acércate a nuestro stand de soporte │  │
-│  │ durante el congreso — nuestro equipo│  │
-│  │ estará acompañándote en todo momento│  │
-│  └─────────────────────────────────────┘  │
-│                                           │
-│  Este código es personal e intransferible │
-├───────────────────────────────────────────┤
-│  ACQFH-2026 · Fechas · Sede                │
-│  CONGRESSAPP · Health Plus Travels        │
-└───────────────────────────────────────────┘
+### Paso 4 — Refinar `AdminRoute`
+- Añadir prop opcional `requiredRoles?: AppRole[]`.
+- Si se pasa, validar con `hasAnyRole` además de `isAdmin`.
+- Sin esa prop, comportamiento idéntico al actual.
+
+### Paso 5 — Crear `ProviderRoute` y `StaffRoute`
+- `ProviderRoute.tsx`: lee sesión via `providerPortalService.getProviderSession()`, valida `event_code === eventSlug`, redirige a `/${eventSlug}/provider`. Maneja `password_changed` (redirige a change-password si falta).
+- `StaffRoute.tsx`: valida `isAuthenticated`, llama `adminStaffService.getStaffByUserId`, redirige a `/${eventSlug}/staff` si no es staff del evento.
+- Ambos muestran skeleton mientras cargan.
+
+### Paso 6 — Aplicar guards en `App.tsx`
+Reagrupar rutas con elementos padre que rendericen el guard:
+
+```tsx
+<Route path="provider" element={<ProviderRoute />}>
+  <Route index element={<ProviderLogin />} />        {/* login pública */}
+  <Route path="change-password" element={<ProviderChangePassword />} />
+  <Route path="dashboard" element={<ProviderDashboard />} />
+  <Route path="service/:serviceId" element={<ProviderServiceAttendees />} />
+</Route>
 ```
 
----
+(Login pública queda fuera del guard, o el guard la deja pasar.)
 
-### Cambios técnicos (solo lo necesario)
+### Paso 7 — Limpiar páginas de provider/staff
+Eliminar el `useEffect` de auth-check en `Dashboard.tsx`, `ServiceAttendees.tsx`, `ChangePassword.tsx`, `CheckinView.tsx` ahora que el guard se encarga. Mantener solo la carga de datos.
 
-**Archivo 1 — `supabase/functions/bulk-regenerate-access-codes/index.ts`** *(función `buildInvitationEmail`, prioritaria — la usarás para el envío masivo)*
+### Paso 8 — Aplicar `requiredRoles` en rutas admin sensibles
+- `admin/staff` y `admin/config` → `requiredRoles={['superuser','admin']}` (excluye coordinator/field_manager).
+- Resto de rutas admin sigue sin restricción extra.
 
-- Reemplazar `preheader`, `intro` y `footerNote` con el copy nuevo.
-- Insertar un nuevo bloque `supportBlock` (caja destacada con borde teal `#00B89F` y fondo `#F0FDFA`) entre los pasos y el footer, con el mensaje del stand de soporte.
-- Concatenarlo en `body`: `codeBlock + stepList + supportBlock`.
+### Paso 9 — Validación
+- `supabase--linter` para confirmar sin warnings nuevos.
+- Probar login admin y verificar que `roles` se popula.
+- Probar acceso a `/provider/dashboard` sin sesión → redirect.
+- Probar acceso a `/admin/config` con coordinator → redirect a dashboard.
+- Verificar que los 83 usuarios activos del evento ACQFH-2026 no se vean afectados (no se tocan tablas ni `verify-access-code`).
 
-**Archivo 2 — `supabase/functions/regenerate-access-code/index.ts`** *(función `buildRegenEmail`, regeneración individual — para consistencia)*
+## Archivos modificados / creados
 
-- Mismos cambios de copy en `preheader`, `intro`, `footerNote`.
-- Misma inserción del bloque de soporte.
+**Nuevos:**
+- `src/types/auth.ts`
+- `src/components/guards/ProviderRoute.tsx`
+- `src/components/guards/StaffRoute.tsx`
 
-**Archivo 3 — `supabase/functions/_shared/email-templates.ts`** *(helper opcional)*
+**Modificados:**
+- `src/hooks/useAuth.tsx` (añadir `roles` y helpers)
+- `src/components/guards/AdminRoute.tsx` (prop `requiredRoles`)
+- `src/App.tsx` (reagrupar rutas provider/staff bajo guards)
+- `src/pages/provider/Dashboard.tsx` (quitar useEffect de auth)
+- `src/pages/provider/ServiceAttendees.tsx` (idem)
+- `src/pages/provider/ChangePassword.tsx` (idem)
+- `src/pages/staff/CheckinView.tsx` (mantener carga de staffMember, pero quitar redirect manual de auth)
 
-- Agregar una función `supportCallout(title: string, body: string): string` que renderice una caja destacada reusable. Mantiene el código limpio y permite reutilizar el bloque en futuras plantillas.
+**No se toca:**
+- Tabla `user_roles` ni función `has_role()` (ya correctas).
+- Edge function `verify-access-code` (login asistente).
+- RLS de ninguna tabla.
+- Sesión de los 83 usuarios activos.
 
-**Sin cambios en:**
-- Lógica de regeneración (bcrypt, BD, Resend) — intacta.
-- Frontend / modales admin — los textos del UI no cambian.
-- Asunto del correo — se mantiene.
-- i18n — el correo es solo en español por diseño actual del proyecto.
+## Riesgos
 
----
-
-### Validación post-cambio
-
-1. **Deploy** de las dos edge functions modificadas.
-2. **Prueba dirigida** con 1 asistente real (TEST1234 o similar) usando el modal "Regenerar acceso" individual → revisar correo recibido.
-3. **Confirmar visualmente** en cliente Gmail/Outlook web/iOS Mail que:
-   - El bloque de disculpa aparece arriba con el tono correcto.
-   - La caja del código resalta.
-   - El bloque "¿Necesitas ayuda? Stand de soporte" aparece destacado en teal.
-4. **Solo después de validar el correo individual**, ejecutar la regeneración masiva desde el modal "Regenerar códigos en lote".
-
----
-
-### Decisiones que necesito confirmar antes de implementar
-
-1. **Tono del incidente:** ¿prefieres mencionarlo explícitamente como "incidente técnico" (transparente) o suavizarlo como "actualización de seguridad" (más neutro)? Mi propuesta usa la primera.
-2. **Ubicación del stand:** ¿quieres que el bloque diga genéricamente "nuestro stand de soporte" o agrego ubicación concreta (ej. "stand de registro, lobby principal")? Si me das la ubicación, la incluyo.
-3. **Firma:** ¿agregamos al final el nombre del organizador (ej. "El equipo de ACQFH-2026") o se mantiene el footer estándar de CONGRESSAPP?
-
-Confirma estos 3 puntos y procedo a implementar los cambios en las 3 funciones, hacer deploy, y dejarte listo para enviar la prueba individual antes del envío masivo.
-
+- **Bajo:** los cambios son aditivos y compatibles hacia atrás. El comportamiento de `isAdmin`/`isAttendee` actual se preserva.
+- **Mitigación:** al desplegar, validar primero en `id-preview-*.lovable.app` con un usuario admin y un asistente del evento ACQFH-2026 antes de que afecte a producción.
