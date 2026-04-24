@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -9,28 +9,17 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft, Search, CheckCircle2, Download } from 'lucide-react';
 import { toast } from 'sonner';
-import { providerPortalService, type ProviderSession } from '@/services/provider-portal.service';
+import { providerPortalService } from '@/services/provider-portal.service';
 import { writeExcelFile } from '@/lib/excel';
+import { useProviderSession } from '@/hooks/useProviderSession';
 
 export default function ProviderServiceAttendees() {
   const { t } = useTranslation('provider');
   const { eventSlug, serviceId } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const [session, setSession] = useState<ProviderSession | null>(null);
+  const { session, isLoading: sessionLoading } = useProviderSession();
   const [search, setSearch] = useState('');
-
-  useEffect(() => {
-    const loadSession = async () => {
-      const s = await providerPortalService.getProviderSession();
-      if (!s || s.event_code !== eventSlug) {
-        navigate(`/${eventSlug}/provider`, { replace: true });
-        return;
-      }
-      setSession(s);
-    };
-    loadSession();
-  }, [eventSlug, navigate]);
 
   const { data: services = [] } = useQuery({
     queryKey: ['provider-services', session?.provider_id],
@@ -93,7 +82,13 @@ export default function ProviderServiceAttendees() {
     }
   };
 
-  if (!session) return null;
+  if (sessionLoading || !session) {
+    return (
+      <div className="min-h-screen bg-muted/30 flex items-center justify-center">
+        <Skeleton className="h-8 w-32" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-muted/30">

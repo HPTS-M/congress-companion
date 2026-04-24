@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -7,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { LogOut, Bus, UtensilsCrossed, Map, Sparkles, Users, ChevronRight } from 'lucide-react';
-import { providerPortalService, type ProviderSession } from '@/services/provider-portal.service';
+import { providerPortalService } from '@/services/provider-portal.service';
+import { useProviderSession } from '@/hooks/useProviderSession';
 
 const TYPE_ICONS: Record<string, React.ElementType> = {
   transport: Bus, food: UtensilsCrossed, tour: Map, special: Sparkles,
@@ -17,26 +17,7 @@ export default function ProviderDashboard() {
   const { t } = useTranslation('provider');
   const { eventSlug } = useParams();
   const navigate = useNavigate();
-  const [session, setSession] = useState<ProviderSession | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadSession = async () => {
-      const s = await providerPortalService.getProviderSession();
-      if (!s || s.event_code !== eventSlug) {
-        navigate(`/${eventSlug}/provider`, { replace: true });
-        return;
-      }
-      // Check if password needs to be changed
-      if (!s.password_changed) {
-        navigate(`/${eventSlug}/provider/change-password`, { replace: true });
-        return;
-      }
-      setSession(s);
-      setLoading(false);
-    };
-    loadSession();
-  }, [eventSlug, navigate]);
+  const { session, isLoading: sessionLoading, logout } = useProviderSession();
 
   const { data: services = [], isLoading } = useQuery({
     queryKey: ['provider-services', session?.provider_id],
@@ -45,11 +26,10 @@ export default function ProviderDashboard() {
   });
 
   const handleLogout = async () => {
-    await providerPortalService.logout();
-    navigate(`/${eventSlug}/provider`, { replace: true });
+    await logout();
   };
 
-  if (loading || !session) {
+  if (sessionLoading || !session) {
     return (
       <div className="min-h-screen bg-muted/30 flex items-center justify-center">
         <Skeleton className="h-8 w-32" />
