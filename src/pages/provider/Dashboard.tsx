@@ -15,19 +15,19 @@ const TYPE_ICONS: Record<string, React.ElementType> = {
 
 export default function ProviderDashboard() {
   const { t } = useTranslation('provider');
-  const { eventSlug } = useParams();
+  const { eventSlug } = useParams<{ eventSlug: string }>();
   const navigate = useNavigate();
   const { session, isLoading: sessionLoading, logout } = useProviderSession();
+  const providerId = session?.provider_id;
 
   const { data: services = [], isLoading } = useQuery({
-    queryKey: ['provider-services', session?.provider_id],
-    queryFn: () => providerPortalService.getServices(session!.provider_id),
-    enabled: !!session?.provider_id,
+    queryKey: ['provider-services', providerId] as const,
+    queryFn: () => {
+      if (!providerId) throw new Error('Provider session not ready');
+      return providerPortalService.getServices(providerId);
+    },
+    enabled: !!providerId,
   });
-
-  const handleLogout = async () => {
-    await logout();
-  };
 
   if (sessionLoading || !session) {
     return (
