@@ -15,19 +15,19 @@ const TYPE_ICONS: Record<string, React.ElementType> = {
 
 export default function ProviderDashboard() {
   const { t } = useTranslation('provider');
-  const { eventSlug } = useParams();
+  const { eventSlug } = useParams<{ eventSlug: string }>();
   const navigate = useNavigate();
   const { session, isLoading: sessionLoading, logout } = useProviderSession();
+  const providerId = session?.provider_id;
 
   const { data: services = [], isLoading } = useQuery({
-    queryKey: ['provider-services', session?.provider_id],
-    queryFn: () => providerPortalService.getServices(session!.provider_id),
-    enabled: !!session?.provider_id,
+    queryKey: ['provider-services', providerId] as const,
+    queryFn: () => {
+      if (!providerId) throw new Error('Provider session not ready');
+      return providerPortalService.getServices(providerId);
+    },
+    enabled: !!providerId,
   });
-
-  const handleLogout = async () => {
-    await logout();
-  };
 
   if (sessionLoading || !session) {
     return (
@@ -47,7 +47,7 @@ export default function ProviderDashboard() {
             <h1 className="text-lg font-bold text-white">{session.company_name}</h1>
             <p className="text-xs text-white/70">{session.event_name}</p>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleLogout} className="text-white hover:bg-white/10">
+          <Button variant="ghost" size="sm" onClick={() => { void logout(); }} className="text-white hover:bg-white/10">
             <LogOut className="mr-1 h-4 w-4" /> {t('logout')}
           </Button>
         </div>
